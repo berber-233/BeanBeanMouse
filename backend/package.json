@@ -1,0 +1,14 @@
+{
+  "name": "trade-boat-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "trade boat 后端（阶段 1 MVP：Node 内置 HTTP + SQLite，零依赖）",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node test/api.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}

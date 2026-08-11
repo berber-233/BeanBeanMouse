@@ -142,3 +142,38 @@ flowchart LR
 前端已接入数据层：`loadState / saveState` 改走 `api.storage`，
 `api.*` 变更后自动触发页面重绘（`api:changed` 事件），
 后续把 mock 换成真实接口时页面逻辑无需改动。
+
+## 11. 阶段 1 已开工（2026-08 · 后端 MVP）
+
+按“先建库、再实现接口”的顺序完成第一版可运行后端：
+
+- `backend/db/schema.sqlite.sql` — 本地开发/测试库（SQLite，启动自动建表 + 种子）
+- `backend/db/schema.postgres.sql` — 生产库 DDL（PostgreSQL）
+- `backend/src/server.mjs` — HTTP 服务与全部接口（对应 openapi.yaml）
+- `backend/src/db.mjs / auth.mjs / seed.mjs` — 数据访问、scrypt 密码哈希、
+  HMAC 令牌、演示数据
+- `backend/test/api.test.mjs` — 接口自动化测试（33 项断言，全部通过）
+- 说明与启动方式：`backend/README.md`
+
+技术说明：阶段 1 刻意保持零依赖（Node 内置 http + sqlite），先跑通业务闭环；
+正式部署时替换为 PostgreSQL + 框架（NestJS/Express）并加分页、队列、WebSocket。
+
+## 12. 阶段 1 增强（2026-08 · 占位方向全部落地）
+
+按顺序完成六个方向的实现：
+
+1. **翻译服务端代理**（`src/translate.mjs`）：真实服务链 MyMemory→LibreTranslate→离线词典兜底，
+   结果缓存 + 按用户每日字符额度（`TRANSLATION_DAILY_QUOTA`），超限返回 429；
+2. **文件上传**（`src/storage.mjs`）：multipart 与 base64 JSON 两种上传，类型/大小校验，
+   本地磁盘存储 + 下载接口，存储层抽象可换 S3/OSS；
+3. **WebSocket 消息**（`src/ws.mjs`）：RFC6455 握手与帧编解码（零依赖），
+   `/ws?token=` 鉴权，会话内广播 + 落库；
+4. **邮件与站内通知**（`src/mailer.mjs`）：询盘→通知卖家、报价→通知买家，
+   邮件走 mail_outbox 落库（transport 可切 SMTP）；
+5. **接口分页**：产品/资讯/日志支持 `page/size`，返回 `{items,total,page,size}`，
+   前端 api.js HTTP 模式自动解包保持一致；
+6. **生产部署**：Dockerfile + docker-compose（数据/上传卷挂载）、.env.example、
+   `docs/deployment-guide.md`（HTTPS、PostgreSQL 迁移、备份与上线前外部服务清单）。
+
+安全自查补充：登录限流（同 IP 每分钟 10 次）、上传类型/大小白名单、服务端生成文件键防路径穿越、
+令牌过期校验；测试共 160 项通过（后端接口 37 + WebSocket 5 + 前端数据层 16 + 页面回归 102）。

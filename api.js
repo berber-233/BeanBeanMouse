@@ -102,7 +102,8 @@ api.products = {
   async list({ kw, cat, min, max, origin, includeOffline = false } = {}) {
     if (api.config.mode === 'http') {
       const qs = new URLSearchParams({ kw: kw || '', cat: cat || '', origin: origin || '' });
-      return apiRequest('/products?' + qs.toString());
+      const r = await apiRequest('/products?' + qs.toString());
+      return r.items || [];
     }
     await apiDelay();
     let list = mockProducts().filter(p => includeOffline || !p.status || p.status === 'on');
@@ -278,7 +279,8 @@ api.news = {
   async list(params) {
     if (api.config.mode === 'http') {
       const qs = new URLSearchParams(params || {});
-      return apiRequest('/news?' + qs.toString());
+      const r = await apiRequest('/news?' + qs.toString());
+      return r.items || [];
     }
     await apiDelay();
     return apiClone(typeof NEWS_ITEMS !== 'undefined' ? NEWS_ITEMS : []);

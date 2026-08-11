@@ -102,3 +102,33 @@
   `loadState / saveState` 已改走 `api.storage`，`api:*` 变更自动触发页面重绘；
 - `test/api-smoke.cjs`：数据层冒烟测试 16 项断言全部通过；原有 102 项页面回归通过；
 - 过程中发现并修复：`api.storage` 未挂载导致的启动报错；冻结用户测试场景需先构造数据。
+
+## 第 13 轮：后端建库与接口实现（阶段 1 MVP）
+
+**用户需求**：“一步步来，先按 ER 图建库、再按 OpenAPI 实现接口。”
+
+**处理结果**：
+- 建库：`backend/db/schema.sqlite.sql`（本地测试，16 张表，启动自动建表+种子）
+  与 `backend/db/schema.postgres.sql`（生产 PostgreSQL DDL）；
+- 实现接口：`backend/src/server.mjs` 用 Node 内置 HTTP 实现 OpenAPI 全部核心端点
+  （认证、企业、产品与审核、询盘报价、消息、翻译代理占位、防伪验真、资讯、通知、管理、文件占位）；
+- 基础设施：scrypt 密码哈希、HMAC 令牌、角色鉴权、CORS、审计日志、自动种子数据；
+- 测试：`backend/test/api.test.mjs` 33 项断言全部通过（登录/冻结/注册、产品发布与审核权限、
+  询盘报价、防伪验真、翻译、资讯、管理看板/日志等）；
+- 零依赖方案：Node 内置 `node:http` + `node:sqlite`，无需安装任何包即可运行；
+  正式部署再切换 PostgreSQL + 框架。
+
+## 第 14 轮：占位方向全部实现 + 查漏补缺
+
+**用户需求**：“按顺序全部做一遍，然后查漏补缺。”
+
+**处理结果**：
+- 翻译：服务端代理真实服务链（MyMemory→LibreTranslate→离线兜底）+ 缓存 + 每日额度（429）；
+- 文件：multipart/base64 上传、类型与大小校验、本地磁盘存储 + 下载，存储层可换 S3/OSS；
+- 消息：零依赖 WebSocket（握手/帧编解码/鉴权/会话广播/落库）；
+- 通知邮件：询盘→卖家、报价→买家自动通知 + 邮件落库（可切 SMTP）；
+- 分页：产品/资讯/日志支持 page/size；
+- 部署：Dockerfile + docker-compose + .env.example + 部署指南（HTTPS/PostgreSQL 迁移/运维）；
+- 查漏补缺：修复 WebSocket 会话外键崩溃、额度测试基数错误；补充登录限流、上传白名单、
+  路径穿越防护、uploads 忽略；全套 160 项测试通过（后端 42 + 前端 118）；
+- 待外部凭据项明确列出：真实翻译额度、SMTP、S3/OSS、WebSocket 成熟库、支付/电子签/物流（阶段 2）。

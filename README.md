@@ -72,6 +72,7 @@
 - `data.js` — 演示数据与中英文文案
 - `api.js` — 前端数据层（阶段 0：mock 模拟后端，预留 http 接入）
 - `app.js` — 页面路由与业务逻辑
+- `backend/` — 后端服务（阶段 1 MVP：Node 内置 HTTP + SQLite，零依赖；详见 backend/README.md）
 - `screenshots/` — 各页面效果截图
 - `test/` — 自动化验证与截图脚本（基于 Playwright，可重复运行）
 - `docs/` — 后端设计文档（ER 图、OpenAPI 接口定义、建设路线）
