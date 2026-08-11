@@ -1,4 +1,4 @@
--- trade boat 数据库（SQLite · 本地开发/测试用）
+-- BeanBeanDragon（豆豆龙）数据库（SQLite · 本地开发/测试用）
 -- 生产环境请使用 db/schema.postgres.sql（PostgreSQL）
 
 CREATE TABLE IF NOT EXISTS users (

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>trade boat · 全球贸易平台</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D4ED8'/%3E%3Cpath d='M16 5v11' stroke='%23fff' stroke-width='1.5'/%3E%3Cpath d='M15 6c-2.8 2.2-4.2 4.4-4.7 7h9.4c-.5-2.6-1.9-4.8-4.7-7z' fill='%23fff'/%3E%3Cpath d='M6 20h20l-3.5 4h-13z' fill='%23fff'/%3E%3Cpath d='M9 25c1.2-1 3-1 4.2 0 1.2 1 3 1 4.2 0 1.2-1 3-1 4.2 0' stroke='%237DA2FF' stroke-width='1.2' fill='none'/%3E%3C/svg%3E">
+  <title>BeanBeanDragon · 全球贸易平台</title>
+  <link rel="icon" href="assets/logo.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,9 +12,9 @@
     <div class="header-inner">
       <a class="brand" href="#/" data-nav="/">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="22" height="22"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M16 5v11" stroke="#fff" stroke-width="1.5"/><path d="M15 6c-2.8 2.2-4.2 4.4-4.7 7h9.4c-.5-2.6-1.9-4.8-4.7-7z" fill="#fff"/><path d="M6 20h20l-3.5 4h-13z" fill="#fff"/><path d="M9 25c1.2-1 3-1 4.2 0 1.2 1 3 1 4.2 0 1.2-1 3-1 4.2 0" stroke="#7DA2FF" stroke-width="1.2" fill="none"/></svg>
+          <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="#1D4ED8"/><circle cx="32" cy="26" r="9" fill="none" stroke="#fff" stroke-width="2.5"/><circle cx="29" cy="24" r="1.2" fill="#fff"/><circle cx="35" cy="24" r="1.2" fill="#fff"/><path d="M30 30 Q32 32 34 30" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M32 35 L32 50" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M32 39 L22 44" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M32 39 L42 34" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M32 50 L25 58" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M32 50 L39 58" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
         </span>
-        <span class="brand-name">trade <span>boat</span></span>
+        <span class="brand-name">BeanBean<span>Dragon</span></span>
       </a>
       <nav class="main-nav" aria-label="主导航">
         <a href="#/" data-nav="/" data-i18n="home">首页</a>
@@ -38,7 +38,7 @@
   <footer class="site-footer">
     <div class="footer-inner">
       <div class="footer-brand">
-        <span class="brand-name brand-name--footer">trade <span>boat</span></span>
+        <span class="brand-name brand-name--footer">BeanBean<span>Dragon</span></span>
         <p data-i18n="footerTagline">连接全球买家与优质供应商的 B2B 贸易平台（演示原型）</p>
       </div>
       <div class="footer-links">
@@ -52,13 +52,28 @@
         <button type="button" class="footer-link" data-action="fake-check" data-i18n="fakeCheck">防伪查询</button>
         <button type="button" class="footer-link" data-action="site-verify" data-i18n="verifySite">验证本站真伪</button>
       </div>
-      <p class="footer-rights" data-i18n="rights">© 2026 trade boat 演示原型 · 仅用于设计演示</p>
+      <p class="footer-rights" data-i18n="rights">© 2026 BeanBeanDragon 演示原型 · 仅用于设计演示</p>
     </div>
   </footer>
 
   <div id="modalRoot"></div>
   <div id="toastRoot" class="toast-root" aria-live="polite"></div>
   <div id="printDoc" class="print-only" aria-hidden="true"></div>
+
+  <div id="helpWidget" class="help-widget">
+    <div class="help-panel" id="helpPanel" hidden>
+      <div class="help-head">
+        <img src="assets/logo.svg" alt="" width="34" height="34" class="help-head-img">
+        <span class="help-title" id="helpTitle">网站使用帮助</span>
+        <button type="button" class="modal-x help-close" data-action="close-help" aria-label="Close">✕</button>
+      </div>
+      <div class="help-body" id="helpBody"></div>
+    </div>
+    <button type="button" class="help-btn" data-action="toggle-help" title="网站使用帮助" aria-label="网站使用帮助">
+      <img src="assets/mascot.svg" alt="BeanBeanDragon help" width="64" height="64">
+      <span class="help-badge">?</span>
+    </button>
+  </div>
 
   <script src="data.js"></script>
   <script src="api.js"></script>

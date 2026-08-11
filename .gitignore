@@ -1,0 +1,14 @@
+# 临时/中间文件
+work/
+
+# 依赖与构建产物
+node_modules/
+
+# 真实密钥与环境配置（.env.example 仍会提交）
+backend/.env
+.env
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db

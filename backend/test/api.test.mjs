@@ -1,4 +1,4 @@
-/* trade boat 后端接口测试：启动内存 SQLite + HTTP 服务，逐接口断言 */
+/* BeanBeanDragon 后端接口测试：启动内存 SQLite + HTTP 服务，逐接口断言 */
 process.env.DB_PATH = ':memory:';
 process.env.TRANSLATION_PROVIDER = 'mock';
 process.env.TRANSLATION_DAILY_QUOTA = '10';
@@ -212,6 +212,44 @@ let inquiryId;
 {
   const r = await req('/files', { method: 'POST', token: sellerToken, body: { data: Buffer.from('not an image').toString('base64'), mime: 'text/html' } });
   check('file upload unsupported type -> 400', r.status === 400 && r.data.error === 'UNSUPPORTED_TYPE');
+}
+
+/* ---- DeepL 真实通道（本地假端点：验证鉴权头、表单与响应解析） ---- */
+{
+  const savedProvider = process.env.TRANSLATION_PROVIDER;
+  const savedKey = process.env.DEEPL_API_KEY;
+  const savedUrl = process.env.DEEPL_API_URL;
+
+  process.env.TRANSLATION_PROVIDER = 'deepl';
+  delete process.env.DEEPL_API_KEY;
+  const r0 = await req('/translate', { method: 'POST', body: { text: 'Hello', target: 'zh' } });
+  check('deepl missing key -> 503 CONFIG_MISSING', r0.status === 503 && r0.data.error === 'CONFIG_MISSING');
+
+  const http = await import('node:http');
+  let seen = null;
+  const fake = http.createServer((q, s) => {
+    let b = '';
+    q.on('data', c => { b += c; });
+    q.on('end', () => {
+      seen = { auth: q.headers.authorization, type: q.headers['content-type'], body: b };
+      s.writeHead(200, { 'Content-Type': 'application/json' });
+      s.end(JSON.stringify({ translations: [{ text: '你好' }] }));
+    });
+  });
+  await new Promise(r => fake.listen(0, '127.0.0.1', r));
+  process.env.TRANSLATION_PROVIDER = 'deepl';
+  process.env.DEEPL_API_KEY = 'test-key-123';
+  process.env.DEEPL_API_URL = 'http://127.0.0.1:' + fake.address().port + '/translate';
+
+  const r1 = await req('/translate', { method: 'POST', body: { text: 'Hello', target: 'zh' } });
+  check('deepl proxy -> 200 + translated text', r1.status === 200 && r1.data.text === '你好' && r1.data.provider === 'deepl');
+  check('deepl auth header', !!seen && seen.auth === 'DeepL-Auth-Key test-key-123');
+  check('deepl form body', !!seen && seen.body.includes('target_lang=ZH') && seen.body.includes('text=Hello'));
+
+  fake.close();
+  process.env.TRANSLATION_PROVIDER = savedProvider;
+  if (savedKey) process.env.DEEPL_API_KEY = savedKey; else delete process.env.DEEPL_API_KEY;
+  if (savedUrl) process.env.DEEPL_API_URL = savedUrl; else delete process.env.DEEPL_API_URL;
 }
 
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));

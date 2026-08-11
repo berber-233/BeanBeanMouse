@@ -1,5 +1,5 @@
 /* ============================================================
- * trade boat 前端数据层（阶段 0）
+ * BeanBeanDragon（豆豆龙）前端数据层（阶段 0）
  * ------------------------------------------------------------
  * 页面所有数据统一通过 window.api 访问，不再直接读写 localStorage。
  * 当前 mode = 'mock'：用 localStorage 模拟后端（带网络延迟与错误语义）；
@@ -9,7 +9,7 @@
 
 const API_CONFIG = {
   mode: 'mock',           // 'mock' | 'http'
-  baseUrl: '',            // 例如 'https://api.tradeboat.example.com'
+  baseUrl: '',            // 例如 'https://api.beanbeandragon.example.com'
   latencyMs: 80           // 模拟网络延迟
 };
 

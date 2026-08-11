@@ -8,7 +8,7 @@ const path = require('path');
   });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const base = 'file:///C:/Users/LENOVO/Documents/ChatGPT/trade%20boat/index.html';
-  const out = 'C:/Users/LENOVO/Documents/ChatGPT/trade boat/screenshots';
+  const out = require('path').resolve(__dirname, '..', 'screenshots');
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));

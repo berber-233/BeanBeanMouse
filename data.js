@@ -1,4 +1,4 @@
-/* trade boat 演示数据层 */
+/* BeanBeanDragon（豆豆龙）演示数据层 */
 
 const STORE_KEY = 'bridgetrade_v1';
 window.__TB_STORE_KEY__ = STORE_KEY;
@@ -493,7 +493,7 @@ const COUNTRY_NAMES = {
 
 function buildUsers(now) {
   return [
-    { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: 'trade boat 运营部', country: 'CN', joinedAt: now - 864e5 * 220, status: 'active' },
+    { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: '豆豆龙运营部', country: 'CN', joinedAt: now - 864e5 * 220, status: 'active' },
     { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', joinedAt: now - 864e5 * 180, status: 'active' },
     { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', company: 'Müller GmbH', country: 'DE', joinedAt: now - 864e5 * 90, status: 'active' },
     { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', joinedAt: now - 864e5 * 150, status: 'active' },
@@ -534,7 +534,7 @@ const I18N = {
     trust2Title: '询盘直达', trust2Desc: '站内询盘 + 邮件双通道通知，时差不再是障碍。',
     trust3Title: '多语言支持', trust3Desc: '中英双语界面与产品信息，服务全球买家。',
     sellerCtaTitle: '成为供应商，免费入驻', sellerCtaDesc: '发布产品立即获得全球买家询盘，按效果付费，前期零成本。', sellerCtaBtn: '进入卖家工作台',
-    footerTagline: '连接全球买家与优质供应商的 B2B 贸易平台（演示原型）', rights: '© 2026 trade boat 演示原型 · 仅用于设计演示',
+    footerTagline: '连接全球买家与优质供应商的 B2B 贸易平台（演示原型）', rights: '© 2026 BeanBeanDragon 演示原型 · 仅用于设计演示',
     resultsCount: '个结果', filters: '筛选', category: '行业分类', priceRange: '价格区间 (USD)', minPrice: '最低价', maxPrice: '最高价',
     moq: '最小起订量', origin: '产地', certs: '认证', clearFilters: '清除筛选', sort: '排序',
     sortRecommended: '综合推荐', sortNewest: '最新上架', sortPriceAsc: '价格从低到高', sortPriceDesc: '价格从高到低',
@@ -620,15 +620,15 @@ const I18N = {
     otherLang: '其他', chooseLang: '选择语言', langAuto: '跟随浏览器语言（推荐）',
     langNote: '界面文案未完全覆盖的语言暂以英文显示；实时翻译支持 20+ 种语言。',
     sourceLang: '原文', srcLangField: '产品语言（发布语言）', srcLangAuto: '自动（按卖家地区）',
-    firstVisitTitle: '欢迎来到 trade boat！', firstVisitDesc: '选择您的语言，即可用当地语言浏览产品与资讯。',
+    firstVisitTitle: '欢迎来到豆豆龙！', firstVisitDesc: '选择您的语言，即可用当地语言浏览产品与资讯。',
     gotIt: '知道了', translateRef: '译文参考',
     fakeTitle: '防伪验证', fakeCheck: '防伪查询', fakeCode: '防伪码', fakeEnter: '请输入防伪码，验证产品真伪',
-    fakePlaceholder: '如 TB-1-42', fakeVerify: '验证', fakeHint: '示例防伪码可在产品详情页“验证真伪”中查看',
+    fakePlaceholder: '如 BBD-1-42', fakeVerify: '验证', fakeHint: '示例防伪码可在产品详情页“验证真伪”中查看',
     fakeNotFound: '未找到该防伪码，请核对后重试', fakeGenuine: '正品 · 已验证',
     fakeOkTitle: '验证通过 · 正品', fakeInfo: '该防伪码对应平台已备案产品，产品信息与认证供应商一致，可放心联系交易。',
     fakeProduct: '产品', fakeSeller: '认证供应商', fakeIssued: '平台签发', fakeVerifiedAt: '验证时间',
     fakeScan: '扫码验真（演示）', fakeScanNote: '正式版将接入权威验真服务与区块链存证。',
-    fakeSiteTitle: '官方平台认证', fakeSiteDesc: '本网站为 trade boat 官方平台。请认准官方域名与平台验真码，谨防仿冒钓鱼网站。',
+    fakeSiteTitle: '官方平台认证', fakeSiteDesc: '本网站为豆豆龙（BeanBeanDragon）官方平台。请认准官方域名与平台验真码，谨防仿冒钓鱼网站。',
     fakeDomain: '官方域名',
     fakeSiteCode: '平台验真码', verifySite: '验证本站真伪',
     needLogin: '请先登录后使用工作台', welcomeBack: '欢迎回来', guestName: '游客',
@@ -638,7 +638,7 @@ const I18N = {
     priceFrom: '起', perUnit: '/{unit}', totalProducts: '产品', featuredProducts: '精选产品',
     allCategories: '全部行业', allCountries: '全部产地', anyMoq: '不限', allCerts: '全部',
     quickActions: '快捷操作', publishedProducts: '在售产品', totalInquiries: '累计询盘', thisMonthInquiries: '本月询盘',
-    copy: '复制成功', languageName: 'EN', brand: 'trade boat'
+    copy: '复制成功', languageName: 'EN', brand: 'BeanBeanDragon'
   },
   en: {
     home: 'Home', marketplace: 'Products', dashboard: 'Dashboard', login: 'Sign in', logout: 'Sign out',
@@ -654,7 +654,7 @@ const I18N = {
     trust2Title: 'Inquiry delivery', trust2Desc: 'In-app + email notifications bridge time zones.',
     trust3Title: 'Multilingual', trust3Desc: 'Bilingual UI and product data serve global buyers.',
     sellerCtaTitle: 'Become a supplier — free to join', sellerCtaDesc: 'Get inquiries from global buyers with zero upfront cost.', sellerCtaBtn: 'Open seller dashboard',
-    footerTagline: 'A B2B trade platform connecting global buyers and trusted suppliers (demo prototype)', rights: '© 2026 trade boat demo prototype · For design demonstration only',
+    footerTagline: 'A B2B trade platform connecting global buyers and trusted suppliers (demo prototype)', rights: '© 2026 BeanBeanDragon demo prototype · For design demonstration only',
     resultsCount: 'results', filters: 'Filters', category: 'Category', priceRange: 'Price range (USD)', minPrice: 'Min', maxPrice: 'Max',
     moq: 'Min. order', origin: 'Origin', certs: 'Certifications', clearFilters: 'Clear filters', sort: 'Sort',
     sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price low → high', sortPriceDesc: 'Price high → low',
@@ -740,15 +740,15 @@ const I18N = {
     otherLang: 'Other', chooseLang: 'Choose language', langAuto: 'Use browser language (recommended)',
     langNote: 'Languages without full UI coverage fall back to English; live translation supports 20+ languages.',
     sourceLang: 'Original text', srcLangField: 'Product language (source)', srcLangAuto: 'Auto (by seller region)',
-    firstVisitTitle: 'Welcome to trade boat!', firstVisitDesc: 'Choose your language to browse products and news in your local language.',
+    firstVisitTitle: 'Welcome to BeanBeanDragon!', firstVisitDesc: 'Choose your language to browse products and news in your local language.',
     gotIt: 'Got it', translateRef: 'Translation',
     fakeTitle: 'Anti-counterfeit verification', fakeCheck: 'Verify product', fakeCode: 'Anti-counterfeit code', fakeEnter: 'Enter the anti-counterfeit code to verify the product',
-    fakePlaceholder: 'e.g. TB-1-42', fakeVerify: 'Verify', fakeHint: 'Sample codes are shown in “Verify” on each product page',
+    fakePlaceholder: 'e.g. BBD-1-42', fakeVerify: 'Verify', fakeHint: 'Sample codes are shown in “Verify” on each product page',
     fakeNotFound: 'Code not found. Please check and try again.', fakeGenuine: 'Genuine · Verified',
     fakeOkTitle: 'Verification passed · Genuine', fakeInfo: 'This code matches a registered product on the platform and its certified supplier. Safe to contact.',
     fakeProduct: 'Product', fakeSeller: 'Certified supplier', fakeIssued: 'Issued by platform', fakeVerifiedAt: 'Verified at',
     fakeScan: 'Scan to verify (demo)', fakeScanNote: 'The release version will integrate authoritative verification services and blockchain records.',
-    fakeSiteTitle: 'Official platform certification', fakeSiteDesc: 'This is the official trade boat platform. Check the official domain and platform code to avoid phishing sites.',
+    fakeSiteTitle: 'Official platform certification', fakeSiteDesc: 'This is the official BeanBeanDragon platform. Check the official domain and platform code to avoid phishing sites.',
     fakeDomain: 'Official domain',
     fakeSiteCode: 'Platform verification code', verifySite: 'Verify this site',
     needLogin: 'Please sign in to use the dashboard', welcomeBack: 'Welcome back', guestName: 'Guest',
@@ -758,7 +758,7 @@ const I18N = {
     priceFrom: 'From', perUnit: '/{unit}', totalProducts: 'products', featuredProducts: 'featured products',
     allCategories: 'All categories', allCountries: 'All origins', anyMoq: 'Any', allCerts: 'All',
     quickActions: 'Quick actions', publishedProducts: 'Live products', totalInquiries: 'Total inquiries', thisMonthInquiries: 'Inquiries this month',
-    copy: 'Copied', languageName: '中文', brand: 'trade boat'
+    copy: 'Copied', languageName: '中文', brand: 'BeanBeanDragon'
   }
 };
 
@@ -803,7 +803,7 @@ Object.assign(I18N, {
     sendInquiry: '見積依頼を送信', moqLabel: '最小注文数量', verified: '認証済みサプライヤー',
     favorite: 'お気に入り', favorited: 'お気に入り済み', filters: 'フィルター', clearFilters: 'フィルターをクリア',
     noResults: '該当する製品が見つかりません', noResultsHint: '条件を変えてお試しください',
-    footerTagline: '世界中のバイヤーと信頼できるサプライヤーをつなぐB2B貿易プラットフォーム（デモ版）', rights: '© 2026 trade boat デモ版・デザイン確認用'
+    footerTagline: '世界中のバイヤーと信頼できるサプライヤーをつなぐB2B貿易プラットフォーム（デモ版）', rights: '© 2026 BeanBeanDragon デモ版・デザイン確認用'
   },
   ko: {
     home: '홈', marketplace: '제품 시장', navNews: '무역 정보', dashboard: '대시보드',
@@ -816,7 +816,7 @@ Object.assign(I18N, {
     sendInquiry: '견적 문의 보내기', moqLabel: '최소 주문량', verified: '인증된 공급업체',
     favorite: '즐겨찾기', favorited: '즐겨찾기됨', filters: '필터', clearFilters: '필터 지우기',
     noResults: '일치하는 제품이 없습니다', noResultsHint: '조건을 조정해 보세요',
-    footerTagline: '전 세계 바이어와 신뢰할 수 있는 공급업체를 연결하는 B2B 무역 플랫폼(데모)', rights: '© 2026 trade boat 데모 · 디자인 확인용'
+    footerTagline: '전 세계 바이어와 신뢰할 수 있는 공급업체를 연결하는 B2B 무역 플랫폼(데모)', rights: '© 2026 BeanBeanDragon 데모 · 디자인 확인용'
   },
   es: {
     home: 'Inicio', marketplace: 'Mercado', navNews: 'Noticias', dashboard: 'Panel',
@@ -829,7 +829,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Cantidad mínima', verified: 'Proveedor verificado',
     favorite: 'Favorito', favorited: 'Favorito añadido', filters: 'Filtros', clearFilters: 'Limpiar filtros',
     noResults: 'No se encontraron productos', noResultsHint: 'Ajusta los filtros e inténtalo de nuevo',
-    footerTagline: 'Plataforma B2B que conecta compradores globales con proveedores confiables (demo)', rights: '© 2026 trade boat demo · solo para diseño'
+    footerTagline: 'Plataforma B2B que conecta compradores globales con proveedores confiables (demo)', rights: '© 2026 BeanBeanDragon demo · solo para diseño'
   },
   fr: {
     home: 'Accueil', marketplace: 'Marché', navNews: 'Actualités', dashboard: 'Tableau de bord',
@@ -842,7 +842,7 @@ Object.assign(I18N, {
     sendInquiry: 'Envoyer une demande', moqLabel: 'Quantité minimale', verified: 'Fournisseur vérifié',
     favorite: 'Favori', favorited: 'Déjà favori', filters: 'Filtres', clearFilters: 'Effacer les filtres',
     noResults: 'Aucun produit trouvé', noResultsHint: 'Essayez d’ajuster les filtres',
-    footerTagline: 'Plateforme B2B reliant acheteurs mondiaux et fournisseurs de confiance (démo)', rights: '© 2026 trade boat démo · démonstration de design'
+    footerTagline: 'Plateforme B2B reliant acheteurs mondiaux et fournisseurs de confiance (démo)', rights: '© 2026 BeanBeanDragon démo · démonstration de design'
   },
   de: {
     home: 'Startseite', marketplace: 'Marktplatz', navNews: 'Handelsnachrichten', dashboard: 'Dashboard',
@@ -855,7 +855,7 @@ Object.assign(I18N, {
     sendInquiry: 'Anfrage senden', moqLabel: 'Mindestbestellmenge', verified: 'Verifizierter Lieferant',
     favorite: 'Favorit', favorited: 'Als Favorit gespeichert', filters: 'Filter', clearFilters: 'Filter zurücksetzen',
     noResults: 'Keine passenden Produkte', noResultsHint: 'Passen Sie die Filter an',
-    footerTagline: 'B2B-Plattform, die globale Käufer und vertrauenswürdige Lieferanten verbindet (Demo)', rights: '© 2026 trade boat Demo · nur zur Designprüfung'
+    footerTagline: 'B2B-Plattform, die globale Käufer und vertrauenswürdige Lieferanten verbindet (Demo)', rights: '© 2026 BeanBeanDragon Demo · nur zur Designprüfung'
   },
   pt: {
     home: 'Início', marketplace: 'Mercado', navNews: 'Notícias', dashboard: 'Painel',
@@ -868,7 +868,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Quantidade mínima', verified: 'Fornecedor verificado',
     favorite: 'Favorito', favorited: 'Favoritado', filters: 'Filtros', clearFilters: 'Limpar filtros',
     noResults: 'Nenhum produto encontrado', noResultsHint: 'Ajuste os filtros e tente novamente',
-    footerTagline: 'Plataforma B2B que conecta compradores globais e fornecedores confiáveis (demonstração)', rights: '© 2026 trade boat demo · apenas para design'
+    footerTagline: 'Plataforma B2B que conecta compradores globais e fornecedores confiáveis (demonstração)', rights: '© 2026 BeanBeanDragon demo · apenas para design'
   },
   ru: {
     home: 'Главная', marketplace: 'Рынок', navNews: 'Новости', dashboard: 'Панель',
@@ -881,7 +881,7 @@ Object.assign(I18N, {
     sendInquiry: 'Отправить запрос', moqLabel: 'Мин. объём заказа', verified: 'Проверенный поставщик',
     favorite: 'Избранное', favorited: 'В избранном', filters: 'Фильтры', clearFilters: 'Сбросить фильтры',
     noResults: 'Товары не найдены', noResultsHint: 'Измените условия фильтра',
-    footerTagline: 'B2B-платформа, соединяющая покупателей и проверенных поставщиков (демо)', rights: '© 2026 trade boat демо · только для дизайна'
+    footerTagline: 'B2B-платформа, соединяющая покупателей и проверенных поставщиков (демо)', rights: '© 2026 BeanBeanDragon демо · только для дизайна'
   }
 });
 

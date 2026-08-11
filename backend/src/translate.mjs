@@ -43,6 +43,39 @@ async function providerLibre(text, target) {
   return j.translatedText;
 }
 
+function deeplLang(code) {
+  const map = {
+    'zh-CN': 'ZH', 'zh-TW': 'ZH-HANT', en: 'EN', ja: 'JA', ko: 'KO', es: 'ES', fr: 'FR',
+    de: 'DE', pt: 'PT', ru: 'RU', ar: 'AR', it: 'IT', nl: 'NL', pl: 'PL', sv: 'SV',
+    tr: 'TR', cs: 'CS', el: 'EL', uk: 'UK', id: 'ID', vi: 'VI', th: 'TH', hi: 'HI'
+  };
+  return map[code] || String(code || '').toUpperCase().split('-')[0];
+}
+
+/* 主真实通道：DeepL（需 DEEPL_API_KEY，生产建议 api.deepl.com） */
+async function providerDeepL(text, target, source) {
+  const key = process.env.DEEPL_API_KEY;
+  if (!key) throw new Error('DEEPL_KEY_MISSING');
+  const url = process.env.DEEPL_API_URL || 'https://api-free.deepl.com/v2/translate';
+  const params = new URLSearchParams();
+  params.append('text', text);
+  params.append('target_lang', deeplLang(target));
+  if (source) params.append('source_lang', deeplLang(source));
+  const r = await fetchTimeout(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'DeepL-Auth-Key ' + key,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: params.toString()
+  }, 6000);
+  if (!r.ok) throw new Error('DeepL HTTP ' + r.status);
+  const j = await r.json();
+  const out = j && j.translations && j.translations[0] && j.translations[0].text;
+  if (!out) throw new Error('DeepL empty');
+  return out;
+}
+
 /* 离线兜底：中英短语替换（正式环境仅在网络故障时触发） */
 export function offlineTranslate(text, target) {
   const s = String(text || '').trim();
@@ -100,10 +133,24 @@ export async function translateText({ userId, text, target, source }) {
 
   let result = null, provider = '';
   if (providerMode() !== 'mock') {
-    try { result = await providerMyMemory(s, tgt); provider = 'mymemory'; }
-    catch (e) {
-      try { result = await providerLibre(s, tgt); provider = 'libretranslate'; }
-      catch (e2) { /* 走离线兜底 */ }
+    if (providerMode() === 'deepl') {
+      if (!process.env.DEEPL_API_KEY) {
+        throw translateError(503, 'CONFIG_MISSING', '未配置 DEEPL_API_KEY（请写入 backend/.env）');
+      }
+      try { result = await providerDeepL(s, tgt, source); provider = 'deepl'; }
+      catch (e) { throw translateError(502, 'TRANSLATE_FAILED', 'DeepL 调用失败：' + e.message); }
+    } else {
+      if (process.env.DEEPL_API_KEY) {
+        try { result = await providerDeepL(s, tgt, source); provider = 'deepl'; }
+        catch (e) { /* 继续下一个通道 */ }
+      }
+      if (!result) {
+        try { result = await providerMyMemory(s, tgt); provider = 'mymemory'; }
+        catch (e) {
+          try { result = await providerLibre(s, tgt); provider = 'libretranslate'; }
+          catch (e2) { /* 走离线兜底 */ }
+        }
+      }
     }
   }
   if (!result) {

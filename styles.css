@@ -1,4 +1,4 @@
-/* ============ trade boat Design System ============ */
+/* ============ BeanBeanDragon Design System ============ */
 :root {
   --navy-900: #0A1830;
   --navy-800: #0F2145;
@@ -847,3 +847,24 @@ button { font-family: inherit; }
 .muted { color: var(--muted); } .small { font-size: 12.5px; }
 .text-danger { color: var(--danger); }
 .hidden { display: none !important; }
+
+/* ---------- 右下角帮助吉祥物 ---------- */
+.help-widget { position: fixed; right: 18px; bottom: 18px; z-index: 1200; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.help-btn { width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--border-2); padding: 0; cursor: pointer; background: var(--bg); box-shadow: 0 4px 14px rgba(15, 33, 69, 0.12); position: relative; transition: transform .18s ease; }
+.help-btn:hover { transform: translateY(-2px) scale(1.04); }
+.help-btn:focus-visible { outline: 3px solid rgba(29, 78, 216, 0.45); outline-offset: 2px; }
+.help-btn img { width: 60px; height: 60px; border-radius: 50%; display: block; margin: 1px auto; }
+.help-badge { position: absolute; top: -3px; right: -3px; width: 22px; height: 22px; border-radius: 50%; background: #E5553D; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; }
+.help-panel { width: 300px; max-height: min(480px, 65vh); overflow-y: auto; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(15, 30, 80, 0.18); border: 1px solid #E4EAF6; animation: helpIn .18s ease; }
+@keyframes helpIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.help-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 10px; border-bottom: 1px solid #EDF1F8; position: sticky; top: 0; background: #fff; border-radius: 16px 16px 0 0; }
+.help-head-img { width: 34px; height: 34px; border-radius: 50%; }
+.help-title { font-weight: 700; flex: 1; font-size: 14px; color: #16233F; }
+.help-close { position: static !important; }
+.help-body { padding: 10px 12px 14px; }
+.help-item { padding: 9px 0; border-bottom: 1px dashed #E7EDF7; }
+.help-item:last-child { border-bottom: none; }
+.help-item b { font-size: 13px; color: var(--accent); display: block; margin-bottom: 2px; }
+.help-item p { margin: 0; font-size: 12.5px; color: #4A5A78; line-height: 1.55; }
+@media (max-width: 560px) { .help-widget { right: 12px; bottom: 12px; } .help-panel { width: min(300px, calc(100vw - 40px)); } }
+@media print { .help-widget { display: none !important; } }

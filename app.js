@@ -1,4 +1,4 @@
-/* ================= trade boat 前端逻辑 ================= */
+/* ================= BeanBeanDragon（豆豆龙）前端逻辑 ================= */
 
 /* ---------- 基础工具 ---------- */
 const $ = sel => document.querySelector(sel);
@@ -496,6 +496,8 @@ function handleAction(el) {
     case 'legal-note': toast(t('legalNote')); break;
     case 'fake-check': openFakeCheck(); break;
     case 'site-verify': openSiteVerify(); break;
+    case 'toggle-help': toggleHelp(); break;
+    case 'close-help': closeHelp(); break;
     case 'verify-product': {
       const p = productById(id);
       if (p) showFakeResult(p, fakeCodeOf(p));
@@ -526,6 +528,7 @@ function handleAction(el) {
       saveState();
       closeModal();
       render();
+      if (!$('#helpPanel').hidden) renderHelpContent();
       break;
     case 'lang-more':
       openLangModal();
@@ -679,7 +682,7 @@ function fakeCodeOf(p) {
   if (!p) return '';
   const pid = String(p.id).toUpperCase().replace(/[^A-Z0-9]/g, '');
   const seed = p.id + ':' + p.sellerId + ':' + (p.en ? p.en.title : '');
-  return 'TB-' + pid + '-' + fakeChecksum(seed);
+  return 'BBD-' + pid + '-' + fakeChecksum(seed);
 }
 
 function productByFakeCode(code) {
@@ -730,7 +733,7 @@ function showFakeResult(p, code) {
     + '<div class="fake-row"><span>' + t('fakeCode') + '</span><b class="fake-code">' + esc(code) + '</b></div>'
     + '<div class="fake-row"><span>' + t('fakeProduct') + '</span><b>' + esc(langObj(p).title) + '</b></div>'
     + '<div class="fake-row"><span>' + t('fakeSeller') + '</span><b>' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ✅' : '') + '</b></div>'
-    + '<div class="fake-row"><span>' + t('fakeIssued') + '</span><b>trade boat</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeIssued') + '</span><b>BeanBeanDragon</b></div>'
     + '<div class="fake-row"><span>' + t('fakeVerifiedAt') + '</span><b>' + fmtDate(Date.now()) + '</b></div>'
     + '<div class="fake-qr">' + fakeQrSvg(code + p.id) + '</div>'
     + '<p class="small muted fake-scan-label">' + t('fakeScan') + '</p>'
@@ -744,9 +747,9 @@ function openSiteVerify() {
     '<div class="modal-head"><h3>🛡 ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body fake-result">'
     + '<div class="fake-ico fake-ico--ok">✓</div>'
-    + '<p class="fake-genuine">trade boat · ' + t('fakeSiteTitle') + '</p>'
-    + '<div class="fake-row"><span>' + t('fakeSiteCode') + '</span><b class="fake-code">TB-OFFICIAL-2026</b></div>'
-    + '<div class="fake-row"><span>' + t('fakeDomain') + '</span><b>github.io/trade-boat</b></div>'
+    + '<p class="fake-genuine">BeanBeanDragon · ' + t('fakeSiteTitle') + '</p>'
+    + '<div class="fake-row"><span>' + t('fakeSiteCode') + '</span><b class="fake-code">BBD-OFFICIAL-2026</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeDomain') + '</span><b>beanbeandragon.com</b></div>'
     + '<p class="small muted">' + t('fakeSiteDesc') + '</p>'
     + '<p class="small muted">' + t('fakeScanNote') + '</p>'
     + '</div>'
@@ -847,8 +850,44 @@ function productCard(p) {
 }
 
 /* ---------- 首页 ---------- */
+const HELP_ITEMS = {
+  zh: [
+    ['浏览产品', '进入「产品市场」，按行业、价格、产地、认证筛选，点击卡片查看详情。'],
+    ['发送询盘', '在详情页填写数量和需求发送询盘，供应商会通过站内消息和邮件回复。'],
+    ['卖家发布', '进入「工作台」→ 发布产品，填写规格与价格，平台审核通过后上架。'],
+    ['平台管理', '管理员可在产品审核、企业认证、用户管理、审计日志中完成日常管理。'],
+    ['语言与翻译', '右上角可切换语言；对话和详情页支持实时翻译（仅供参考）。'],
+    ['防伪查询', '页脚「防伪查询」输入防伪码验真；「验证本站真伪」可识别钓鱼网站。'],
+    ['单证打印', '报价单与形式发票按国际通行格式生成，支持打印或另存为 PDF。'],
+    ['贸易资讯', '按你关注的地域聚合权威政策，每条资讯附可查询的官方来源。']
+  ],
+  en: [
+    ['Browse products', 'Go to Products, filter by category, price, origin and certification, then click a card for details.'],
+    ['Send an inquiry', 'Fill in quantity and needs on the detail page; suppliers reply via in-app messages and email.'],
+    ['Seller publishing', 'Dashboard → Publish product, add specs and price; it goes live after platform review.'],
+    ['Platform admin', 'Admins manage product review, company verification, users and audit logs.'],
+    ['Language & translation', 'Switch language at the top-right; live translation is available in chats and details (for reference only).'],
+    ['Anti-counterfeit', 'Use Anti-counterfeit Query in the footer to verify codes; Verify This Site detects phishing.'],
+    ['Documents', 'Quotations and proforma invoices follow international formats and support print / save as PDF.'],
+    ['Trade news', 'Aggregated by your followed regions; every item links to an official source.']
+  ]
+};
+function helpLocale() { return state.lang === 'zh' ? 'zh' : 'en'; }
+function renderHelpContent() {
+  $('#helpTitle').textContent = helpLocale() === 'zh' ? '网站使用帮助' : 'Site help';
+  $('#helpBody').innerHTML = HELP_ITEMS[helpLocale()]
+    .map(([title, desc]) => '<div class="help-item"><b>' + esc(title) + '</b><p>' + esc(desc) + '</p></div>')
+    .join('');
+}
+function toggleHelp() {
+  const panel = $('#helpPanel');
+  if (panel.hidden) { renderHelpContent(); panel.hidden = false; }
+  else panel.hidden = true;
+}
+function closeHelp() { $('#helpPanel').hidden = true; }
+
 function renderHome() {
-  document.title = 'trade boat · ' + t('heroTitle');
+  document.title = 'BeanBeanDragon · ' + t('heroTitle');
   const live = state.products.filter(isLive);
   const featured = live.filter(p => p.featured).slice(0, 6);
   const countries = new Set(live.map(p => p.country)).size;
@@ -895,7 +934,7 @@ function renderHome() {
 
 /* ---------- 产品市场 ---------- */
 function renderProducts(params) {
-  document.title = t('marketplace') + ' · trade boat';
+  document.title = t('marketplace') + ' · BeanBeanDragon';
   const kw = (params.get('kw') || '').trim();
   const cat = params.get('cat') || '';
   const sort = params.get('sort') || 'recommended';
@@ -1050,7 +1089,7 @@ function briefCard(n) {
 }
 
 function renderNews(params) {
-  document.title = t('newsTitle') + ' · trade boat';
+  document.title = t('newsTitle') + ' · BeanBeanDragon';
   const cat = params.get('cat') || 'all';
   const regions = state.newsRegions || ['GLOBAL'];
   const showAll = regions.includes('GLOBAL');
@@ -1106,7 +1145,7 @@ function bindNewsPage() {
 function renderDetail(pid) {
   const p = productById(pid);
   if (!p || !isLive(p)) return renderHome();
-  document.title = langObj(p).title + ' · trade boat';
+  document.title = langObj(p).title + ' · BeanBeanDragon';
   const seller = sellerOf(p);
   const cat = catById(p.cat);
   const fav = state.favorites.includes(p.id);
@@ -1289,7 +1328,7 @@ function submitInquiry(f) {
 
 /* ---------- 登录页 ---------- */
 function renderLogin() {
-  document.title = t('login') + ' · trade boat';
+  document.title = t('login') + ' · BeanBeanDragon';
   return '<div class="container"><div class="login-wrap">'
     + '<h1>' + t('loginTitle') + '</h1>'
     + '<p class="sub">' + t('loginDesc') + '</p>'
@@ -1406,7 +1445,7 @@ function renderSellerDash(path) {
 
 /* ---------- 平台管理员后台 ---------- */
 function renderAdminDash(path) {
-  document.title = t('adminPanel') + ' · trade boat';
+  document.title = t('adminPanel') + ' · BeanBeanDragon';
   const activeTab = path.split('/')[2] || 'overview';
   const pendingCount = state.products.filter(p => p.status === 'pending').length;
   const verifyCount = (state.companies || []).filter(c => c.status === 'pending').length;
@@ -1693,7 +1732,7 @@ function buildDoc(i, type) {
   const dateFmt = ts => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
   return '<div class="doc" id="docSheet">'
     + '<div class="doc-head">'
-    + '<div class="doc-brand"><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div><div class="doc-web">trade boat</div></div>'
+    + '<div class="doc-brand"><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div><div class="doc-web">BeanBeanDragon</div></div>'
     + '<div class="doc-title"><h2>' + esc(title) + '</h2><div>DOCUMENT · ' + t('quoteBlock') + '</div></div>'
     + '</div>'
     + '<div class="doc-meta">'

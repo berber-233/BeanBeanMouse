@@ -1,4 +1,4 @@
-# trade boat 生产部署指南
+# BeanBeanDragon（豆豆龙）生产部署指南
 
 ## 1. 后端（Docker Compose 起步）
 
@@ -22,9 +22,9 @@ docker compose up -d --build
 ```nginx
 server {
   listen 443 ssl;
-  server_name api.tradeboat.example.com;
-  ssl_certificate     /etc/letsencrypt/live/api.tradeboat.example.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/api.tradeboat.example.com/privkey.pem;
+  server_name api.beanbeandragon.example.com;
+  ssl_certificate     /etc/letsencrypt/live/api.beanbeandragon.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/api.beanbeandragon.example.com/privkey.pem;
   location / {
     proxy_pass http://backend:8787;
     proxy_set_header Host $host;
@@ -64,8 +64,8 @@ server {
 
 | 能力 | 现状 | 上线前接入 |
 | --- | --- | --- |
-| 翻译 | 服务端代理占位 + 离线兜底 | MyMemory/DeepL 凭据、额度与人工校对 |
-| 邮件 | mock 落库（mail_outbox） | SMTP/SES 等真实通道 |
+| 翻译 | DeepL 通道已就绪（协议级测试通过） | 在 backend/.env 填 DEEPL_API_KEY 并联网验证 |
+| 邮件 | SMTP 客户端已就绪（STARTTLS/AUTH PLAIN，协议级测试通过） | 在 backend/.env 填 SMTP_HOST/USER/PASS |
 | 文件 | 本地磁盘 | S3/OSS + 图片处理与 CDN |
 | 消息 | WebSocket 基础版 | 成熟库 + 在线状态/已读/多端同步 |
 | 支付/电子签/物流 | 未实现（阶段 2） | 持牌通道与合规流程 |

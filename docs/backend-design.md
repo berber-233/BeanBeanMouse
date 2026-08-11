@@ -1,4 +1,4 @@
-# trade boat 后端设计方案与建设路线
+# BeanBeanDragon（豆豆龙）后端设计方案与建设路线
 
 > 目标：把当前纯前端演示原型升级为可真实运营的 B2B 外贸平台。
 > 原则：沿用现有页面与交互，仅把“浏览器本地数据”替换为“后端 API + 数据库”，
@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart LR
-  U[买家 / 卖家 / 管理员] --> F[前端 · trade boat<br/>现有页面 + API 对接]
+  U[买家 / 卖家 / 管理员] --> F[前端 · BeanBeanDragon（豆豆龙）<br/>现有页面 + API 对接]
   F --> CDN[静态托管 / CDN]
   F --> API[后端 API 服务<br/>REST / WebSocket]
   API --> A[认证与权限]
@@ -177,3 +177,16 @@ flowchart LR
 
 安全自查补充：登录限流（同 IP 每分钟 10 次）、上传类型/大小白名单、服务端生成文件键防路径穿越、
 令牌过期校验；测试共 160 项通过（后端接口 37 + WebSocket 5 + 前端数据层 16 + 页面回归 102）。
+
+## 13. 真实翻译密钥与 SMTP 通道（2026-08）
+
+- **DeepL 主通道**（`src/translate.mjs`）：`DEEPL_API_KEY` + `DEEPL_API_URL` 配置，
+  `TRANSLATION_PROVIDER=deepl` 仅用 DeepL（缺密钥返回 503 CONFIG_MISSING）；
+  `chain` 模式优先 DeepL，随后 MyMemory→LibreTranslate→离线兜底；
+- **SMTP 真实发送**（`src/smtp.mjs`，零依赖）：EHLO/STARTTLS/AUTH PLAIN/MAIL/RCPT/DATA/QUIT
+  完整流程，结果落库 `mail_outbox`（sent/failed+原因），失败不影响业务主流程；
+- **配置加载**（`src/env.mjs`）：自动读取 `backend/.env`，不覆盖已存在的环境变量；
+- **协议级验证**：本地假 DeepL 端点校验鉴权头与表单；本地假 SMTP 服务器校验指令流与落库；
+  后端测试增至 53 项（接口 41 + SMTP 7 + WS 5），全部通过。
+
+真实调用只需在 `backend/.env` 填入密钥/凭据并联网即可，无需改代码。

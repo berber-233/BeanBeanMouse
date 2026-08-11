@@ -1,9 +1,9 @@
 {
-  "name": "trade-boat-backend",
+  "name": "beanbeandragon-backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "trade boat 后端（阶段 1 MVP：Node 内置 HTTP + SQLite，零依赖）",
+  "description": "BeanBeanDragon（豆豆龙）后端（阶段 1 MVP：Node 内置 HTTP + SQLite，零依赖）",
   "scripts": {
     "start": "node src/server.mjs",
     "test": "node test/api.test.mjs"
