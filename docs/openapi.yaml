@@ -1,0 +1,518 @@
+openapi: 3.0.3
+info:
+  title: trade boat API
+  version: 0.1.0
+  description: >
+    trade boat 外贸平台后端接口定义（阶段 0）。
+    当前前端以 mock 模式运行；接入真实后端时按本契约实现。
+servers:
+  - url: https://api.tradeboat.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: companies
+  - name: products
+  - name: inquiries
+  - name: messages
+  - name: translate
+  - name: anti-fake
+  - name: news
+  - name: admin
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: 注册（买家/卖家）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, role, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                role: { type: string, enum: [buyer, seller] }
+                name: { type: string }
+      responses:
+        '201':
+          description: 注册成功，返回用户与令牌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '409':
+          description: 邮箱已存在
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '401':
+          description: 账号或密码错误 / 账号已冻结
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: 刷新访问令牌
+      responses:
+        '200':
+          description: 新令牌
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 当前登录用户
+      responses:
+        '200':
+          description: 用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /companies:
+    post:
+      tags: [companies]
+      summary: 提交企业认证资料（卖家）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyInput'
+      responses:
+        '201':
+          description: 创建成功
+  /companies/me:
+    get:
+      tags: [companies]
+      summary: 当前用户企业资料与认证状态
+      responses:
+        '200':
+          description: 企业资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+  /companies/{sellerId}/verify:
+    put:
+      tags: [companies]
+      summary: 管理员认证企业（通过/驳回）
+      parameters:
+        - { name: sellerId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approve: { type: boolean }
+                reason: { type: string }
+      responses:
+        '200':
+          description: 更新后的企业状态
+  /products:
+    get:
+      tags: [products]
+      summary: 产品列表（公开：仅上架）
+      parameters:
+        - { name: kw, in: query, schema: { type: string } }
+        - { name: cat, in: query, schema: { type: string } }
+        - { name: origin, in: query, schema: { type: string } }
+        - { name: min, in: query, schema: { type: number } }
+        - { name: max, in: query, schema: { type: number } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: size, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: 分页产品列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+    post:
+      tags: [products]
+      summary: 发布产品（创建后进入待审核）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+  /products/{id}:
+    get:
+      tags: [products]
+      summary: 产品详情（含多语言与防伪码）
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 产品详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    put:
+      tags: [products]
+      summary: 更新产品（重新进入待审核）
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '200':
+          description: 更新成功
+  /products/{id}/review:
+    post:
+      tags: [products]
+      summary: 管理员审核产品
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [approve, reject] }
+                reason: { type: string }
+      responses:
+        '200':
+          description: 审核结果
+  /products/{id}/status:
+    post:
+      tags: [products]
+      summary: 卖家上下架产品
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [on, off] }
+      responses:
+        '200':
+          description: 状态已更新
+  /inquiries:
+    get:
+      tags: [inquiries]
+      summary: 我的询盘（按角色返回买家发起的或卖家收到的）
+      responses:
+        '200':
+          description: 询盘列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inquiry'
+    post:
+      tags: [inquiries]
+      summary: 发送询盘
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, qty, message]
+              properties:
+                productId: { type: string }
+                qty: { type: integer }
+                unit: { type: string }
+                payment: { type: string }
+                message: { type: string }
+                name: { type: string }
+                email: { type: string, format: email }
+                company: { type: string }
+                country: { type: string }
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inquiry'
+  /inquiries/{id}/quote:
+    post:
+      tags: [inquiries]
+      summary: 卖家对询盘报价
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price, incoterm, payment, validity, leadTime]
+              properties:
+                price: { type: number }
+                incoterm: { type: string }
+                payment: { type: string }
+                validity: { type: integer }
+                leadTime: { type: integer }
+                note: { type: string }
+      responses:
+        '200':
+          description: 报价成功
+  /conversations/{id}/messages:
+    get:
+      tags: [messages]
+      summary: 会话消息列表
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 消息列表
+    post:
+      tags: [messages]
+      summary: 发送消息（实时通道见 WebSocket 文档）
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        '201':
+          description: 发送成功
+  /translate:
+    post:
+      tags: [translate]
+      summary: 文本翻译（服务端代理第三方服务）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, target]
+              properties:
+                text: { type: string }
+                target: { type: string, example: zh-CN }
+                source: { type: string }
+      responses:
+        '200':
+          description: 翻译结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text: { type: string }
+                  target: { type: string }
+                  provider: { type: string }
+  /anti-fake/verify:
+    post:
+      tags: [anti-fake]
+      summary: 防伪码验真
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: TB-P3-53 }
+      responses:
+        '200':
+          description: 验真结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  genuine: { type: boolean }
+                  code: { type: string }
+                  productId: { type: string }
+                  verifiedAt: { type: string, format: date-time }
+        '404':
+          description: 防伪码不存在或已作废
+  /news:
+    get:
+      tags: [news]
+      summary: 资讯列表（按分类/地域筛选）
+      parameters:
+        - { name: cat, in: query, schema: { type: string } }
+        - { name: region, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: 资讯列表
+  /news/sources:
+    get:
+      tags: [news]
+      summary: 权威信息源目录
+      responses:
+        '200':
+          description: 信息源列表
+  /notifications:
+    get:
+      tags: [admin]
+      summary: 我的站内通知
+      responses:
+        '200':
+          description: 通知列表
+  /files:
+    post:
+      tags: [admin]
+      summary: 上传文件（产品图片/企业证书）
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: 文件元数据
+  /admin/overview:
+    get:
+      tags: [admin]
+      summary: 平台数据看板
+      responses:
+        '200':
+          description: 概览统计
+  /admin/logs:
+    get:
+      tags: [admin]
+      summary: 审计日志
+      responses:
+        '200':
+          description: 日志列表
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [buyer, seller, admin] }
+        name: { type: string }
+        status: { type: string, enum: [active, frozen] }
+    AuthResult:
+      type: object
+      properties:
+        token: { type: string }
+        user:
+          $ref: '#/components/schemas/User'
+    CompanyInput:
+      type: object
+      required: [name, country]
+      properties:
+        name: { type: string }
+        country: { type: string }
+        city: { type: string }
+        licenseNo: { type: string }
+        licenseFileId: { type: string }
+    Company:
+      allOf:
+        - $ref: '#/components/schemas/CompanyInput'
+        - type: object
+          properties:
+            id: { type: string }
+            status: { type: string, enum: [pending, approved, rejected] }
+            verifiedAt: { type: string, format: date-time }
+    ProductInput:
+      type: object
+      required: [category, country, priceMin, priceMax, moq, unit, leadTime]
+      properties:
+        category: { type: string }
+        country: { type: string }
+        priceMin: { type: number }
+        priceMax: { type: number }
+        moq: { type: integer }
+        unit: { type: string }
+        leadTime: { type: integer }
+        hsCode: { type: string }
+        terms: { type: array, items: { type: string } }
+        certs: { type: array, items: { type: string } }
+        srcLang: { type: string, enum: [zh, en] }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              title: { type: string }
+              description: { type: string }
+              features: { type: array, items: { type: string } }
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/ProductInput'
+        - type: object
+          properties:
+            id: { type: string }
+            sellerId: { type: string }
+            status: { type: string, enum: [draft, pending, on, off, rejected] }
+            rejectReason: { type: string }
+            antiFakeCode: { type: string }
+            createdAt: { type: string, format: date-time }
+    ProductPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    Inquiry:
+      type: object
+      properties:
+        id: { type: string }
+        productId: { type: string }
+        buyerId: { type: string }
+        qty: { type: integer }
+        unit: { type: string }
+        payment: { type: string }
+        message: { type: string }
+        status: { type: string, enum: [new, handled, quoted] }
+        createdAt: { type: string, format: date-time }

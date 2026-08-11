@@ -1,6 +1,7 @@
 /* trade boat 演示数据层 */
 
 const STORE_KEY = 'bridgetrade_v1';
+window.__TB_STORE_KEY__ = STORE_KEY;
 
 const CATEGORIES = [
   { id: 'machinery',  zh: '机械设备', en: 'Machinery',            hue: 210 },

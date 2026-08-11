@@ -97,22 +97,26 @@ function applyViewerLang(root) {
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const s = JSON.parse(raw);
-      if (s && Array.isArray(s.products) && s.products.length && s.inquiries && s.favorites) return s;
-    }
+    const s = api.storage.getState();
+    if (s && Array.isArray(s.products) && s.products.length && s.inquiries && s.favorites) return s;
   } catch (e) { /* 忽略并重建 */ }
   const fresh = seedDemoData();
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(fresh)); } catch (e) { /* 忽略 */ }
+  api.storage.setState(fresh);
   return fresh;
 }
 
 let state = loadState();
 
 function saveState() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 忽略 */ }
+  api.storage.setState(state);
 }
+
+/* 数据层（api.*）变更后自动重载本地状态并重绘 */
+document.addEventListener('api:changed', () => {
+  state = loadState();
+  migrateState();
+  renderPage();
+});
 
 /* 旧数据迁移：为已存在的本地数据补齐新字段 */
 function migrateState() {

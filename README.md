@@ -70,10 +70,23 @@
 - `index.html` — 页面入口
 - `styles.css` — 全部样式
 - `data.js` — 演示数据与中英文文案
+- `api.js` — 前端数据层（阶段 0：mock 模拟后端，预留 http 接入）
 - `app.js` — 页面路由与业务逻辑
 - `screenshots/` — 各页面效果截图
 - `test/` — 自动化验证与截图脚本（基于 Playwright，可重复运行）
+- `docs/` — 后端设计文档（ER 图、OpenAPI 接口定义、建设路线）
 - `project-history/` — 项目记录（聊天记录、设计决策、部署记录）
+
+## 阶段 0：后端前置产出
+
+后端编码前，先完成三样“契约”，避免返工：
+
+- 数据库 ER 图：[docs/er-diagram.md](docs/er-diagram.md)
+- OpenAPI 接口定义：[docs/openapi.yaml](docs/openapi.yaml)
+- 前端数据层 [api.js](api.js)：页面统一通过 `window.api` 访问数据，
+  当前为 mock（localStorage 模拟），接真实后端时改 `API_CONFIG.mode='http'` 即可
+
+验证：`test/api-smoke.cjs`（16 项断言）+ `test/verify.cjs`（102 项页面回归）。
 
 ## 说明
 
