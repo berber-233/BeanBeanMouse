@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>trade boat · 全球贸易平台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D4ED8'/%3E%3Cpath d='M16 5v11' stroke='%23fff' stroke-width='1.5'/%3E%3Cpath d='M15 6c-2.8 2.2-4.2 4.4-4.7 7h9.4c-.5-2.6-1.9-4.8-4.7-7z' fill='%23fff'/%3E%3Cpath d='M6 20h20l-3.5 4h-13z' fill='%23fff'/%3E%3Cpath d='M9 25c1.2-1 3-1 4.2 0 1.2 1 3 1 4.2 0 1.2-1 3-1 4.2 0' stroke='%237DA2FF' stroke-width='1.2' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header" id="siteHeader">
+    <div class="header-inner">
+      <a class="brand" href="#/" data-nav="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="22" height="22"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M16 5v11" stroke="#fff" stroke-width="1.5"/><path d="M15 6c-2.8 2.2-4.2 4.4-4.7 7h9.4c-.5-2.6-1.9-4.8-4.7-7z" fill="#fff"/><path d="M6 20h20l-3.5 4h-13z" fill="#fff"/><path d="M9 25c1.2-1 3-1 4.2 0 1.2 1 3 1 4.2 0 1.2-1 3-1 4.2 0" stroke="#7DA2FF" stroke-width="1.2" fill="none"/></svg>
+        </span>
+        <span class="brand-name">trade <span>boat</span></span>
+      </a>
+      <nav class="main-nav" aria-label="主导航">
+        <a href="#/" data-nav="/" data-i18n="home">首页</a>
+        <a href="#/products" data-nav="/products" data-i18n="marketplace">产品市场</a>
+        <a href="#/news" data-nav="/news" data-i18n="navNews">贸易资讯</a>
+        <a href="#/dashboard" data-nav="/dashboard" data-i18n="dashboard">工作台</a>
+      </nav>
+      <div class="header-actions">
+        <div id="langSwitch" class="lang-switch-wrap" aria-label="Language"></div>
+        <a class="icon-btn fav-link" href="#/dashboard" data-nav="/dashboard" id="favBtn" title="收藏" aria-label="收藏">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/></svg>
+          <span class="fav-count" id="favCount" hidden>0</span>
+        </a>
+        <div id="userArea" class="user-area"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" class="app"></main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="brand-name brand-name--footer">trade <span>boat</span></span>
+        <p data-i18n="footerTagline">连接全球买家与优质供应商的 B2B 贸易平台（演示原型）</p>
+      </div>
+      <div class="footer-links">
+        <a href="#/products" data-nav="/products" data-i18n="marketplace">产品市场</a>
+        <a href="#/news" data-nav="/news" data-i18n="navNews">贸易资讯</a>
+        <a href="#/dashboard" data-nav="/dashboard" data-i18n="dashboard">工作台</a>
+        <a href="#/login" data-nav="/login" data-i18n="login">登录</a>
+        <button type="button" class="footer-link" data-action="legal-note" data-i18n="userAgreement">用户协议</button>
+        <button type="button" class="footer-link" data-action="legal-note" data-i18n="privacyPolicy">隐私政策</button>
+        <button type="button" class="footer-link" data-action="legal-note" data-i18n="reportAbuse">违规举报</button>
+        <button type="button" class="footer-link" data-action="fake-check" data-i18n="fakeCheck">防伪查询</button>
+        <button type="button" class="footer-link" data-action="site-verify" data-i18n="verifySite">验证本站真伪</button>
+      </div>
+      <p class="footer-rights" data-i18n="rights">© 2026 trade boat 演示原型 · 仅用于设计演示</p>
+    </div>
+  </footer>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+  <div id="printDoc" class="print-only" aria-hidden="true"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

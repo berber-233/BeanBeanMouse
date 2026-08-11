@@ -1,0 +1,351 @@
+const { chromium } = require('playwright-core');
+const errors = [];
+let page;
+
+(async () => {
+  const browser = await chromium.launch({
+    executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    headless: true
+  });
+  page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const base = 'file:///C:/Users/LENOVO/Documents/ChatGPT/trade%20boat/index.html';
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('dialog', d => d.accept('涉嫌侵犯品牌知识产权'));
+  const results = [];
+  const check = (name, cond) => results.push([name, !!cond]);
+  const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  const waitForTranslated = async (loc, ms) => {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      const txt = await loc.textContent().catch(() => '');
+      if (txt && txt.indexOf('翻译中') === -1 && txt.trim().length > 1) return txt;
+      await page.waitForTimeout(500);
+    }
+    return (await loc.textContent().catch(() => '')) || '';
+  };
+
+  await page.goto(base);
+  await page.waitForTimeout(400);
+
+  check('i18n: first visit defaults to English', await page.evaluate(() => document.documentElement.lang) === 'en');
+  check('i18n: first-visit language hint shown', await page.locator('#langHint').isVisible());
+  await page.click('[data-action="dismiss-lang-hint"]');
+  await page.waitForTimeout(200);
+  check('i18n: language hint dismisses', (await page.locator('#langHint').count()) === 0);
+  check('home: hero visible', await page.locator('.hero h1').isVisible());
+  check('brand: renamed to trade boat', (await page.evaluate(() => document.title)).includes('trade boat'));
+  check('anti-fake: footer verify links', await page.locator('[data-action="fake-check"]').count() + await page.locator('[data-action="site-verify"]').count() === 2);
+  check('home: 4 stats', await page.locator('.stat-box').count() === 4);
+  check('home: 6 categories', await page.locator('.cat-card').count() === 6);
+  check('home: product cards >= 4', await page.locator('.product-card').count() >= 4);
+  check('home: simplified (no steps section)', await page.locator('.steps').count() === 0);
+  check('home: simplified (no trust section)', await page.locator('.trust-grid').count() === 0);
+  check('header: language switch has 3 buttons (中文/EN/其他)', await page.locator('#langSwitch .lang-btn').count() === 3);
+  check('home: no horizontal overflow', await noOverflow());
+
+  await page.evaluate(() => { location.hash = '#/products'; });
+  await page.waitForTimeout(300);
+  const allCount = await page.locator('.product-card').count();
+  check('products: grid > 0', allCount > 0);
+  check('products: filter panel visible', await page.locator('#filterPanel').isVisible());
+  check('products: no horizontal overflow', await noOverflow());
+
+  await page.evaluate(() => { location.hash = '#/products?cat=machinery'; });
+  await page.waitForTimeout(300);
+  const machCount = await page.locator('.product-card').count();
+  check('products: category filter narrows list', machCount > 0 && machCount < allCount);
+
+  await page.evaluate(() => { location.hash = '#/products?kw=charger'; });
+  await page.waitForTimeout(300);
+  check('products: keyword search works', await page.locator('.product-card').count() > 0);
+
+  // ---- 贸易资讯 ----
+  await page.evaluate(() => { location.hash = '#/news'; });
+  await page.waitForTimeout(300);
+  check('news: page renders >= 10 items', await page.locator('.news-card').count() >= 10);
+  check('news: policy brief 3 cards', await page.locator('.brief-card').count() === 3);
+  check('news: source directory 10', await page.locator('.source-card').count() === 10);
+  check('news: every item has source link', await page.locator('.news-card a[href^="http"]').count() >= 10);
+  check('news: fx strip visible', await page.locator('.fx-strip').isVisible());
+  check('news: disclaimer visible', await page.locator('.news-disclaimer').isVisible());
+  check('news: sync bar visible', await page.locator('.news-sync').isVisible());
+  check('news: integration note visible', await page.locator('.news-integration').isVisible());
+  await page.click('[data-action="refresh-news"]');
+  await page.waitForTimeout(300);
+  check('news: refresh works', await page.locator('.news-sync').isVisible());
+  check('news: no horizontal overflow', await noOverflow());
+
+  await page.evaluate(() => { location.hash = '#/news?cat=tariff'; });
+  await page.waitForTimeout(300);
+  const tariffCount = await page.locator('.news-card').count();
+  check('news: category filter works', tariffCount > 0 && tariffCount < 10);
+
+  await page.evaluate(() => { location.hash = '#/news'; });
+  await page.waitForTimeout(300);
+  await page.locator('#newsRegionGroup input[value="GLOBAL"]').uncheck();
+  await page.waitForTimeout(300);
+  check('news: region filter works', await page.locator('.news-card').count() === 6);
+  await page.locator('#newsRegionGroup input[value="GLOBAL"]').check();
+  await page.waitForTimeout(300);
+
+  await page.evaluate(() => { location.hash = '#/product/p3'; });
+  await page.waitForTimeout(300);
+  check('detail: title visible', await page.locator('.detail-main h1').isVisible());
+  check('detail: inquiry button', await page.locator('[data-action="open-inquiry"]').count() === 1);
+  check('detail: gallery thumbs 3', await page.locator('.gallery-thumbs img').count() === 3);
+  check('detail: HS code shown', (await page.locator('.spec-list').textContent()).includes('8504.40'));
+  check('detail: fx strip', await page.locator('.detail-main .fx-strip').count() === 1);
+  check('detail: incoterms legend', await page.locator('details.term-legend').count() === 1);
+  check('detail: compliance tip', await page.locator('.tip-box').count() === 1);
+  check('detail: compliance checklist', await page.locator('.compliance-market').count() >= 1);
+  check('anti-fake: product authenticity card', await page.locator('.fake-card').count() === 1);
+  check('anti-fake: code format TB-', /^TB-[A-Z0-9]+-\d{2}$/.test((await page.locator('.fake-code-row .fake-code').textContent() || '').trim()));
+  await page.click('.fake-card [data-action="verify-product"]');
+  await page.waitForTimeout(300);
+  check('anti-fake: verification result modal', await page.locator('.fake-result .fake-genuine').isVisible());
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+
+  await page.click('[data-action="fake-check"]');
+  await page.waitForTimeout(300);
+  check('anti-fake: verification query modal', await page.locator('#fakeCodeInput').isVisible());
+  check('anti-fake: sample codes listed', (await page.locator('.fake-chip').count()) >= 4);
+  await page.fill('#fakeCodeInput', 'TB-NOTEXIST-00');
+  await page.click('[data-action="fake-verify"]');
+  await page.waitForTimeout(300);
+  check('anti-fake: wrong code rejected', await page.locator('.fake-ico--bad').isVisible());
+  await page.click('[data-action="close-modal"]');
+  await page.click('[data-action="fake-check"]');
+  await page.waitForTimeout(300);
+  const sampleCode = (await page.locator('.fake-chip').first().textContent()).trim();
+  await page.fill('#fakeCodeInput', sampleCode);
+  await page.click('[data-action="fake-verify"]');
+  await page.waitForTimeout(300);
+  check('anti-fake: valid code verified', await page.locator('.fake-result .fake-genuine').isVisible());
+  await page.click('[data-action="close-modal"]');
+  await page.click('[data-action="site-verify"]');
+  await page.waitForTimeout(300);
+  check('anti-fake: official site verification', await page.locator('.fake-result').isVisible());
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+
+  await page.click('#langSwitch [data-lang="zh"]');
+  await page.waitForTimeout(200);
+  await page.click('[data-action="open-inquiry"]');
+  await page.waitForTimeout(300);
+  check('inquiry: modal opens', await page.locator('form[data-form="inquiry-form"]').isVisible());
+  check('inquiry: real translation preview', await page.locator('.trans-preview').count() >= 1);
+  check('inquiry: translation disclaimer shown', await page.locator('.trans-preview .trans-note').isVisible());
+  await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', '您好，我对产品很感兴趣，请报价。');
+  const transText = await waitForTranslated(page.locator('form[data-form="inquiry-form"] [data-trans-target="msg"]'), 20000);
+  check('inquiry: live translation updates (remote or offline fallback)', /please quote|quote/i.test(transText || '') && (transText || '').indexOf('翻译中') === -1);
+  await page.fill('form[data-form="inquiry-form"] input[name="name"]', 'Anna Chen');
+  await page.fill('form[data-form="inquiry-form"] input[name="email"]', 'anna@sample.com');
+  await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', 'Hello, please quote your best price for 1,000 pcs with custom logo. FOB price please.');
+  await page.click('form[data-form="inquiry-form"] button[type="submit"]');
+  await page.waitForTimeout(300);
+  check('inquiry: success modal', await page.locator('.modal-success').isVisible());
+
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+  await page.click('#langSwitch [data-lang="en"]');
+  await page.waitForTimeout(200);
+  const detailTitleEn = await page.locator('.detail-main h1').textContent();
+  check('i18n: toggle to English', /GaN Fast Charger/.test(detailTitleEn || ''));
+  check('i18n: html lang updated', await page.evaluate(() => document.documentElement.lang) === 'en');
+  await page.click('[data-action="lang-more"]');
+  await page.waitForTimeout(300);
+  check('i18n: "其他" opens language picker', await page.locator('.lang-grid').isVisible());
+  check('i18n: 20+ languages offered', (await page.locator('.lang-opt').count()) >= 20);
+  check('i18n: browser-language option shown', await page.locator('.lang-auto').isVisible());
+  await page.click('.lang-opt[data-lang="es"]');
+  await page.waitForTimeout(300);
+  check('i18n: switch to Spanish', (await page.evaluate(() => document.documentElement.lang)) === 'es');
+  check('i18n: Spanish nav label applied', (await page.locator('.main-nav a').first().textContent()) === 'Inicio');
+  check('i18n: bilingual original/translation block', await page.locator('.detail-main h1').isVisible() && (await page.locator('.src-text').count()) === 1);
+  check('i18n: product title marked for viewer translation', (await page.locator('.detail-main h1').getAttribute('data-l10n')) !== null);
+  await page.click('#langSwitch [data-lang="zh"]');
+  await page.waitForTimeout(200);
+
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 's1' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard'; });
+  await page.waitForTimeout(300);
+  check('seller: overview 4 stat cards', await page.locator('.stat-card').count() === 4);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/publish'; });
+  await page.waitForTimeout(300);
+  check('seller: target market checkboxes', await page.locator('input[name="markets"]').count() === 6);
+  check('seller: product source language field', await page.locator('select[name="srcLang"]').count() === 1);
+  await page.fill('input[name="titleEn"]', 'Solar LED Street Light 60W');
+  await page.fill('input[name="titleZh"]', '太阳能 LED 路灯 60W');
+  await page.fill('input[name="priceMin"]', '45');
+  await page.fill('input[name="priceMax"]', '68');
+  await page.fill('input[name="moq"]', '50');
+  await page.fill('input[name="leadTime"]', '25');
+  await page.fill('textarea[name="descEn"]', 'All-in-one solar street light with 60W LED, motion sensor, IP65. CE certified, 3-year warranty.');
+  await page.fill('textarea[name="descZh"]', '一体化太阳能路灯，60W LED，人体感应，IP65 防护，CE 认证，质保 3 年。');
+  await page.click('form[data-form="product-form"] button[type="submit"]');
+  await page.waitForTimeout(300);
+  check('seller: publish saved (pending review)', await page.locator('.status-pill.pend').count() >= 1);
+
+  await page.evaluate(() => { location.hash = '#/products?kw=solar'; });
+  await page.waitForTimeout(300);
+  check('marketplace: pending product not live yet', await page.locator('.product-card').count() === 0);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/inquiries'; });
+  await page.waitForTimeout(300);
+  check('seller: quote form has doc reference', await page.locator('.doc-ref').count() >= 1);
+  check('seller: quote form has translation preview', await page.locator('form[data-form="quote-form"] .trans-preview').count() >= 1);
+  const quoteForms = await page.locator('form[data-form="quote-form"]').count();
+  check('seller: pending inquiries show quote form', quoteForms >= 1);
+  const qf = page.locator('form[data-form="quote-form"]').first();
+  await qf.locator('input[name="price"]').fill('13500');
+  await qf.locator('input[name="validity"]').fill('15');
+  await qf.locator('input[name="leadTime"]').fill('20');
+  await qf.locator('textarea[name="note"]').fill('Including export packing and full FOB documents.');
+  await qf.locator('button[type="submit"]').click();
+  await page.waitForTimeout(300);
+  check('seller: structured quote saved', await page.locator('.quote-grid').count() >= 1);
+  check('seller: status shows quoted', await page.locator('.status-pill.done').count() >= 1);
+  check('seller: quote print buttons', await page.locator('[data-action="print-doc"]').count() >= 2);
+
+  await page.locator('[data-action="print-doc"][data-type="quotation"]').first().click();
+  await page.waitForTimeout(300);
+  check('print: quotation document opens', await page.locator('.doc-table').count() >= 1);
+  check('print: print sheet prepared', await page.evaluate(() => document.getElementById('printDoc').innerHTML.length > 200));
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', buyerCompany: 'Müller GmbH', buyerCountry: 'DE' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard'; });
+  await page.waitForTimeout(300);
+  check('buyer: inquiry list >= 3', await page.locator('.inquiry-item').count() >= 3);
+  check('buyer: sees supplier reply', await page.locator('.reply-msg').count() >= 1);
+  check('buyer: sees structured quote', await page.locator('.quote-grid').count() >= 1);
+  check('buyer: can print quote', await page.locator('[data-action="print-doc"]').count() >= 2);
+  await page.locator('.trans-toggle').first().click();
+  check('buyer: message translation toggle', await page.locator('.trans-msg').count() >= 1);
+  const transMsgText = await waitForTranslated(page.locator('.trans-msg p').first(), 20000);
+  check('buyer: translation filled (not pending)', (transMsgText || '').length > 1 && (transMsgText || '').indexOf('翻译中') === -1);
+
+  // ---- 平台管理员后台 ----
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard'; });
+  await page.waitForTimeout(300);
+  check('admin: overview stat cards', await page.locator('.stat-card').count() === 4);
+  check('admin: chart bars rendered', await page.locator('.bar-row').count() >= 2);
+  check('admin: latest activity table', await page.locator('.panel table tbody tr').count() >= 1);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/review'; });
+  await page.waitForTimeout(300);
+  check('admin: pending review list >= 2', await page.locator('.review-card').count() >= 2);
+  check('admin: risk hints flagged', await page.locator('.risk-chip').count() >= 1);
+
+  await page.locator('.review-card', { hasText: '太阳能' }).locator('[data-action="approve-product"]').click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/products?kw=solar'; });
+  await page.waitForTimeout(300);
+  check('admin: approved product goes live', await page.locator('.product-card').count() === 1);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/review'; });
+  await page.waitForTimeout(300);
+  await page.locator('.review-card', { hasText: '仿牌' }).locator('[data-action="reject-product"]').click();
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { location.hash = '#/dashboard/review?status=rejected'; });
+  await page.waitForTimeout(300);
+  check('admin: rejected product shows reason', await page.locator('.reject-reason').count() === 1);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/verify'; });
+  await page.waitForTimeout(300);
+  check('admin: pending companies >= 1', await page.locator('.status-pill.pend').count() >= 1);
+  await page.locator('[data-action="verify-company"]').first().click();
+  await page.waitForTimeout(300);
+  check('admin: company verified', await page.locator('.status-pill.pend').count() === 0);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/users'; });
+  await page.waitForTimeout(300);
+  check('admin: user list >= 8', await page.locator('.table tbody tr').count() >= 8);
+  await page.locator('.table tbody tr', { hasText: 'tanaka@tokyo-trading.jp' }).locator('button').click();
+  await page.waitForTimeout(300);
+  check('admin: freeze user works', await page.locator('.status-pill.rej').count() >= 1);
+  await page.locator('.table tbody tr', { hasText: 'tanaka@tokyo-trading.jp' }).locator('button').click();
+  await page.waitForTimeout(300);
+
+  await page.locator('.table tbody tr', { hasText: 'buyer@demo.com' }).locator('button').click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = null;
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/login'; });
+  await page.waitForTimeout(300);
+  await page.click('[data-role="buyer"]');
+  await page.waitForTimeout(300);
+  check('admin: frozen user login blocked', await page.locator('.login-wrap').isVisible());
+
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard/users'; });
+  await page.waitForTimeout(300);
+  await page.locator('.table tbody tr', { hasText: 'buyer@demo.com' }).locator('button').click();
+  await page.waitForTimeout(300);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/logs'; });
+  await page.waitForTimeout(300);
+  check('admin: audit log entries >= 5', await page.locator('.table tbody tr').count() >= 5);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { location.hash = '#/products'; });
+  await page.waitForTimeout(300);
+  check('mobile: no horizontal overflow at 390px', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/dashboard/review'; });
+  await page.waitForTimeout(300);
+  check('mobile: admin review no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/news'; });
+  await page.waitForTimeout(300);
+  check('mobile: news no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.waitForTimeout(300);
+  check('mobile: home no horizontal overflow', await noOverflow());
+
+  console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
+  const failed = results.filter(([, ok]) => !ok).length;
+  console.log('PAGE ERRORS: ' + JSON.stringify(errors));
+  console.log(failed === 0 ? 'ALL CHECKS PASSED' : failed + ' CHECKS FAILED');
+  await browser.close();
+  process.exit(failed === 0 ? 0 : 1);
+})().catch(async e => {
+  console.error('FATAL: ' + e.message);
+  try {
+    console.error('APP HTML: ' + (await page.evaluate(() => document.querySelector('#app').innerHTML)).slice(0, 800));
+  } catch (_) { /* ignore */ }
+  console.error('PAGE ERRORS: ' + JSON.stringify(errors));
+  process.exit(1);
+});

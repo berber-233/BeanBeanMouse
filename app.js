@@ -1,0 +1,1954 @@
+/* ================= trade boat 前端逻辑 ================= */
+
+/* ---------- 基础工具 ---------- */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function t(key, vars) {
+  let s = (langObj(I18N) && langObj(I18N)[key]) || I18N.en[key] || key;
+  if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
+  return s;
+}
+
+/* 多语言兜底：数据对象只完整覆盖中/英文，其他语言回退到英文 */
+function langObj(obj, lang) {
+  const code = lang || state.lang;
+  if (obj && obj[code]) return obj[code];
+  if (obj && obj.en) return obj.en;
+  if (obj && obj.zh) return obj.zh;
+  return obj || {};
+}
+
+function uiLocale() {
+  const c = state.lang || 'zh';
+  return c === 'zh' ? 'zh-CN' : c;
+}
+
+function langLabel(code) {
+  const m = LANG_META.find(x => x.code === code);
+  return m ? m.local : code;
+}
+
+function detectBrowserLang() {
+  const nav = String((navigator.language || navigator.userLanguage || 'en')).toLowerCase();
+  const base = nav.split('-')[0];
+  if (LANG_META.some(m => m.code === base)) return base;
+  return base === 'zh' ? 'zh' : 'en';
+}
+
+/* ---------- 产品内容按浏览者语言展示（卖家语言 → 买家语言） ---------- */
+const CONTENT_CACHE_KEY = 'bridgetrade_content_v1';
+let contentCache = (() => {
+  try { return JSON.parse(localStorage.getItem(CONTENT_CACHE_KEY)) || {}; } catch (e) { return {}; }
+})();
+function saveContentCache() {
+  try { localStorage.setItem(CONTENT_CACHE_KEY, JSON.stringify(contentCache)); } catch (e) { /* 忽略 */ }
+}
+
+/* 产品源语言：发布时记录；旧数据按卖家所在国推断（中国卖家=中文，其余=英文） */
+function baseContentLang(p) {
+  if (p && (p.srcLang === 'zh' || p.srcLang === 'en')) return p.srcLang;
+  const s = p && sellerOf(p);
+  return (s && s.country === 'CN') ? 'zh' : 'en';
+}
+
+/* 渲染时的同步文案：中/英用平台整理好的双语数据，其他语言先用源语言兜底，随后异步翻译 */
+function viewProductText(p, key, idx) {
+  const lang = state.lang;
+  if (lang === 'zh' || lang === 'en') return langObj(p)[key];
+  const base = baseContentLang(p);
+  const src = p[base] && p[base][key];
+  if (Array.isArray(src)) return src[idx];
+  return src;
+}
+
+function l10nAttrs(id, key, srcLang, srcText) {
+  return ' data-l10n="' + id + ':' + key + ':' + srcLang + '" data-l10n-text="' + esc(srcText) + '"';
+}
+
+/* 非中/英浏览者：把页面中标记过的产品/资讯内容异步翻译成浏览者语言并回填（结果本地缓存） */
+function applyViewerLang(root) {
+  if (!root) return;
+  if (state.lang === 'zh' || state.lang === 'en') return;
+  root.querySelectorAll('[data-l10n]').forEach(el => {
+    const parts = (el.dataset.l10n || '').split(':');
+    if (parts.length < 3) return;
+    const id = parts[0], key = parts[1], srcLang = parts[2];
+    const srcText = el.dataset.l10nText || '';
+    if (!srcText) return;
+    const tgt = providerLang(state.lang);
+    if (tgt === srcLang) return;
+    const cacheKey = 'l10n:' + srcLang + '>' + tgt + ':' + id + ':' + key;
+    if (contentCache[cacheKey]) { el.textContent = contentCache[cacheKey]; return; }
+    const seq = (el._l10nSeq = (el._l10nSeq || 0) + 1);
+    realTranslate(srcText, state.lang).then(res => {
+      if (res.mode !== 'offline' && res.text && res.text !== srcText) {
+        contentCache[cacheKey] = res.text;
+        saveContentCache();
+      }
+      if (el.isConnected && el._l10nSeq === seq && res.text) el.textContent = res.text;
+    }).catch(() => { /* 保持源语言兜底 */ });
+  });
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.products) && s.products.length && s.inquiries && s.favorites) return s;
+    }
+  } catch (e) { /* 忽略并重建 */ }
+  const fresh = seedDemoData();
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(fresh)); } catch (e) { /* 忽略 */ }
+  return fresh;
+}
+
+let state = loadState();
+
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 忽略 */ }
+}
+
+/* 旧数据迁移：为已存在的本地数据补齐新字段 */
+function migrateState() {
+  const now = Date.now();
+  let changed = false;
+  if (!Array.isArray(state.users)) { state.users = buildUsers(now); changed = true; }
+  if (!Array.isArray(state.companies)) { state.companies = buildCompanies(); changed = true; }
+  if (!Array.isArray(state.logs)) { state.logs = buildLogs(now); changed = true; }
+  if (!Array.isArray(state.newsRegions)) { state.newsRegions = ['CN', 'GLOBAL']; changed = true; }
+  if (!state.newsSyncedAt) { state.newsSyncedAt = Date.now(); changed = true; }
+  state.products.forEach(p => {
+    if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
+    if (!Array.isArray(p.markets)) { p.markets = MARKETS_BY_PRODUCT[p.id] || []; changed = true; }
+  });
+  if (!state.products.some(p => p.id === 'p15')) {
+    state.products = state.products.concat(pendingSeedProducts());
+    changed = true;
+  }
+  if (changed) saveState();
+}
+migrateState();
+
+function syncVerification() {
+  state.companies.forEach(c => {
+    const s = SELLERS.find(x => x.id === c.sellerId);
+    if (s) s.verified = c.status === 'approved';
+  });
+}
+syncVerification();
+
+function go(path) { location.hash = path; }
+function parseHash() {
+  const h = (location.hash || '#/').slice(1);
+  const i = h.indexOf('?');
+  if (i === -1) return { path: h || '/', params: new URLSearchParams() };
+  return { path: h.slice(0, i) || '/', params: new URLSearchParams(h.slice(i + 1)) };
+}
+
+function fmtPrice(n) {
+  if (Number.isInteger(n)) return n.toLocaleString('en-US');
+  return n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 2 : 1 });
+}
+
+function flagEmoji(code) {
+  return String.fromCodePoint(...[...code].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+function countryName(code) {
+  const c = COUNTRY_NAMES[code];
+  return c ? langObj(c) : code;
+}
+
+function catById(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
+function sellerById(id) { return SELLERS.find(s => s.id === id) || SELLERS[0]; }
+function productById(id) { return state.products.find(p => p.id === id); }
+function sellerOf(p) { return sellerById(p.sellerId); }
+function isLive(p) { return p.status === undefined || p.status === 'on'; }
+function companyStatusOf(sellerId) {
+  const c = (state.companies || []).find(x => x.sellerId === sellerId);
+  return c ? c.status : 'pending';
+}
+function isVerifiedSeller(sellerId) { return companyStatusOf(sellerId) === 'approved'; }
+const BANNED_KW = ['毒品', '仿牌', 'replica', 'weapon', '枪械', '爆炸物', '香烟', '假币', '破解', 'hack'];
+
+function complianceCheck(p) {
+  const txt = ((p.en.title || '') + ' ' + (p.en.desc || '') + ' ' + (p.zh.title || '') + ' ' + (p.zh.desc || '')).toLowerCase();
+  const risks = [];
+  BANNED_KW.forEach(kw => { if (txt.includes(kw)) risks.push(t('riskKeyword', { kw: kw })); });
+  if (!(p.certs || []).length) risks.push(t('riskNoCert'));
+  return risks;
+}
+
+function addLog(actor, action, target, detail) {
+  state.logs.unshift({
+    id: 'l' + Date.now() + Math.floor(Math.random() * 999),
+    ts: Date.now(),
+    actor: actor || '—',
+    action: action || '',
+    target: target || '',
+    detail: detail || ''
+  });
+}
+
+function initialsOf(str) {
+  return String(str || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'BT';
+}
+
+/* ---------- 实时翻译：第三方服务 + 本地缓存 + 离线词典兜底 ---------- */
+const TRANS_CACHE_KEY = 'bridgetrade_trans_v1';
+let transCache = (() => {
+  try { return JSON.parse(localStorage.getItem(TRANS_CACHE_KEY)) || {}; } catch (e) { return {}; }
+})();
+function saveTransCache() {
+  try { localStorage.setItem(TRANS_CACHE_KEY, JSON.stringify(transCache)); } catch (e) { /* 忽略 */ }
+}
+
+/* 翻译目标语言：中文界面译为英文、英文界面译为中文，其他语言译为当前界面语言 */
+function transTarget() {
+  if (state.lang === 'zh') return 'en';
+  if (state.lang === 'en') return 'zh';
+  return state.lang;
+}
+
+/* 把界面语言代码映射为翻译服务支持的语言代码 */
+function providerLang(code) {
+  const map = {
+    zh: 'zh-CN', en: 'en', ja: 'ja', ko: 'ko', es: 'es', fr: 'fr', de: 'de',
+    pt: 'pt', ru: 'ru', ar: 'ar', hi: 'hi', id: 'id', th: 'th', vi: 'vi',
+    tr: 'tr', it: 'it', nl: 'nl', pl: 'pl', uk: 'uk', sv: 'sv', cs: 'cs',
+    el: 'el', fa: 'fa', ms: 'ms', fil: 'fil'
+  };
+  return map[code] || 'en';
+}
+
+/* 简单源语言判断：含中文则按中文处理，否则按英文处理 */
+function detectSource(text) {
+  return /[\u4e00-\u9fff]/.test(text) ? 'zh-CN' : 'en';
+}
+
+/* 带超时的 fetch，避免网络异常时一直转圈 */
+async function fetchTimeout(url, opts, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function translateViaMyMemory(text, target) {
+  const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500))
+    + '&langpair=' + detectSource(text) + '|' + target;
+  const r = await fetchTimeout(url, null, 4000);
+  if (!r.ok) throw new Error('MyMemory HTTP ' + r.status);
+  const j = await r.json();
+  const out = j && j.responseData && j.responseData.translatedText;
+  if (!out || j.responseStatus !== 200) throw new Error('MyMemory empty');
+  return out;
+}
+
+async function translateViaLibre(text, target) {
+  const instances = [
+    'https://libretranslate.com/translate',
+    'https://translate.argosopentech.com/translate'
+  ];
+  let lastErr;
+  for (const base of instances) {
+    try {
+      const r = await fetchTimeout(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: text.slice(0, 1000), source: detectSource(text), target: target, format: 'text' })
+      }, 3000);
+      if (!r.ok) { lastErr = new Error('LibreTranslate HTTP ' + r.status); continue; }
+      const j = await r.json();
+      if (j && j.translatedText) return j.translatedText;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('LibreTranslate failed');
+}
+
+/* 真实翻译主流程：缓存 → MyMemory → LibreTranslate → 离线词典 */
+async function realTranslate(text, target) {
+  const s = String(text || '').trim();
+  if (!s) return { text: '', mode: '' };
+  const tgt = providerLang(target);
+  const src = detectSource(s);
+  if (tgt === src) return { text: s, mode: 'same' };
+  const key = src + '>' + tgt + ':' + s;
+  if (transCache[key]) return { text: transCache[key], mode: 'cache' };
+  try {
+    const out = await translateViaMyMemory(s, tgt);
+    if (out && out.trim()) { transCache[key] = out.trim(); saveTransCache(); return { text: out.trim(), mode: 'remote' }; }
+  } catch (e) { /* 尝试下一个服务 */ }
+  try {
+    const out = await translateViaLibre(s, tgt);
+    if (out && out.trim()) { transCache[key] = out.trim(); saveTransCache(); return { text: out.trim(), mode: 'remote' }; }
+  } catch (e) { /* 使用离线词典 */ }
+  const out = demoTranslate(s, tgt === 'zh-CN' ? 'zh' : tgt);
+  return { text: out, mode: 'offline' };
+}
+
+/* 离线兜底：中英短语库（仅支持中/英，其他语言原样返回） */
+function demoTranslate(text, target) {
+  const s = String(text || '').trim();
+  if (!s) return '';
+  if (target !== 'en' && target !== 'zh') return s;
+  let out = ' ' + s + ' ';
+  const pairs = TRANSLATION_DICT.slice().sort((a, b) => {
+    const la = (target === 'en' ? a[0] : a[1]) || '';
+    const lb = (target === 'en' ? b[0] : b[1]) || '';
+    return lb.length - la.length;
+  });
+  pairs.forEach(pair => {
+    const from = target === 'en' ? pair[0] : pair[1];
+    const to = target === 'en' ? pair[1] : pair[0];
+    if (!from) return;
+    out = out.split(from).join(to);
+    out = out.split(from.toLowerCase()).join(to);
+  });
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+/* 异步填充翻译框：防串号 + 断线保护 */
+async function fillTransBox(box, text) {
+  if (!box) return;
+  const clean = String(text || '').trim();
+  if (!clean) { box.textContent = '—'; return; }
+  box._transSeq = (box._transSeq || 0) + 1;
+  const seq = box._transSeq;
+  box.textContent = t('translating');
+  const res = await realTranslate(clean, transTarget());
+  if (box && box.isConnected && box._transSeq === seq) {
+    box.textContent = res.text || '—';
+    box.dataset.mode = res.mode;
+    const pill = box.closest('.trans-preview, .trans-msg') ? box.closest('.trans-preview, .trans-msg').querySelector('.trans-pill, .trans-label') : null;
+    if (pill) {
+      const extra = res.mode === 'offline' ? ' · ' + t('transOffline') : '';
+      pill.textContent = '⚡ ' + t('translateLabel') + extra;
+    }
+  }
+}
+
+const msgTransState = {};
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString(uiLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/* ---------- 图标 ---------- */
+function icon(name, extra = '') {
+  const paths = {
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/>',
+    heartFill: '<path fill="currentColor" stroke="none" d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    box: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    chart: '<path d="M3 3v18h18"/><path d="m7 15 4-6 3 3 5-8"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    sparkle: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54Z"/>',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+    building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+    cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+    file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z"/><path d="M14 2v6h6"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>'
+  };
+  const filled = extra === 'fill';
+  const key = filled ? name + 'Fill' : name;
+  const body = paths[key] || paths[name] || '';
+  return `<svg viewBox="0 0 24 24" width="16" height="16" fill="${filled ? 'currentColor' : 'none'}" stroke="${filled ? 'none' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+/* ---------- 产品图片（SVG 生成） ---------- */
+function productImg(p, w = 640, h = 480, variant = 0) {
+  const cat = catById(p.cat);
+  const hue = p.hue || cat.hue;
+  const hue2 = (hue + 45) % 360;
+  const initials = (p.en.title || 'BT').split(/\s+/).slice(0, 3).map(w => w[0]).join('').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'BT';
+  const catLabel = (langObj(cat) || '').toUpperCase();
+  const off = variant * 55;
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">'
+    + '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+    + '<stop offset="0" stop-color="hsl(' + hue + ' 46% 44%)"/>'
+    + '<stop offset="1" stop-color="hsl(' + hue2 + ' 50% 24%)"/>'
+    + '</linearGradient></defs>'
+    + '<rect width="' + w + '" height="' + h + '" fill="url(#g)"/>'
+    + '<circle cx="' + Math.round(w * 0.84) + '" cy="' + Math.round(h * 0.16) + '" r="' + Math.round(h * 0.36) + '" fill="rgba(255,255,255,0.08)"/>'
+    + '<circle cx="' + Math.round(w * 0.12) + '" cy="' + Math.round(h * 0.9) + '" r="' + Math.round(h * 0.3) + '" fill="rgba(255,255,255,0.06)"/>'
+    + '<circle cx="' + Math.round(w * 0.5 + off) + '" cy="' + Math.round(h * 0.5 - off * 0.5) + '" r="5" fill="rgba(255,255,255,0.5)"/>'
+    + '<text x="' + (w / 2) + '" y="' + Math.round(h * 0.45) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="' + Math.round(h * 0.26) + '" font-weight="700" fill="rgba(255,255,255,0.9)">' + initials + '</text>'
+    + '<text x="' + (w / 2) + '" y="' + Math.round(h * 0.74) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="' + Math.round(h * 0.07) + '" letter-spacing="3" fill="rgba(255,255,255,0.75)">' + esc(catLabel) + '</text>'
+    + '</svg>';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+/* ---------- 全局交互（事件委托） ---------- */
+document.addEventListener('click', e => {
+  const actEl = e.target.closest('[data-action]');
+  const navEl = e.target.closest('[data-nav]');
+  if (actEl) { handleAction(actEl); return; }
+  if (navEl) { go(navEl.dataset.nav); return; }
+  if (e.target.classList && e.target.classList.contains('modal-mask')) closeModal();
+});
+
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.dataset.form === 'inquiry-form') submitInquiry(f);
+  else if (f.dataset.form === 'product-form') submitProduct(f);
+  else if (f.dataset.form === 'reply-form') submitReply(f);
+  else if (f.dataset.form === 'quote-form') submitQuote(f);
+});
+
+function handleAction(el) {
+  const a = el.dataset.action;
+  const id = el.dataset.id;
+  switch (a) {
+    case 'toggle-fav': toggleFav(id); break;
+    case 'open-inquiry': openInquiryModal(id); break;
+    case 'open-product': go('/product/' + id); break;
+    case 'login-role': loginAs(el.dataset.role); break;
+    case 'login-guest': logout(true); break;
+    case 'logout': logout(false); break;
+    case 'switch-role': logout(false, true); break;
+    case 'go-dashboard': go('/dashboard'); break;
+    case 'close-modal': closeModal(); break;
+    case 'delete-product': deleteProduct(id); break;
+    case 'toggle-status': toggleStatus(id); break;
+    case 'edit-product': go('/dashboard/publish?id=' + id); break;
+    case 'mark-handled': markHandled(id); break;
+    case 'remove-filter': removeFilter(el.dataset.key, el.dataset.value); break;
+    case 'gallery': setGallery(el); break;
+    case 'approve-product': {
+      const p = productById(id);
+      if (!p) break;
+      p.status = 'on';
+      p.rejectReason = '';
+      addLog(state.user ? state.user.name : '管理员', t('reviewPassed'), langObj(p).title, '');
+      saveState(); toast(t('reviewPassed')); renderPage();
+      break;
+    }
+    case 'reject-product': {
+      const p = productById(id);
+      if (!p) break;
+      const reason = prompt(t('rejectReason'));
+      if (reason === null) break;
+      p.status = 'rejected';
+      p.rejectReason = reason.trim() || t('rejectedLabel');
+      addLog(state.user ? state.user.name : '管理员', t('reviewRejected'), langObj(p).title, reason.trim());
+      saveState(); toast(t('reviewRejected')); renderPage();
+      break;
+    }
+    case 'verify-company': {
+      const c = (state.companies || []).find(x => x.sellerId === id);
+      if (!c) break;
+      c.status = 'approved';
+      const s = SELLERS.find(x => x.id === id);
+      if (s) s.verified = true;
+      addLog(state.user ? state.user.name : '管理员', t('companyApproved'), s ? langObj(s).company : id, '');
+      saveState(); toast(t('companyApproved')); renderPage();
+      break;
+    }
+    case 'reject-verify': {
+      const c = (state.companies || []).find(x => x.sellerId === id);
+      if (!c) break;
+      c.status = 'rejected';
+      const s = SELLERS.find(x => x.id === id);
+      if (s) s.verified = false;
+      addLog(state.user ? state.user.name : '管理员', t('companyRejected'), s ? langObj(s).company : id, '');
+      saveState(); toast(t('companyRejected')); renderPage();
+      break;
+    }
+    case 'freeze-user': {
+      const u = (state.users || []).find(x => x.id === id);
+      if (!u || u.role === 'admin') break;
+      u.status = u.status === 'frozen' ? 'active' : 'frozen';
+      addLog(state.user ? state.user.name : '管理员', u.status === 'frozen' ? t('userFrozen') : t('userUnfrozen'), u.name, u.email);
+      saveState(); toast(u.status === 'frozen' ? t('userFrozen') : t('userUnfrozen')); renderPage();
+      break;
+    }
+    case 'legal-note': toast(t('legalNote')); break;
+    case 'fake-check': openFakeCheck(); break;
+    case 'site-verify': openSiteVerify(); break;
+    case 'verify-product': {
+      const p = productById(id);
+      if (p) showFakeResult(p, fakeCodeOf(p));
+      break;
+    }
+    case 'fake-verify': {
+      const input = $('#fakeCodeInput');
+      const code = (input ? input.value : '').trim().toUpperCase();
+      if (!code) { toast(t('fakeEnter')); return; }
+      const p = productByFakeCode(code);
+      if (p) showFakeResult(p, code);
+      else {
+        closeModal();
+        showModal(
+          '<div class="modal-head"><h3>🔍 ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+          + '<div class="modal-body fake-result"><div class="fake-ico fake-ico--bad">✕</div>'
+          + '<p class="fake-genuine" style="color:var(--danger)">' + t('fakeNotFound') + '</p>'
+          + '<p class="small muted" style="text-align:center">' + t('fakeHint') + '</p>'
+          + '<button type="button" class="btn btn-primary" data-action="fake-check" style="margin-top:12px">' + t('fakeVerify') + '</button>'
+          + '</div>'
+        );
+      }
+      break;
+    }
+    case 'set-lang':
+      state.lang = el.dataset.lang;
+      state.firstVisit = false;
+      saveState();
+      closeModal();
+      render();
+      break;
+    case 'lang-more':
+      openLangModal();
+      break;
+    case 'lang-auto': {
+      const code = detectBrowserLang();
+      state.lang = code;
+      state.firstVisit = false;
+      saveState();
+      closeModal();
+      render();
+      toast(t('langAuto') + '：' + langLabel(code));
+      break;
+    }
+    case 'dismiss-lang-hint': {
+      state.firstVisit = false;
+      saveState();
+      const hint = $('#langHint');
+      if (hint) hint.remove();
+      break;
+    }
+    case 'refresh-news':
+      state.newsSyncedAt = Date.now();
+      saveState();
+      toast(t('newsRefreshed'));
+      renderPage();
+      break;
+    case 'print-doc': openPrintDoc(id, el.dataset.type); break;
+    case 'print-now': window.print(); break;
+    case 'toggle-msg-trans': {
+      msgTransState[id] = !msgTransState[id];
+      renderPage();
+      const inq = state.inquiries.find(x => x.id === id);
+      if (msgTransState[id] && inq) fillTransBox(document.querySelector('[data-trans-box="' + id + '"] p'), inq.message);
+      break;
+    }
+    case 'toggle-lang':
+      state.lang = state.lang === 'zh' ? 'en' : 'zh';
+      saveState();
+      render();
+      break;
+  }
+}
+
+/* ---------- 弹窗 / 提示 ---------- */
+function showModal(html) {
+  $('#modalRoot').innerHTML = '<div class="modal-mask"><div class="modal" data-stop="1">' + html + '</div></div>';
+}
+function closeModal() { $('#modalRoot').innerHTML = ''; }
+
+function toast(msg) {
+  const root = $('#toastRoot');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = '<span class="dot">✓</span><span>' + esc(msg) + '</span>';
+  root.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 320); }, 2800);
+}
+
+/* ---------- 顶栏 ---------- */
+function renderHeader() {
+  document.documentElement.lang = uiLocale();
+  document.documentElement.dir = (['ar', 'fa'].includes(state.lang) ? 'rtl' : 'ltr');
+  $('#langSwitch').innerHTML = '<div class="lang-switch" role="group" aria-label="Language / 语言">'
+    + '<button type="button" class="lang-btn ' + (state.lang === 'zh' ? 'on' : '') + '" data-action="set-lang" data-lang="zh">中文</button>'
+    + '<button type="button" class="lang-btn ' + (state.lang === 'en' ? 'on' : '') + '" data-action="set-lang" data-lang="en">EN</button>'
+    + '<button type="button" class="lang-btn lang-btn--more' + (LANG_META.some(m => m.code !== 'zh' && m.code !== 'en' && m.code === state.lang) ? ' on' : '') + '" data-action="lang-more" title="' + t('otherLang') + '">' + t('otherLang') + ' <span class="lang-caret">▾</span></button>'
+    + '</div>';
+  applyStaticI18n();
+  const { path } = parseHash();
+  $$('.main-nav a').forEach(a => {
+    const href = a.getAttribute('href').slice(1);
+    const active =
+      (path === href) ||
+      (href === '/products' && (path === '/product' || path.indexOf('/product/') === 0)) ||
+      (href === '/dashboard' && (path === '/dashboard' || path.indexOf('/dashboard/') === 0)) ||
+      (href === '/news' && path.indexOf('/news') === 0);
+    a.classList.toggle('active', active);
+  });
+  const fc = $('#favCount');
+  fc.textContent = state.favorites.length;
+  fc.hidden = state.favorites.length === 0;
+  const ua = $('#userArea');
+  const u = state.user;
+  if (u) {
+    ua.innerHTML =
+      '<button type="button" class="user-chip" data-action="go-dashboard">'
+      + '<span class="avatar">' + esc(u.name[0].toUpperCase()) + '</span>'
+      + '<span>' + esc(u.name) + '</span>'
+      + '<span class="role-tag">' + (u.role === 'seller' ? (state.lang === 'zh' ? '卖家' : 'Seller') : u.role === 'admin' ? t('adminRoleTag') : (state.lang === 'zh' ? '买家' : 'Buyer')) + '</span>'
+      + '</button>'
+      + '<button type="button" class="icon-btn" data-action="logout" title="' + t('logout') + '" aria-label="' + t('logout') + '">' + icon('logout') + '</button>';
+  } else {
+    ua.innerHTML = '<a class="btn btn-sm btn-primary" href="#/login">' + t('login') + '</a>';
+  }
+}
+
+/* 首次访问引导条：默认英文展示，并提示选择语言 */
+function renderFirstVisitHint() {
+  const old = $('#langHint');
+  if (old) old.remove();
+  if (!state.firstVisit) return;
+  const bar = document.createElement('div');
+  bar.id = 'langHint';
+  bar.className = 'lang-hint';
+  bar.innerHTML = '<div class="lang-hint-inner">'
+    + '<span class="lang-hint-ico">🌐</span>'
+    + '<div class="lang-hint-txt"><b>' + esc(t('firstVisitTitle')) + '</b> ' + esc(t('firstVisitDesc')) + '</div>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="lang-more">' + esc(t('chooseLang')) + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="dismiss-lang-hint">' + esc(t('gotIt')) + '</button>'
+    + '</div>';
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+
+/* 语言选择弹窗：列出全部支持语言 + 跟随浏览器语言 */
+function openLangModal() {
+  const items = LANG_META.map(m =>
+    '<button type="button" class="lang-opt' + (state.lang === m.code ? ' on' : '') + '" data-action="set-lang" data-lang="' + m.code + '">'
+    + '<span class="lang-flag">' + flagEmoji(m.flag) + '</span>'
+    + '<span class="lang-name">' + esc(m.local) + '</span>'
+    + '<span class="lang-code">' + m.code.toUpperCase() + '</span>'
+    + '</button>').join('');
+  showModal(
+    '<div class="modal-head"><h3>🌐 ' + t('chooseLang') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + '<button type="button" class="lang-auto" data-action="lang-auto">🖥 ' + t('langAuto') + '<span class="lang-code">' + esc(detectBrowserLang().toUpperCase()) + '</span></button>'
+    + '<div class="lang-grid">' + items + '</div>'
+    + '<p class="small muted lang-note">' + t('langNote') + '</p>'
+    + '</div>'
+  );
+}
+
+/* 静态文案（导航/页脚）随语言切换 */
+function applyStaticI18n() {
+  $$('[data-i18n]').forEach(el => {
+    const k = el.dataset.i18n;
+    const v = t(k);
+    if (v !== k) el.textContent = v;
+  });
+}
+
+/* ---------- 防伪验证 ---------- */
+function fakeChecksum(str) {
+  let s = 0;
+  for (const ch of String(str || '')) s = (s * 31 + ch.charCodeAt(0)) % 97;
+  return String(s).padStart(2, '0');
+}
+
+/* 每个产品一个确定性防伪码，正式版可由权威验真机构签发 */
+function fakeCodeOf(p) {
+  if (!p) return '';
+  const pid = String(p.id).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const seed = p.id + ':' + p.sellerId + ':' + (p.en ? p.en.title : '');
+  return 'TB-' + pid + '-' + fakeChecksum(seed);
+}
+
+function productByFakeCode(code) {
+  const c = String(code || '').trim().toUpperCase();
+  return state.products.find(p => fakeCodeOf(p) === c);
+}
+
+/* 由防伪码生成的演示用“扫码”图案 */
+function fakeQrSvg(seed) {
+  const n = 9, cell = 3;
+  let h = 0;
+  for (const ch of String(seed || '')) h = (h * 131 + ch.charCodeAt(0)) >>> 0;
+  const bits = [];
+  for (let i = 0; i < n * n; i++) {
+    h = (h * 1103515245 + 12345) >>> 0;
+    bits.push((h >> 16) & 1);
+  }
+  const set = (x, y) => { if (x >= 0 && y >= 0 && x < n && y < n) bits[y * n + x] = 1; };
+  [[0, 0], [n - 1, 0], [0, n - 1]].forEach(([cx, cy]) => {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) set(cx + dx, cy + dy);
+  });
+  let rects = '';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (bits[y * n + x]) rects += '<rect x="' + (x * cell) + '" y="' + (y * cell) + '" width="' + cell + '" height="' + cell + '"/>';
+  return '<svg viewBox="0 0 ' + (n * cell) + ' ' + (n * cell) + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR">' + rects + '</svg>';
+}
+
+function openFakeCheck() {
+  showModal(
+    '<div class="modal-head"><h3>🛡 ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + '<p class="small muted">' + t('fakeEnter') + '</p>'
+    + '<div class="input-group"><input class="input" id="fakeCodeInput" placeholder="' + t('fakePlaceholder') + '" style="text-transform:uppercase"><button type="button" class="btn btn-primary" data-action="fake-verify">' + t('fakeVerify') + '</button></div>'
+    + '<p class="small muted fake-hint">' + t('fakeHint') + '</p>'
+    + '<div class="fake-demo-list">' + state.products.slice(0, 5).map(p => '<button type="button" class="chip fake-chip" data-action="verify-product" data-id="' + p.id + '" title="' + esc(langObj(p).title) + '">' + fakeCodeOf(p) + '</button>').join('') + '</div>'
+    + '<p class="small muted">' + t('fakeScanNote') + '</p>'
+    + '</div>'
+  );
+}
+
+function showFakeResult(p, code) {
+  const seller = sellerOf(p);
+  closeModal();
+  showModal(
+    '<div class="modal-head"><h3>🛡 ' + t('fakeOkTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body fake-result">'
+    + '<div class="fake-ico fake-ico--ok">✓</div>'
+    + '<p class="fake-genuine">' + t('fakeGenuine') + '</p>'
+    + '<div class="fake-row"><span>' + t('fakeCode') + '</span><b class="fake-code">' + esc(code) + '</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeProduct') + '</span><b>' + esc(langObj(p).title) + '</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeSeller') + '</span><b>' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ✅' : '') + '</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeIssued') + '</span><b>trade boat</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeVerifiedAt') + '</span><b>' + fmtDate(Date.now()) + '</b></div>'
+    + '<div class="fake-qr">' + fakeQrSvg(code + p.id) + '</div>'
+    + '<p class="small muted fake-scan-label">' + t('fakeScan') + '</p>'
+    + '<p class="small muted">' + t('fakeInfo') + '</p>'
+    + '</div>'
+  );
+}
+
+function openSiteVerify() {
+  showModal(
+    '<div class="modal-head"><h3>🛡 ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body fake-result">'
+    + '<div class="fake-ico fake-ico--ok">✓</div>'
+    + '<p class="fake-genuine">trade boat · ' + t('fakeSiteTitle') + '</p>'
+    + '<div class="fake-row"><span>' + t('fakeSiteCode') + '</span><b class="fake-code">TB-OFFICIAL-2026</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeDomain') + '</span><b>github.io/trade-boat</b></div>'
+    + '<p class="small muted">' + t('fakeSiteDesc') + '</p>'
+    + '<p class="small muted">' + t('fakeScanNote') + '</p>'
+    + '</div>'
+  );
+}
+
+/* ---------- 收藏 ---------- */
+function toggleFav(id) {
+  const i = state.favorites.indexOf(id);
+  if (i >= 0) state.favorites.splice(i, 1);
+  else state.favorites.push(id);
+  saveState();
+  renderHeader();
+  const { path } = parseHash();
+  if (path.indexOf('/product/') === 0 || path === '/dashboard' || path.indexOf('/dashboard/') === 0) render();
+  else renderPage();
+}
+
+/* ---------- 登录 / 登出 ---------- */
+function loginAs(role) {
+  const rec = (state.users || []).find(x => x.id === DEMO_USERS[role].id);
+  if (rec && rec.status === 'frozen') { toast(t('frozenBlocked')); return; }
+  state.user = JSON.parse(JSON.stringify(DEMO_USERS[role]));
+  saveState();
+  toast(state.lang === 'zh' ? '已登录：' + state.user.name : 'Signed in: ' + state.user.name);
+  go('/dashboard');
+}
+function logout(guest, goLogin) {
+  state.user = null;
+  saveState();
+  toast(guest ? t('guestName') : (state.lang === 'zh' ? '已退出登录' : 'Signed out'));
+  go(goLogin ? '/login' : '/');
+}
+
+/* ---------- 主渲染 ---------- */
+function render() {
+  renderHeader();
+  renderFirstVisitHint();
+  const { path, params } = parseHash();
+  const app = $('#app');
+  if (path === '' || path === '/') app.innerHTML = renderHome();
+  else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
+  else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
+  else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
+  else if (path === '/login') app.innerHTML = renderLogin();
+  else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
+  else app.innerHTML = renderHome();
+  applyViewerLang(app);
+  window.scrollTo(0, 0);
+}
+
+function renderPage() {
+  const { path, params } = parseHash();
+  const app = $('#app');
+  if (path === '' || path === '/') app.innerHTML = renderHome();
+  else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
+  else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
+  else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
+  else if (path === '/login') app.innerHTML = renderLogin();
+  else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
+  else app.innerHTML = renderHome();
+  applyViewerLang(app);
+}
+
+/* ---------- 产品卡片 ---------- */
+function productCard(p) {
+  const fav = state.favorites.includes(p.id);
+  const seller = sellerOf(p);
+  const certs = (p.certs || []).slice(0, 2);
+  return '<article class="product-card" data-action="open-product" data-id="' + p.id + '">'
+    + '<div class="thumb">'
+    + (p.hot ? '<span class="badge">' + t('hot') + '</span>' : '')
+    + (p.featured && !p.hot ? '<span class="badge new">★</span>' : '')
+    + '<img src="' + productImg(p) + '" alt="' + esc(langObj(p).title) + '" loading="lazy">'
+    + '<button type="button" class="fav-btn ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" aria-label="' + t('favorite') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + '</button>'
+    + '</div>'
+    + '<div class="body">'
+    + '<h3 class="title"' + l10nAttrs(p.id, 'title', baseContentLang(p), viewProductText(p, 'title')) + '>' + esc(viewProductText(p, 'title')) + '</h3>'
+    + '<div class="meta">'
+    + (isVerifiedSeller(p.sellerId) ? '<span class="badge verified">' + icon('shield') + t('verified') + '</span>' : '')
+    + '<span class="stars">★★★★★</span><span class="rating-num">' + p.rating.toFixed(1) + '</span>'
+    + '</div>'
+    + '<div class="price-row">'
+    + '<span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMin) + '</span>'
+    + (p.priceMax > p.priceMin ? '<span class="range-sep">–</span><span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMax) + '</span>' : '')
+    + '<span class="moq-tag">' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</span>'
+    + '</div>'
+    + '<div class="meta">'
+    + '<span class="flag">' + flagEmoji(p.country) + '</span><span>' + countryName(p.country) + '</span>'
+    + certs.map(c => '<span class="chip cert">' + esc(c) + '</span>').join('')
+    + '</div>'
+    + '</div>'
+    + '<div class="foot">'
+    + '<span class="seller-mini"><span class="avatar" style="width:22px;height:22px;font-size:10px">' + esc(initialsOf(langObj(seller).company)) + '</span>' + esc(langObj(seller).company) + '</span>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="open-inquiry" data-id="' + p.id + '">' + icon('message') + t('sendInquiry') + '</button>'
+    + '</div>'
+    + '</article>';
+}
+
+/* ---------- 首页 ---------- */
+function renderHome() {
+  document.title = 'trade boat · ' + t('heroTitle');
+  const live = state.products.filter(isLive);
+  const featured = live.filter(p => p.featured).slice(0, 6);
+  const countries = new Set(live.map(p => p.country)).size;
+  const avgResp = Math.round(SELLERS.reduce((s, x) => s + x.responseRate, 0) / SELLERS.length);
+  const hotKw = state.lang === 'zh'
+    ? ['激光切割机', '氮化镓充电器', '柚木家具', '柠檬酸', '充电枪']
+    : ['laser cutter', 'GaN charger', 'teak furniture', 'citric acid', 'EV cable'];
+  const catEmoji = { machinery: '⚙️', electronics: '💡', textiles: '👕', furniture: '🛋️', chemicals: '🧪', auto: '🚗' };
+  return '<section class="hero">'
+    + '<div class="hero-inner">'
+    + '<h1>' + t('heroTitle') + '</h1>'
+    + '<p>' + t('heroSub') + '</p>'
+    + '<form class="hero-search" data-form="home-search">'
+    + '<input type="search" id="homeKw" placeholder="' + t('searchPlaceholder') + '" aria-label="' + t('searchPlaceholder') + '">'
+    + '<button type="submit" class="btn btn-accent">' + icon('search') + t('searchPlaceholder').split('，')[0] + '</button>'
+    + '</form>'
+    + '<div class="hero-popular">' + t('popular') + hotKw.map(k => '<a href="#/products?kw=' + encodeURIComponent(k) + '" data-nav="/products?kw=' + encodeURIComponent(k) + '">' + esc(k) + '</a>').join('') + '</div>'
+    + '</div>'
+    + '<div class="hero-stats">'
+    + '<div class="stat-box"><div class="num">' + SELLERS.length + ',000+</div><div class="lbl">' + t('statsSuppliers') + '</div></div>'
+    + '<div class="stat-box"><div class="num">' + (live.length * 6000).toLocaleString() + '+</div><div class="lbl">' + t('statsProducts') + '</div></div>'
+    + '<div class="stat-box"><div class="num">' + (countries * 20 + 80) + '+</div><div class="lbl">' + t('statsCountries') + '</div></div>'
+    + '<div class="stat-box"><div class="num">' + avgResp + '%</div><div class="lbl">' + t('statsResponse') + '</div></div>'
+    + '</div>'
+    + '</section>'
+    + '<div class="container page">'
+    + '<section class="section"><div class="section-head"><h2>' + t('categoriesTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
+    + '<div class="cat-grid">' + CATEGORIES.map(c => {
+      const count = live.filter(p => p.cat === c.id).length;
+      return '<a class="cat-card" href="#/products?cat=' + c.id + '" data-nav="/products?cat=' + c.id + '">'
+        + '<div class="cat-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 52%),hsl(' + ((c.hue + 45) % 360) + ' 65% 38%))">' + (catEmoji[c.id] || '📦') + '</div>'
+        + '<div class="name">' + langObj(c) + '</div>'
+        + '<div class="count">' + count + ' ' + t('totalProducts') + '</div>'
+        + '</a>';
+    }).join('') + '</div></section>'
+    + '<section class="section"><div class="section-head"><h2>' + t('featuredTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
+    + '<div class="product-grid">' + featured.map(productCard).join('') + '</div></section>'
+    + '<div class="cta-band">'
+    + '<div><h2>' + t('sellerCtaTitle') + '</h2><p>' + t('sellerCtaDesc') + '</p></div>'
+    + '<a class="btn btn-accent btn-lg" href="#/dashboard" data-nav="/dashboard">' + icon('sparkle') + t('sellerCtaBtn') + '</a>'
+    + '</div>'
+    + '</div>';
+}
+
+/* ---------- 产品市场 ---------- */
+function renderProducts(params) {
+  document.title = t('marketplace') + ' · trade boat';
+  const kw = (params.get('kw') || '').trim();
+  const cat = params.get('cat') || '';
+  const sort = params.get('sort') || 'recommended';
+  const min = params.get('min') ? +params.get('min') : null;
+  const max = params.get('max') ? +params.get('max') : null;
+  const moqMin = params.get('moq') ? +params.get('moq') : null;
+  const origin = params.get('origin') || '';
+  const certs = (params.get('certs') || '').split(',').filter(Boolean);
+  const origins = Array.from(new Set(state.products.filter(isLive).map(p => p.country)));
+
+  let list = state.products.filter(isLive);
+  if (kw) {
+    const k = kw.toLowerCase();
+    list = list.filter(p => p.en.title.toLowerCase().includes(k) || p.zh.title.includes(kw) || p.en.desc.toLowerCase().includes(k) || p.zh.desc.includes(kw));
+  }
+  if (cat) list = list.filter(p => p.cat === cat);
+  if (min != null) list = list.filter(p => p.priceMax >= min);
+  if (max != null) list = list.filter(p => p.priceMin <= max);
+  if (moqMin != null) list = list.filter(p => p.moq >= moqMin);
+  if (origin) list = list.filter(p => p.country === origin);
+  if (certs.length) list = list.filter(p => (p.certs || []).some(c => certs.includes(c)));
+
+  if (sort === 'newest') list = [...list].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  else if (sort === 'priceAsc') list = [...list].sort((a, b) => a.priceMin - b.priceMin);
+  else if (sort === 'priceDesc') list = [...list].sort((a, b) => b.priceMax - a.priceMax);
+  else list = [...list].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.rating - a.rating);
+
+  const chips = [];
+  if (kw) chips.push('<span class="active-filter" data-action="remove-filter" data-key="kw">' + esc(kw) + ' ✕</span>');
+  if (cat) chips.push('<span class="active-filter" data-action="remove-filter" data-key="cat">' + esc(langObj(catById(cat))) + ' ✕</span>');
+  if (min != null || max != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="minmax">$' + (min != null ? min : '0') + '–' + (max != null ? max : '∞') + ' ✕</span>');
+  if (moqMin != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="moq">MOQ ≥ ' + moqMin + ' ✕</span>');
+  if (origin) chips.push('<span class="active-filter" data-action="remove-filter" data-key="origin">' + esc(countryName(origin)) + ' ✕</span>');
+  certs.forEach(c => chips.push('<span class="active-filter" data-action="remove-filter" data-key="certs" data-value="' + esc(c) + '">' + esc(c) + ' ✕</span>'));
+
+  const grid = list.length
+    ? '<div class="product-grid">' + list.map(productCard).join('') + '</div>'
+    : '<div class="empty-state"><div class="ico">🔎</div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>';
+
+  return '<div class="container page">'
+    + '<div class="page-head">'
+    + '<h1>' + (kw ? t('searchResultsFor', { kw }) : t('marketplace')) + '</h1>'
+    + '<div class="sub">' + t('statsProducts') + ' · ' + state.products.filter(isLive).length + '+</div>'
+    + '</div>'
+    + '<div class="products-layout">'
+    + '<aside class="card filter-panel" id="filterPanel">'
+    + '<h3>' + icon('filter') + t('filters') + '</h3>'
+    + '<div class="filter-group"><h4>' + t('category') + '</h4><div class="radio-row">'
+    + '<label class="' + (cat === '' ? 'active' : '') + '"><input type="radio" name="cat" value="" ' + (cat === '' ? 'checked' : '') + '>' + t('allCategories') + '</label>'
+    + CATEGORIES.map(c => '<label class="' + (cat === c.id ? 'active' : '') + '"><input type="radio" name="cat" value="' + c.id + '" ' + (cat === c.id ? 'checked' : '') + '>' + langObj(c) + '</label>').join('')
+    + '</div></div>'
+    + '<div class="filter-group"><h4>' + t('priceRange') + '</h4>'
+    + '<div class="input-group"><input class="input" type="number" min="0" id="priceMin" placeholder="' + t('minPrice') + '" value="' + (min != null ? min : '') + '"><span class="sep">–</span><input class="input" type="number" min="0" id="priceMax" placeholder="' + t('maxPrice') + '" value="' + (max != null ? max : '') + '"></div>'
+    + '</div>'
+    + '<div class="filter-group"><h4>' + t('moq') + '</h4><input class="input" type="number" min="0" id="moqFilter" placeholder="' + t('anyMoq') + '" value="' + (moqMin != null ? moqMin : '') + '"></div>'
+    + '<div class="filter-group"><h4>' + t('origin') + '</h4><select class="select" id="originFilter">'
+    + '<option value="">' + t('allCountries') + '</option>'
+    + origins.map(o => '<option value="' + o + '" ' + (origin === o ? 'selected' : '') + '>' + flagEmoji(o) + ' ' + countryName(o) + '</option>').join('')
+    + '</select></div>'
+    + '<div class="filter-group"><h4>' + t('certs') + '</h4><div class="check-group">'
+    + CERT_LIST.map(c => '<label class="check-pill"><input type="checkbox" value="' + c + '" data-cert="' + c + '" ' + (certs.includes(c) ? 'checked' : '') + '>' + c + '</label>').join('')
+    + '</div></div>'
+    + '<div class="filter-actions"><button type="button" class="btn btn-sm btn-block" data-action="clear-filters">' + t('clearFilters') + '</button></div>'
+    + '</aside>'
+    + '<div>'
+    + '<div class="results-bar">'
+    + '<span class="results-count"><b>' + list.length + '</b> ' + t('resultsCount') + '</span>'
+    + (chips.length ? '<div class="flex items-center gap-10">' + chips.join('') + '</div>' : '')
+    + '<select class="select sort-select" id="sortSel" style="margin-left:auto">'
+    + '<option value="recommended" ' + (sort === 'recommended' ? 'selected' : '') + '>' + t('sortRecommended') + '</option>'
+    + '<option value="newest" ' + (sort === 'newest' ? 'selected' : '') + '>' + t('sortNewest') + '</option>'
+    + '<option value="priceAsc" ' + (sort === 'priceAsc' ? 'selected' : '') + '>' + t('sortPriceAsc') + '</option>'
+    + '<option value="priceDesc" ' + (sort === 'priceDesc' ? 'selected' : '') + '>' + t('sortPriceDesc') + '</option>'
+    + '</select>'
+    + '</div>'
+    + grid
+    + '</div>'
+    + '</div></div>';
+}
+
+function bindProductsPage() {
+  const panel = $('#filterPanel');
+  if (!panel) return;
+  panel.querySelectorAll('input[name="cat"]').forEach(r => r.addEventListener('change', () => setFilter('cat', r.value)));
+  const pm = $('#priceMin'), px = $('#priceMax'), mq = $('#moqFilter'), or = $('#originFilter'), so = $('#sortSel');
+  if (pm) pm.addEventListener('change', e => setFilter('min', e.target.value));
+  if (px) px.addEventListener('change', e => setFilter('max', e.target.value));
+  if (mq) mq.addEventListener('change', e => setFilter('moq', e.target.value));
+  if (or) or.addEventListener('change', e => setFilter('origin', e.target.value));
+  if (so) so.addEventListener('change', e => setFilter('sort', e.target.value));
+  panel.querySelectorAll('input[data-cert]').forEach(cb => cb.addEventListener('change', () => {
+    const checked = panel.querySelectorAll('input[data-cert]:checked');
+    setFilter('certs', Array.from(checked).map(c => c.value).join(','));
+  }));
+}
+
+function setFilter(key, value) {
+  const { params } = parseHash();
+  if (value === '' || value == null) params.delete(key);
+  else params.set(key, value);
+  const qs = params.toString();
+  location.hash = '#/products' + (qs ? '?' + qs : '');
+}
+
+function removeFilter(key, value) {
+  const { params } = parseHash();
+  if (key === 'certs') {
+    const arr = (params.get('certs') || '').split(',').filter(Boolean).filter(c => c !== value);
+    if (arr.length) params.set('certs', arr.join(','));
+    else params.delete('certs');
+  } else if (key === 'minmax') {
+    params.delete('min'); params.delete('max');
+  } else {
+    params.delete(key);
+  }
+  const qs = params.toString();
+  location.hash = '#/products' + (qs ? '?' + qs : '');
+}
+
+/* ---------- 贸易资讯 ---------- */
+function fxStrip() {
+  return '<div class="fx-strip"><span class="fx-label">' + icon('globe') + ' ' + t('fxReference') + ' (' + FX_RATES.date + ')：</span>'
+    + '<span>USD/CNY ' + FX_RATES.USD_CNY + '</span><span>USD/EUR ' + FX_RATES.USD_EUR + '</span>'
+    + '<span>USD/JPY ' + FX_RATES.USD_JPY + '</span><span>USD/GBP ' + FX_RATES.USD_GBP + '</span>'
+    + '<span class="fx-note">' + t('fxNote') + '</span></div>';
+}
+
+function newsCard(n) {
+  const cat = NEWS_CATS.find(c => c.id === n.cat);
+  const region = NEWS_REGIONS.find(r => r.id === n.region);
+  return '<article class="news-card">'
+    + '<div class="news-top">'
+    + '<span class="chip ' + (n.highlight ? 'chip-hot' : '') + '">' + esc(cat ? langObj(cat) : n.cat) + '</span>'
+    + '<span class="chip">' + esc(region ? langObj(region) : n.region) + '</span>'
+    + '<span class="news-date">' + n.date + '</span>'
+    + '</div>'
+    + '<h3' + l10nAttrs(n.id, 'title', 'en', n.en.title) + '>' + esc(langObj(n).title) + '</h3>'
+    + '<p' + l10nAttrs(n.id, 'summary', 'en', n.en.summary) + '>' + esc(langObj(n).summary) + '</p>'
+    + '<div class="news-foot">'
+    + '<span class="news-source">' + t('sourceLabel') + '：<b>' + esc(n.source) + '</b></span>'
+    + '<a class="btn btn-sm btn-ghost" href="' + n.sourceUrl + '" target="_blank" rel="noopener noreferrer">' + t('viewSource') + ' ' + icon('external') + '</a>'
+    + '</div></article>';
+}
+
+function briefCard(n) {
+  return '<a class="brief-card" href="' + n.sourceUrl + '" target="_blank" rel="noopener noreferrer">'
+    + '<div class="brief-tag">' + t('policyBrief') + '</div>'
+    + '<h3' + l10nAttrs(n.id, 'title', 'en', n.en.title) + '>' + esc(langObj(n).title) + '</h3>'
+    + '<p' + l10nAttrs(n.id, 'summary', 'en', n.en.summary) + '>' + esc(langObj(n).summary) + '</p>'
+    + '<span class="news-source">' + t('sourceLabel') + '：' + esc(n.source) + '</span>'
+    + '</a>';
+}
+
+function renderNews(params) {
+  document.title = t('newsTitle') + ' · trade boat';
+  const cat = params.get('cat') || 'all';
+  const regions = state.newsRegions || ['GLOBAL'];
+  const showAll = regions.includes('GLOBAL');
+  const briefs = NEWS_ITEMS.filter(n => n.highlight);
+  const list = NEWS_ITEMS.filter(n =>
+    (cat === 'all' || n.cat === cat) &&
+    (showAll || regions.includes(n.region) || n.region === 'GLOBAL')
+  );
+  return '<div class="container page">'
+    + '<div class="page-head"><h1>' + icon('bell') + ' ' + t('newsTitle') + '</h1>'
+    + '<div class="sub">' + t('newsSub') + '</div></div>'
+    + '<section class="section"><div class="section-head"><h2>' + t('policyBrief') + '</h2></div>'
+    + '<div class="brief-grid">' + briefs.map(briefCard).join('') + '</div></section>'
+    + '<div class="card panel news-filter">'
+    + '<div class="news-filter-row"><span class="filter-label">' + t('newsCatFilter') + '</span>'
+    + '<div class="sub-tabs">' + NEWS_CATS.map(c =>
+      '<a class="sub-tab ' + (cat === c.id ? 'on' : '') + '" href="#/news?cat=' + c.id + '" data-nav="/news?cat=' + c.id + '">' + langObj(c) + '</a>'
+    ).join('') + '</div></div>'
+    + '<div class="news-filter-row" id="newsRegionGroup"><span class="filter-label">' + t('newsRegionFilter') + '</span>'
+    + '<div class="check-group">' + NEWS_REGIONS.map(r =>
+      '<label class="check-pill"><input type="checkbox" name="newsRegion" value="' + r.id + '" ' + (regions.includes(r.id) ? 'checked' : '') + '>' + langObj(r) + '</label>'
+    ).join('') + '</div></div>'
+    + '<p class="small muted">' + icon('bell') + ' ' + t('newsRegionHint') + '</p>'
+    + '</div>'
+    + '<div class="news-sync"><span>' + icon('bell') + ' ' + t('newsSyncedAt') + '：' + fmtDate(state.newsSyncedAt) + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="refresh-news">' + icon('refresh') + t('newsRefresh') + '</button></div>'
+    + (list.length
+      ? '<div class="news-list">' + list.map(newsCard).join('') + '</div>'
+      : '<div class="empty-state"><div class="ico">📰</div><p>' + t('noNews') + '</p></div>')
+    + '<section class="section mt-20"><div class="section-head"><h2>' + t('sourceDirectory') + '</h2><span class="sub">' + t('sourceDirectorySub') + '</span></div>'
+    + '<div class="source-grid">' + SOURCE_DIRECTORY.map(s =>
+      '<a class="source-card" href="' + s.url + '" target="_blank" rel="noopener noreferrer">'
+      + '<div class="source-name">' + esc(s.name) + ' ' + icon('external') + '</div>'
+      + '<div class="source-note">' + esc(langObj(s.note)) + '</div>'
+      + '</a>'
+    ).join('') + '</div></section>'
+    + fxStrip()
+    + '<div class="news-integration">' + icon('globe') + ' ' + t('newsIntegration') + '</div>'
+    + '<div class="news-disclaimer">ℹ️ ' + t('newsDisclaimer') + '</div>'
+    + '</div>';
+}
+
+function bindNewsPage() {
+  $$('#newsRegionGroup input[name="newsRegion"]').forEach(cb => cb.addEventListener('change', () => {
+    const ids = Array.from($$('#newsRegionGroup input[name="newsRegion"]:checked')).map(c => c.value);
+    state.newsRegions = ids.length ? ids : ['GLOBAL'];
+    saveState();
+    renderPage();
+  }));
+}
+
+/* ---------- 产品详情 ---------- */
+function renderDetail(pid) {
+  const p = productById(pid);
+  if (!p || !isLive(p)) return renderHome();
+  document.title = langObj(p).title + ' · trade boat';
+  const seller = sellerOf(p);
+  const cat = catById(p.cat);
+  const fav = state.favorites.includes(p.id);
+  const variant = (p.hue % 3) || 0;
+  const base = baseContentLang(p);
+  const srcTitle = (p[base] && p[base].title) || '';
+  const srcDesc = (p[base] && p[base].desc) || '';
+  const srcFeatures = (p[base] && p[base].features) || [];
+  const showSrcBlock = state.lang !== base;
+  const thumbs = [0, 1, 2].map(v =>
+    '<img src="' + productImg(p, 640, 480, v) + '" alt="' + (v + 1) + '" class="' + (v === variant ? 'on' : '') + '" data-action="gallery" data-id="' + p.id + '" data-v="' + v + '">'
+  ).join('');
+  return '<div class="container page">'
+    + '<nav class="breadcrumb"><a href="#/" data-nav="/">' + t('home') + '</a> / <a href="#/products" data-nav="/products">' + t('marketplace') + '</a> / <a href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + esc(langObj(cat)) + '</a> / <span>' + esc(langObj(p).title) + '</span></nav>'
+    + '<div class="detail-layout">'
+    + '<div class="gallery">'
+    + '<div class="main-img"><img src="' + productImg(p, 800, 600, variant) + '" alt="' + esc(langObj(p).title) + '" id="mainImg"></div>'
+    + '<div class="gallery-thumbs">' + thumbs + '</div>'
+    + '</div>'
+    + '<div class="card detail-main">'
+    + '<h1' + l10nAttrs(p.id, 'title', base, srcTitle) + '>' + esc(viewProductText(p, 'title')) + '</h1>'
+    + '<div class="detail-meta">'
+    + '<span class="stars">★★★★★</span><span class="rating-num"><b>' + p.rating.toFixed(1) + '</b></span>'
+    + '<span>' + flagEmoji(p.country) + ' ' + countryName(p.country) + '</span>'
+    + '<span>' + t('orders') + ': ' + p.orders.toLocaleString() + '</span>'
+    + (p.hot ? '<span class="badge verified" style="background:var(--accent-050);color:#B45309;border-color:#F3D9A4">🔥 ' + t('hot') + '</span>' : '')
+    + '</div>'
+    + '<div class="detail-price-row">'
+    + '<span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMin) + '</span>'
+    + (p.priceMax > p.priceMin ? '<span class="range-sep">–</span><span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMax) + '</span>' : '')
+    + '<span class="moq-tag">' + t('priceFrom') + '</span>'
+    + '</div>'
+    + fxStrip()
+    + '<ul class="spec-list">'
+    + '<li><span class="k">' + t('moqLabel') + '</span><span class="v">' + p.moq + ' ' + p.unit + '</span></li>'
+    + '<li><span class="k">' + t('leadTime') + '</span><span class="v">' + p.leadTime + ' ' + t('days') + '</span></li>'
+    + '<li><span class="k">' + t('terms') + '</span><span class="v">' + (p.terms || []).join(' / ') + '</span></li>'
+    + '<li><span class="k">' + t('hsCode') + '</span><span class="v">' + esc(p.hsCode || t('noHsCode')) + '</span></li>'
+    + '<li><span class="k">' + t('certs') + '</span><span class="v">' + ((p.certs || []).join(', ') || '—') + '</span></li>'
+    + '<li><span class="k">' + t('originLabel') + '</span><span class="v">' + flagEmoji(p.country) + ' ' + countryName(p.country) + '</span></li>'
+    + '</ul>'
+    + '<details class="term-legend"><summary>' + icon('file') + ' ' + t('incotermsLegend') + '</summary>'
+    + INCOTERMS.map(x => '<div class="term-row"><b>' + x.code + '</b><span>' + esc(langObj(x)) + '</span></div>').join('')
+    + '</details>'
+    + '<div class="tip-box">' + icon('shield') + ' <b>' + t('complianceTip') + '</b><p>' + t('complianceTipText') + '</p></div>'
+    + '<div class="seller-card">'
+    + '<span class="avatar" style="width:38px;height:38px;font-size:14px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
+    + '<div class="info"><div class="name">' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('shield') + '<span style="color:var(--success);font-size:12px">' + t('verified') + '</span>' : '') + '</div>'
+    + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('responseRate') + ' ' + seller.responseRate + '%</div></div>'
+    + '</div>'
+    + '<div class="detail-actions">'
+    + '<button type="button" class="btn btn-primary btn-lg" data-action="open-inquiry" data-id="' + p.id + '" style="flex:1">' + icon('send') + t('sendInquiry') + '</button>'
+    + '<button type="button" class="btn btn-lg ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" style="color:' + (fav ? 'var(--danger)' : '') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + ' ' + (fav ? t('favorited') : t('favorite')) + '</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="detail-sections">'
+    + '<div class="card detail-block"><h2>' + t('productDetail') + '</h2>'
+    + '<p' + l10nAttrs(p.id, 'desc', base, srcDesc) + '>' + esc(viewProductText(p, 'desc')) + '</p>'
+    + '<ul class="feature-list">'
+    + (langObj(p).features || []).map((f, i) => '<li><span class="tick">✓</span><span' + l10nAttrs(p.id, 'feature' + i, base, srcFeatures[i] || f) + '>' + esc(viewProductText(p, 'features', i)) + '</span></li>').join('')
+    + '</ul>'
+    + (showSrcBlock
+      ? '<details class="src-text"><summary>🌐 ' + t('sourceLang') + '（' + langLabel(base) + '）</summary>'
+        + '<div class="src-text-body"><h4>' + esc(srcTitle) + '</h4><p>' + esc(srcDesc) + '</p><ul class="feature-list">'
+        + srcFeatures.map(f => '<li><span class="tick">✓</span><span>' + esc(f) + '</span></li>').join('')
+        + '</ul></div></details>'
+      : '')
+    + '</div>'
+    + '<div class="card detail-block fake-card"><h2>🛡 ' + t('fakeTitle') + '</h2>'
+    + '<div class="fake-card-body">'
+    + '<div class="fake-qr">' + fakeQrSvg(fakeCodeOf(p)) + '</div>'
+    + '<div class="fake-card-info">'
+    + '<div class="fake-status"><span class="fake-badge">✓ ' + t('fakeGenuine') + '</span></div>'
+    + '<div class="fake-code-row"><span>' + t('fakeCode') + '：</span><b class="fake-code">' + fakeCodeOf(p) + '</b></div>'
+    + '<p class="small muted">' + t('fakeInfo') + '</p>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="verify-product" data-id="' + p.id + '">🛡 ' + t('fakeVerify') + '</button>'
+    + '</div></div></div>'
+    + '<div class="card detail-block"><h2>' + icon('shield') + ' ' + t('complianceTitle') + '</h2>'
+    + ((p.markets || []).length
+      ? p.markets.map(m => {
+        const mc = MARKET_COMPLIANCE[m];
+        return '<div class="compliance-market"><b>' + esc(mc ? langObj(mc) : m) + '</b><ul>'
+          + (mc ? mc.items.map(x => '<li>' + esc(x) + '</li>').join('') : '<li>—</li>')
+          + '</ul></div>';
+      }).join('')
+      : '<p class="muted">' + t('complianceEmpty') + '</p>')
+    + '<p class="small muted">' + t('complianceRef') + '</p></div>'
+    + '<div class="card detail-block"><h2>' + t('aboutSeller') + '</h2><div class="seller-block">'
+    + '<span class="avatar" style="width:54px;height:54px;font-size:18px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
+    + '<div><div class="name" style="font-weight:700">' + esc(langObj(seller).company) + '</div>'
+    + '<div class="small muted">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('since') + ' ' + seller.since + '</div></div>'
+    + '<div class="stats">'
+    + '<div><div class="n">' + seller.rating + '</div><div class="l">★ ' + t('statsSuppliers') + '</div></div>'
+    + '<div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('responseRate') + '</div></div>'
+    + '<div><div class="n">' + seller.responseTime + '</div><div class="l">' + t('responseTime') + '</div></div>'
+    + '<div><div class="n">' + seller.orders.toLocaleString() + '</div><div class="l">' + t('orders') + '</div></div>'
+    + '</div>'
+    + '</div></div>'
+    + '</div></div>';
+}
+
+function setGallery(el) {
+  const p = productById(el.dataset.id);
+  if (!p) return;
+  const v = el.dataset.v;
+  const main = $('#mainImg');
+  if (main) main.src = productImg(p, 800, 600, +v);
+  $$('.gallery-thumbs img').forEach(i => i.classList.toggle('on', i === el));
+}
+
+/* ---------- 询盘 ---------- */
+function openInquiryModal(pid) {
+  const p = productById(pid);
+  if (!p) return;
+  const u = state.user;
+  const buyerCountries = [
+    ['DE', '德国 / Germany'], ['US', '美国 / USA'], ['GB', '英国 / UK'], ['FR', '法国 / France'],
+    ['AU', '澳大利亚 / Australia'], ['JP', '日本 / Japan'], ['BR', '巴西 / Brazil'],
+    ['AE', '阿联酋 / UAE'], ['CA', '加拿大 / Canada'], ['SG', '新加坡 / Singapore']
+  ];
+  const defaultMsg = state.lang === 'zh'
+    ? '您好，我对「' + p.zh.title + '」很感兴趣。请报价 ' + p.moq + ' ' + p.unit + ' 的最佳价格（' + (p.terms || ['FOB'])[0] + '），并告知包装与交期。'
+    : 'Hello, we are interested in "' + p.en.title + '". Please quote your best price for ' + p.moq + ' ' + p.unit + ' (' + (p.terms || ['FOB'])[0] + ') including packaging and lead time.';
+  showModal(
+    '<div class="modal-head"><h3>' + icon('send') + ' ' + t('inquiryTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + '<div class="inquiry-summary"><img src="' + productImg(p, 200, 150) + '" alt=""><div><div style="font-weight:600">' + esc(langObj(p).title) + '</div><div class="small muted">' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' USD · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div></div></div>'
+    + '<form data-form="inquiry-form" data-id="' + p.id + '">'
+    + '<div class="field"><label>' + t('quantity') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="qty" value="' + p.moq + '" required><select class="select" name="unit" style="width:110px">' + UNITS.map(uu => '<option value="' + uu + '" ' + (uu === p.unit ? 'selected' : '') + '>' + uu + '</option>').join('') + '</select></div></div>'
+    + '<div class="field"><label>' + t('message') + ' *</label><textarea class="textarea" name="message" required>' + esc(defaultMsg) + '</textarea></div>'
+    + '<div class="trans-preview"><span class="trans-label">⚡ ' + t('translateLabel') + '</span><p data-trans-target="msg">' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
+    + '<div class="field"><label>' + t('payment') + ' <span class="hint">' + t('paymentHint') + '</span></label><select class="select" name="payment">' + PAYMENT_TERMS.map((pt, i) => '<option value="' + i + '">' + esc(langObj(pt)) + '</option>').join('') + '</select></div>'
+    + '<div class="form-grid">'
+    + '<div class="field"><label>' + t('contactName') + ' *</label><input class="input" name="name" value="' + esc(u && u.role === 'buyer' ? u.name : '') + '" required></div>'
+    + '<div class="field"><label>' + t('contactEmail') + ' *</label><input class="input" type="email" name="email" value="' + esc(u && u.role === 'buyer' ? u.email : '') + '" required></div>'
+    + '<div class="field"><label>' + t('companyName') + '</label><input class="input" name="company" value="' + esc(u && u.role === 'buyer' ? (u.buyerCompany || '') : '') + '"></div>'
+    + '<div class="field"><label>' + t('countryLabel') + '</label><select class="select" name="country"><option value="">—</option>' + buyerCountries.map(c => '<option value="' + c[0] + '" ' + (u && u.buyerCountry === c[0] ? 'selected' : '') + '>' + c[1] + '</option>').join('') + '</select></div>'
+    + '</div>'
+    + '<button type="submit" class="btn btn-primary btn-lg btn-block">' + icon('send') + t('send') + '</button>'
+    + '</form></div>'
+  );
+  fillTransBox(document.querySelector('[data-trans-target="msg"]'), defaultMsg);
+}
+
+function submitInquiry(f) {
+  const fd = new FormData(f);
+  const name = (fd.get('name') || '').trim();
+  const email = (fd.get('email') || '').trim();
+  const qty = +(fd.get('qty') || 0);
+  const message = (fd.get('message') || '').trim();
+  if (!name || !email || !qty || !message) { toast(t('required')); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast(t('invalidEmail')); return; }
+  const pid = f.dataset.id;
+  const p = productById(pid);
+  const inquiry = {
+    id: 'i' + Date.now(),
+    productId: pid, sellerId: p.sellerId,
+    buyerId: state.user ? state.user.id : 'guest',
+    name, email, company: (fd.get('company') || '').trim(), country: fd.get('country') || '',
+    qty, unit: fd.get('unit'), message,
+    payment: PAYMENT_TERMS[+(fd.get('payment') || 0)] || PAYMENT_TERMS[0],
+    createdAt: Date.now(), status: 'new', reply: ''
+  };
+  state.inquiries.unshift(inquiry);
+  saveState();
+  const pid2 = pid;
+  const p2 = productById(pid2);
+  $('#modalRoot').innerHTML = '<div class="modal-mask"><div class="modal" data-stop="1">'
+    + '<div class="modal-success">'
+    + '<div class="success-ico">✓</div>'
+    + '<h3>' + t('inquirySuccessTitle') + '</h3>'
+    + '<p>' + t('inquirySuccessDesc') + '</p>'
+    + '<div class="inquiry-summary" style="text-align:left"><img src="' + productImg(p2, 200, 150) + '" alt=""><div><div style="font-weight:600">' + esc(langObj(p2).title) + '</div><div class="small muted">' + qty + ' ' + fd.get('unit') + ' · ' + esc(name) + '</div></div></div>'
+    + '<div class="flex gap-10" style="justify-content:center">'
+    + '<a class="btn btn-primary" href="#/dashboard" data-nav="/dashboard">' + t('viewMyInquiries') + '</a>'
+    + '<button type="button" class="btn" data-action="close-modal">' + t('continueBrowsing') + '</button>'
+    + '</div></div></div></div>';
+}
+
+/* ---------- 登录页 ---------- */
+function renderLogin() {
+  document.title = t('login') + ' · trade boat';
+  return '<div class="container"><div class="login-wrap">'
+    + '<h1>' + t('loginTitle') + '</h1>'
+    + '<p class="sub">' + t('loginDesc') + '</p>'
+    + '<div class="role-cards">'
+    + '<div class="role-card" data-action="login-role" data-role="buyer">'
+    + '<div class="role-ico" style="background:linear-gradient(135deg,#2563EB,#7C3AED)">🛒</div>'
+    + '<h3>' + t('asBuyer') + '</h3>'
+    + '<p>' + (state.lang === 'zh' ? '搜索产品、筛选对比、发送询盘并跟踪供应商回复' : 'Search products, filter, send inquiries and track supplier replies') + '</p>'
+    + '</div>'
+    + '<div class="role-card" data-action="login-role" data-role="seller">'
+    + '<div class="role-ico" style="background:linear-gradient(135deg,#F59E0B,#DC2626)">🏭</div>'
+    + '<h3>' + t('asSeller') + '</h3>'
+    + '<p>' + (state.lang === 'zh' ? '发布产品、管理询盘、回复买家报价' : 'Publish products, manage inquiries and reply to buyers') + '</p>'
+    + '</div>'
+    + '<div class="role-card" data-action="login-role" data-role="admin">'
+    + '<div class="role-ico" style="background:linear-gradient(135deg,#0F2145,#1D4ED8)">🛡️</div>'
+    + '<h3>' + t('asAdmin') + '</h3>'
+    + '<p>' + t('adminDesc') + '</p>'
+    + '</div>'
+    + '</div>'
+    + '<button type="button" class="btn btn-lg guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
+    + '<div class="login-note">💡 ' + t('loginNote') + '</div>'
+    + '</div></div>';
+}
+
+/* ---------- 工作台 ---------- */
+function renderDashboard(path) {
+  const u = state.user;
+  if (!u) {
+    toast(t('needLogin'));
+    return renderLogin();
+  }
+  return u.role === 'seller' ? renderSellerDash(path) : u.role === 'admin' ? renderAdminDash(path) : renderBuyerDash(path);
+}
+
+function sideNav(items, activeTab) {
+  return '<aside class="card dash-side">'
+    + '<div class="side-user"><div class="name">' + esc(state.user.name) + '</div><div class="sub">' + esc((state.user.role === 'seller' ? langObj(sellerById(state.user.sellerId)).company : state.user.buyerCompany || state.user.email)) + '</div></div>'
+    + '<nav class="side-nav">'
+    + items.map(it =>
+      '<a href="#/dashboard/' + it.tab + '" data-nav="/dashboard/' + it.tab + '" class="' + (activeTab === it.tab ? 'active' : '') + '">' + icon(it.icon) + it.label + (it.count ? '<span class="badge-dot">' + it.count + '</span>' : '') + '</a>'
+    ).join('')
+    + '<a href="#/login" data-nav="/login" data-action="switch-role">' + icon('users') + (state.lang === 'zh' ? '切换角色' : 'Switch role') + '</a>'
+    + '</nav></aside>';
+}
+
+function renderSellerDash(path) {
+  const u = state.user;
+  const sid = u.sellerId;
+  const seller = sellerById(sid);
+  const myProducts = state.products.filter(p => p.sellerId === sid);
+  const myInquiries = state.inquiries.filter(i => i.sellerId === sid).sort((a, b) => b.createdAt - a.createdAt);
+  const live = myProducts.filter(isLive).length;
+  const monthAgo = Date.now() - 30 * 86400000;
+  const monthInq = myInquiries.filter(i => i.createdAt > monthAgo).length;
+  const pending = myInquiries.filter(i => i.status === 'new').length;
+
+  const tabs = [
+    { tab: '', icon: 'chart', label: t('overview') },
+    { tab: 'products', icon: 'box', label: t('productManage'), count: myProducts.length },
+    { tab: 'publish', icon: 'plus', label: t('publish') },
+    { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: pending || null }
+  ];
+  const activeTab = path.split('/')[2] || '';
+  let body = '';
+
+  if (activeTab === '' || activeTab === 'overview') {
+    body = '<div class="stat-grid">'
+      + '<div class="card stat-card"><div class="stat-ico ico-blue">' + icon('box') + '</div><div><div class="n">' + live + '</div><div class="l">' + t('statLive') + '</div></div></div>'
+      + '<div class="card stat-card"><div class="stat-ico ico-amber">' + icon('message') + '</div><div><div class="n">' + monthInq + '</div><div class="l">' + t('statInquiries') + '</div></div></div>'
+      + '<div class="card stat-card"><div class="stat-ico ico-green">' + icon('clock') + '</div><div><div class="n">' + pending + '</div><div class="l">' + t('statPending') + '</div></div></div>'
+      + '<div class="card stat-card"><div class="stat-ico ico-purple">' + icon('sparkle') + '</div><div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('statRate') + '</div></div></div>'
+      + '</div>'
+      + '<div class="card panel"><div class="panel-head"><h2>' + t('recentInquiries') + '</h2><a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
+      + (myInquiries.length ? myInquiries.slice(0, 4).map(inquiryItem).join('') : '<div class="empty-state" style="padding:30px"><div class="ico">📭</div><p>' + t('noInquiries') + '</p></div>')
+      + '</div>'
+      + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('quickActions') + '</h2></div>'
+      + '<div class="flex gap-10" style="flex-wrap:wrap">'
+      + '<a class="btn btn-primary" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + t('newProduct') + '</a>'
+      + '<a class="btn" href="#/dashboard/products" data-nav="/dashboard/products">' + icon('box') + t('productManage') + '</a>'
+      + '<a class="btn" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + icon('message') + t('inquiryManage') + '</a>'
+      + '</div></div>';
+  } else if (activeTab === 'products') {
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('productManage') + '</h2><a class="btn btn-primary btn-sm" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + t('newProduct') + '</a></div>'
+      + (myProducts.length
+        ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('productDetail') + '</th><th>' + t('category') + '</th><th>' + t('priceRangeLabel') + '</th><th>' + t('moqLabel') + '</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
+        + myProducts.map(p => {
+          const st = p.status === undefined || p.status === 'on' ? 'on' : p.status;
+          const pillCls = st === 'on' ? 'live' : st === 'pending' ? 'pend' : st === 'rejected' ? 'rej' : 'off';
+          const pillTxt = st === 'on' ? t('onShelfLabel') : st === 'pending' ? t('pendingLabel') : st === 'rejected' ? t('rejectedLabel') : t('offShelfLabel');
+          return '<tr>'
+            + '<td><div class="prod-cell"><img src="' + productImg(p, 120, 90) + '" alt=""><span class="t">' + esc(langObj(p).title) + '</span></div></td>'
+            + '<td>' + esc(langObj(catById(p.cat))) + '</td>'
+            + '<td>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</td>'
+            + '<td>' + p.moq + ' ' + p.unit + '</td>'
+            + '<td><span class="status-pill ' + pillCls + '">' + pillTxt + '</span></td>'
+            + '<td><div class="row-actions">'
+            + (st === 'on' || st === 'off' ? '<button type="button" class="btn btn-sm" data-action="toggle-status" data-id="' + p.id + '">' + (st === 'on' ? t('offShelf') : t('onShelf')) + '</button>' : '')
+            + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + t('edit') + '</button>'
+            + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="delete-product" data-id="' + p.id + '">' + icon('trash') + '</button>'
+            + '</div></td></tr>';
+        }).join('') + '</tbody></table></div>'
+        : '<div class="empty-state" style="padding:36px"><div class="ico">📦</div><p>' + t('noProducts') + '</p></div>')
+      + '</div>';
+  } else if (activeTab === 'publish') {
+    body = renderPublishForm();
+  } else if (activeTab === 'inquiries') {
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('inquiryManage') + '</h2><span class="small muted">' + myInquiries.length + ' ' + t('totalInquiries') + '</span></div>'
+      + (myInquiries.length ? myInquiries.map(inquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiries') + '</p></div>')
+      + '</div>';
+  }
+  return '<div class="container page"><div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
+}
+
+/* ---------- 平台管理员后台 ---------- */
+function renderAdminDash(path) {
+  document.title = t('adminPanel') + ' · trade boat';
+  const activeTab = path.split('/')[2] || 'overview';
+  const pendingCount = state.products.filter(p => p.status === 'pending').length;
+  const verifyCount = (state.companies || []).filter(c => c.status === 'pending').length;
+  const tabs = [
+    { tab: 'overview', icon: 'chart', label: t('adminOverview') },
+    { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
+    { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
+    { tab: 'users', icon: 'users', label: t('userManage') },
+    { tab: 'logs', icon: 'clock', label: t('auditLog') }
+  ];
+  let body = '';
+  if (activeTab === 'review') body = adminReviewBody();
+  else if (activeTab === 'verify') body = adminVerifyBody();
+  else if (activeTab === 'users') body = adminUsersBody();
+  else if (activeTab === 'logs') body = adminLogsBody();
+  else body = adminOverviewBody();
+  return '<div class="container page"><div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
+}
+
+function adminStatCard(cls, iconName, n, label) {
+  return '<div class="card stat-card"><div class="stat-ico ' + cls + '">' + icon(iconName) + '</div><div><div class="n">' + n + '</div><div class="l">' + label + '</div></div></div>';
+}
+
+function adminOverviewBody() {
+  const live = state.products.filter(isLive).length;
+  const pending = state.products.filter(p => p.status === 'pending').length;
+  const monthAgo = Date.now() - 30 * 864e5;
+  const monthInq = state.inquiries.filter(i => i.createdAt > monthAgo).length;
+  const catCount = {};
+  state.inquiries.forEach(i => { const p = productById(i.productId); if (p) catCount[p.cat] = (catCount[p.cat] || 0) + 1; });
+  const catRows = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
+  const maxCat = Math.max(1, ...catRows.map(r => r[1]));
+  const cntCount = {};
+  state.inquiries.forEach(i => { const c = i.country || '—'; cntCount[c] = (cntCount[c] || 0) + 1; });
+  const cntRows = Object.entries(cntCount).sort((a, b) => b[1] - a[1]);
+  const maxCnt = Math.max(1, ...cntRows.map(r => r[1]));
+  const barRows = (rows, max, labelFn) => rows.length
+    ? rows.map(r => '<div class="bar-row"><span class="bar-label">' + esc(labelFn(r[0])) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + Math.max(8, Math.round(r[1] / max * 100)) + '%"></div></div><span class="bar-val">' + r[1] + '</span></div>').join('')
+    : '<div class="empty-state" style="padding:20px"><p>' + t('noInquiries') + '</p></div>';
+  const logs = (state.logs || []).slice(0, 5);
+  return '<div class="stat-grid">'
+    + adminStatCard('ico-blue', 'users', state.users.length, t('statUsers'))
+    + adminStatCard('ico-green', 'box', live, t('statLive'))
+    + adminStatCard('ico-amber', 'clock', pending, t('statPendingProducts'))
+    + adminStatCard('ico-purple', 'message', monthInq, t('statInquiries'))
+    + '</div>'
+    + '<div class="stat-grid stat-grid--two">'
+    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCategory') + '</h2></div><div class="chart-bars">' + barRows(catRows, maxCat, k => langObj(catById(k))) + '</div></div>'
+    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCountry') + '</h2></div><div class="chart-bars">' + barRows(cntRows, maxCnt, k => k === '—' ? '—' : flagEmoji(k) + ' ' + countryName(k)) + '</div></div>'
+    + '</div>'
+    + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('latestActivity') + '</h2><a class="btn btn-sm" href="#/dashboard/logs" data-nav="/dashboard/logs">' + t('viewAll') + ' →</a></div>'
+    + (logs.length
+      ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('logTime') + '</th><th>' + t('logActor') + '</th><th>' + t('logAction') + '</th><th>' + t('logTarget') + '</th></tr></thead><tbody>'
+      + logs.map(l => '<tr><td>' + fmtDate(l.ts) + '</td><td>' + esc(l.actor) + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.target) + '</td></tr>').join('')
+      + '</tbody></table></div>'
+      : '<div class="empty-state" style="padding:24px"><p>' + t('logsEmpty') + '</p></div>')
+    + '</div>';
+}
+
+function adminReviewBody() {
+  const { params } = parseHash();
+  const st = params.get('status') || 'pending';
+  const list = state.products.filter(p => st === 'pending' ? p.status === 'pending' : st === 'rejected' ? p.status === 'rejected' : isLive(p));
+  const tabs = [
+    { k: 'pending', label: t('pendingLabel') },
+    { k: 'live', label: t('onShelfLabel') },
+    { k: 'rejected', label: t('rejectedLabel') }
+  ];
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('productReview') + '</h2><span class="small muted">' + t('reviewHint') + '</span></div>'
+    + '<div class="sub-tabs">' + tabs.map(tb => '<a class="sub-tab ' + (st === tb.k ? 'on' : '') + '" href="#/dashboard/review?status=' + tb.k + '" data-nav="/dashboard/review?status=' + tb.k + '">' + tb.label + (tb.k === 'pending' ? ' (' + list.length + ')' : '') + '</a>').join('') + '</div>'
+    + (list.length ? list.map(p => adminReviewCard(p, st)).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">✅</div><p>' + t('noPending') + '</p></div>')
+    + '</div>';
+}
+
+function adminReviewCard(p, st) {
+  const seller = sellerOf(p);
+  const risks = st === 'pending' ? complianceCheck(p) : [];
+  const stLabel = p.status === 'pending' ? t('pendingLabel') : p.status === 'rejected' ? t('rejectedLabel') : t('onShelfLabel');
+  const stCls = p.status === 'pending' ? 'pend' : p.status === 'rejected' ? 'rej' : 'live';
+  return '<div class="review-card">'
+    + '<img class="thumb" src="' + productImg(p, 240, 180) + '" alt="' + esc(langObj(p).title) + '">'
+    + '<div class="info">'
+    + '<div class="head"><b>' + esc(langObj(p).title) + '</b><span class="status-pill ' + stCls + '">' + stLabel + '</span></div>'
+    + '<div class="meta small muted">' + esc(langObj(seller).company) + ' · ' + flagEmoji(p.country) + ' ' + countryName(p.country) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div>'
+    + '<div class="meta">' + (p.certs || []).map(c => '<span class="chip cert">' + esc(c) + '</span>').join('') + '</div>'
+    + ((p.markets || []).length ? '<div class="meta">' + p.markets.map(m => '<span class="chip">' + esc(MARKET_COMPLIANCE[m] ? langObj(MARKET_COMPLIANCE[m]) : m) + '</span>').join('') + '</div>' : '')
+    + (st === 'pending'
+      ? (risks.length
+        ? '<div class="risk-box"><div class="risk-title">⚠ ' + t('riskHints') + '</div>' + risks.map(r => '<span class="risk-chip">' + esc(r) + '</span>').join('') + '</div>'
+        : '<div class="risk-box ok">✓ ' + t('noRisk') + '</div>')
+      : '')
+    + (p.status === 'rejected' && p.rejectReason ? '<div class="reject-reason">' + t('rejectedLabel') + '：' + esc(p.rejectReason) + '</div>' : '')
+    + '</div>'
+    + (st === 'pending'
+      ? '<div class="actions">'
+        + '<button type="button" class="btn btn-sm btn-primary" data-action="approve-product" data-id="' + p.id + '">' + icon('check') + t('approve') + '</button>'
+        + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="reject-product" data-id="' + p.id + '">' + t('reject') + '</button>'
+        + '</div>'
+      : st === 'live'
+        ? '<div class="actions"><a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a></div>'
+        : '<div class="actions"></div>')
+    + '</div>';
+}
+
+function adminVerifyBody() {
+  const list = state.companies || [];
+  const pending = list.filter(c => c.status === 'pending');
+  const approved = list.filter(c => c.status === 'approved');
+  const rejected = list.filter(c => c.status === 'rejected');
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('companyVerify') + '</h2><span class="small muted">' + pending.length + ' ' + t('pendingVerify') + '</span></div>'
+    + (pending.length
+      ? pending.map(verifyCard).join('')
+      : '<div class="empty-state" style="padding:28px"><div class="ico">🏛️</div><p>' + t('noCompanies') + '</p></div>')
+    + (approved.length ? '<div class="section-divider">' + t('verifiedLabel') + ' · ' + approved.length + '</div>' + approved.map(verifyCard).join('') : '')
+    + (rejected.length ? '<div class="section-divider">' + t('rejectedVerify') + ' · ' + rejected.length + '</div>' + rejected.map(verifyCard).join('') : '')
+    + '</div>';
+}
+
+function verifyCard(c) {
+  const seller = sellerById(c.sellerId);
+  const st = c.status;
+  const stCls = st === 'approved' ? 'live' : st === 'rejected' ? 'rej' : 'pend';
+  const stLabel = st === 'approved' ? t('verifiedLabel') : st === 'rejected' ? t('rejectedVerify') : t('pendingVerify');
+  return '<div class="verify-card">'
+    + '<span class="avatar" style="width:44px;height:44px;font-size:16px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
+    + '<div class="info">'
+    + '<div class="head"><b>' + esc(langObj(seller).company) + '</b><span class="status-pill ' + stCls + '">' + stLabel + '</span></div>'
+    + '<div class="meta small muted">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('since') + ' ' + seller.since + '</div>'
+    + '<div class="meta"><span class="small muted">' + t('docsLabel') + '：</span>' + c.docs.map(d => '<span class="chip">' + esc(d) + '</span>').join('') + '</div>'
+    + '</div>'
+    + (st === 'pending'
+      ? '<div class="actions">'
+        + '<button type="button" class="btn btn-sm btn-primary" data-action="verify-company" data-id="' + c.sellerId + '">' + icon('check') + t('verifyCompany') + '</button>'
+        + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="reject-verify" data-id="' + c.sellerId + '">' + t('rejectVerify') + '</button>'
+        + '</div>'
+      : '')
+    + '</div>';
+}
+
+function adminUsersBody() {
+  const list = state.users || [];
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('userManage') + '</h2><span class="small muted">' + list.length + ' ' + t('statUsers') + '</span></div>'
+    + (list.length
+      ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('login') + '</th><th>' + t('roleCol') + '</th><th>' + t('contactEmail') + '</th><th>' + t('companyCol') + '</th><th>' + t('countryCol') + '</th><th>' + t('joinedCol') + '</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
+      + list.map(u => {
+        const roleLabel = u.role === 'admin' ? t('adminRoleTag') : u.role === 'seller' ? t('sellerRoleLabel') : t('buyerRoleLabel');
+        const frozen = u.status === 'frozen';
+        return '<tr>'
+          + '<td><div class="prod-cell"><span class="avatar" style="width:30px;height:30px;font-size:12px">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span><span class="t">' + esc(u.name) + '</span></div></td>'
+          + '<td>' + roleLabel + '</td>'
+          + '<td>' + esc(u.email) + '</td>'
+          + '<td>' + esc(u.company || '—') + '</td>'
+          + '<td>' + (u.country ? flagEmoji(u.country) + ' ' + countryName(u.country) : '—') + '</td>'
+          + '<td>' + fmtDate(u.joinedAt) + '</td>'
+          + '<td><span class="status-pill ' + (frozen ? 'rej' : 'live') + '">' + (frozen ? t('frozenStatus') : t('activeStatus')) + '</span></td>'
+          + '<td><div class="row-actions">' + (u.role === 'admin' ? '<span class="small muted">—</span>' : '<button type="button" class="btn btn-sm ' + (frozen ? '' : 'btn-danger-ghost') + '" data-action="freeze-user" data-id="' + u.id + '">' + (frozen ? t('unfreeze') : t('freeze')) + '</button>') + '</div></td>'
+          + '</tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="empty-state"><p>' + t('noUsers') + '</p></div>')
+    + '</div>';
+}
+
+function adminLogsBody() {
+  const logs = state.logs || [];
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('auditLog') + '</h2><span class="small muted">' + logs.length + '</span></div>'
+    + (logs.length
+      ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('logTime') + '</th><th>' + t('logActor') + '</th><th>' + t('logAction') + '</th><th>' + t('logTarget') + '</th><th>' + t('logDetail') + '</th></tr></thead><tbody>'
+      + logs.map(l => '<tr><td>' + fmtDate(l.ts) + '</td><td>' + esc(l.actor) + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.target) + '</td><td class="small muted">' + esc(l.detail || '—') + '</td></tr>').join('')
+      + '</tbody></table></div>'
+      : '<div class="empty-state" style="padding:36px"><div class="ico">📋</div><p>' + t('logsEmpty') + '</p></div>')
+    + '</div>';
+}
+
+function quoteBlock(i) {
+  const q = i.quote;
+  return '<div class="quote-title">' + icon('file') + ' ' + t('quoteBlock') + '</div>'
+    + '<div class="quote-grid">'
+    + '<span>' + t('quotePrice') + '：<b>$' + fmtPrice(q.price) + '</b></span>'
+    + '<span>' + t('quoteIncoterm') + '：<b>' + esc(q.incoterm) + '</b></span>'
+    + '<span>' + t('quotePayment') + '：' + esc(langObj(q.payment)) + '</span>'
+    + '<span>' + t('quoteValidity') + '：' + q.validity + ' ' + t('days') + '</span>'
+    + '<span>' + t('quoteLeadTime') + '：' + q.leadTime + ' ' + t('days') + '</span>'
+    + (q.note ? '<span class="full">' + t('quoteNote') + '：' + esc(q.note) + '</span>' : '')
+    + '</div>'
+    + '<div class="doc-actions">'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="print-doc" data-id="' + i.id + '" data-type="quotation">' + icon('file') + t('printQuotation') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="print-doc" data-id="' + i.id + '" data-type="proforma">' + icon('file') + t('printProforma') + '</button>'
+    + '</div>';
+}
+
+function inquiryMsg(i) {
+  return '<div class="msg-wrap"><div class="msg">' + esc(i.message) + '</div>'
+    + (msgTransState[i.id]
+      ? '<div class="trans-msg" data-trans-box="' + i.id + '"><span class="trans-pill">⚡ ' + t('translateLabel') + '</span><p>' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
+      : '')
+    + '<button type="button" class="trans-toggle" data-action="toggle-msg-trans" data-id="' + i.id + '">⚡ ' + t('translateToggle') + '</button></div>';
+}
+
+function inquiryItem(i) {
+  const p = productById(i.productId);
+  const done = i.status === 'handled' || i.status === 'quoted';
+  return '<div class="inquiry-item">'
+    + '<div class="top">'
+    + '<span class="avatar">' + esc(initialsOf(i.name)) + '</span>'
+    + '<div class="who">'
+    + '<div class="nm">' + esc(i.name) + (i.country ? ' <span class="flag">' + flagEmoji(i.country) + '</span>' : '') + '</div>'
+    + '<div class="ct">' + esc(i.company || '—') + ' · ' + esc(i.email) + ' · ' + t('sentAt') + ' ' + fmtDate(i.createdAt) + '</div>'
+    + '</div>'
+    + '<span class="status-pill ' + (done ? 'done' : 'new') + '">' + (i.status === 'quoted' ? t('quotedStatus') : done ? t('statusReplied') : t('statusNew')) + '</span>'
+    + '</div>'
+    + inquiryMsg(i)
+    + '<div class="prod-ref">' + (p ? '<img src="' + productImg(p, 120, 90) + '" alt="">' : '') + '<span>' + (p ? esc(langObj(p).title) : '—') + '</span>'
+    + '<span class="chip">' + i.qty + ' ' + i.unit + '</span>'
+    + (i.payment ? '<span class="chip">' + t('payment') + ' ' + esc(langObj(i.payment)) + '</span>' : '')
+    + '</div>'
+    + '<div class="foot">'
+    + (done
+      ? '<span class="small muted">' + icon('check') + ' ' + (i.status === 'quoted' ? t('quotedStatus') : t('replied')) + '</span>'
+      : '<button type="button" class="btn btn-sm" data-action="mark-handled" data-id="' + i.id + '">' + t('markHandled') + '</button>')
+    + '</div>'
+    + (i.quote
+      ? '<div class="reply-box">' + quoteBlock(i) + '</div>'
+      : done && i.reply
+        ? '<div class="reply-box"><div class="reply-msg"><b>' + (state.lang === 'zh' ? '您的回复：' : 'Your reply: ') + '</b>' + esc(i.reply) + '</div></div>'
+        : '<div class="reply-box"><form data-form="quote-form" data-id="' + i.id + '">'
+          + '<div class="quote-title">' + icon('file') + ' ' + t('quoteTitle') + '</div>'
+          + '<div class="quote-form-grid">'
+          + '<div class="field"><label>' + t('quotePrice') + ' *</label><input class="input" type="number" min="0" step="0.01" name="price" required></div>'
+          + '<div class="field"><label>' + t('quoteIncoterm') + ' *</label><select class="select" name="incoterm">' + INCOTERMS.map(x => '<option value="' + x.code + '">' + x.code + '</option>').join('') + '</select></div>'
+          + '<div class="field"><label>' + t('quotePayment') + ' *</label><select class="select" name="payment">' + PAYMENT_TERMS.map((pt, j) => '<option value="' + j + '">' + esc(langObj(pt)) + '</option>').join('') + '</select></div>'
+          + '<div class="field"><label>' + t('quoteValidity') + ' *</label><input class="input" type="number" min="1" name="validity" value="15" required></div>'
+          + '<div class="field"><label>' + t('quoteLeadTime') + ' *</label><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '15') + '" required></div>'
+          + '</div>'
+          + '<div class="field"><label>' + t('quoteNote') + '</label><textarea class="textarea" name="note" placeholder="' + t('replyPlaceholder') + '" style="min-height:54px"></textarea></div>'
+          + '<div class="trans-preview"><span class="trans-label">⚡ ' + t('translateLabel') + '</span><p data-trans-target="quoteNote' + i.id + '">—</p><div class="trans-note">' + t('translateNote') + '</div></div>'
+          + '<details class="doc-ref"><summary>' + icon('file') + ' ' + t('docReference') + '</summary>'
+          + '<p class="small muted">' + t('docStandardNote') + '</p>'
+          + '<div class="doc-fields"><b>' + t('docQuotation') + '</b><ul>' + t('docQuotationFields').split('\n').map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>'
+          + '<div class="doc-fields"><b>' + t('docProforma') + '</b><ul>' + t('docProformaFields').split('\n').map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>'
+          + '</details>'
+          + '<button type="submit" class="btn btn-primary">' + icon('send') + t('sendQuote') + '</button>'
+          + '</form></div>')
+    + '</div>';
+}
+
+function submitQuote(f) {
+  const i = state.inquiries.find(x => x.id === f.dataset.id);
+  if (!i) return;
+  const fd = new FormData(f);
+  const price = +fd.get('price');
+  const incoterm = fd.get('incoterm');
+  const validity = +fd.get('validity');
+  const leadTime = +fd.get('leadTime');
+  if (!price || price <= 0 || !incoterm || !validity || !leadTime) { toast(t('required')); return; }
+  i.quote = {
+    price: price,
+    incoterm: incoterm,
+    payment: PAYMENT_TERMS[+(fd.get('payment') || 0)] || PAYMENT_TERMS[0],
+    validity: validity,
+    leadTime: leadTime,
+    note: (fd.get('note') || '').trim()
+  };
+  i.status = 'quoted';
+  i.reply = '';
+  saveState();
+  toast(t('quoteSent'));
+  renderPage();
+}
+
+function docNumber(type) {
+  const d = new Date();
+  const ymd = '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  return (type === 'proforma' ? 'PI-' : 'QT-') + ymd + '-' + Math.floor(1000 + Math.random() * 9000);
+}
+
+function buildDoc(i, type) {
+  const p = productById(i.productId);
+  if (!p || !i.quote) return '';
+  const seller = sellerOf(p);
+  const q = i.quote;
+  const lang = state.lang;
+  const title = type === 'proforma' ? t('docProforma') : t('docQuotation');
+  const amountN = i.qty * q.price;
+  const dateFmt = ts => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  return '<div class="doc" id="docSheet">'
+    + '<div class="doc-head">'
+    + '<div class="doc-brand"><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div><div class="doc-web">trade boat</div></div>'
+    + '<div class="doc-title"><h2>' + esc(title) + '</h2><div>DOCUMENT · ' + t('quoteBlock') + '</div></div>'
+    + '</div>'
+    + '<div class="doc-meta">'
+    + '<span><b>' + t('docNo') + '：</b>' + docNumber(type) + '</span>'
+    + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span>'
+    + (type === 'quotation' ? '<span><b>' + t('docValidUntil') + '：</b>' + dateFmt(Date.now() + q.validity * 864e5) + '</span>' : '')
+    + '<span><b>' + t('docCurrency') + '</b></span>'
+    + '</div>'
+    + '<div class="doc-parties">'
+    + '<div><div class="doc-party-label">' + t('docSeller') + '</div><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div></div>'
+    + '<div><div class="doc-party-label">' + t('docBuyer') + '</div><b>' + esc(i.name) + '</b><div>' + esc(i.company || '—') + '</div><div>' + esc(i.email) + '</div></div>'
+    + '</div>'
+    + '<table class="doc-table">'
+    + '<thead><tr><th>' + t('docItem') + '</th><th>' + t('docDesc') + '</th><th>HS Code</th><th>' + t('docQty') + '</th><th>' + t('docUnitPrice') + '</th><th>' + t('docAmount') + '</th></tr></thead>'
+    + '<tbody><tr><td>1</td><td>' + esc(p[lang].title) + '</td><td>' + esc(p.hsCode || '—') + '</td><td>' + i.qty + ' ' + esc(i.unit) + '</td><td>' + fmtPrice(q.price) + '</td><td>' + fmtPrice(amountN) + '</td></tr></tbody>'
+    + '<tfoot><tr><td colspan="5" class="doc-total-label">' + t('docTotal') + '</td><td><b>' + fmtPrice(amountN) + '</b></td></tr></tfoot>'
+    + '</table>'
+    + '<div class="doc-terms">'
+    + '<span><b>' + t('quoteIncoterm') + '：</b>' + esc(q.incoterm) + '</span>'
+    + '<span><b>' + t('quotePayment') + '：</b>' + esc(q.payment[lang]) + '</span>'
+    + '<span><b>' + t('quoteLeadTime') + '：</b>' + q.leadTime + ' ' + t('days') + '</span>'
+    + (type === 'quotation' ? '<span><b>' + t('quoteValidity') + '：</b>' + q.validity + ' ' + t('days') + '</span>' : '')
+    + '<span class="full">' + t('docInsurance') + '</span>'
+    + (q.note ? '<span class="full"><b>' + t('quoteNote') + '：</b>' + esc(q.note) + '</span>' : '')
+    + '</div>'
+    + '<div class="doc-sign"><div>' + t('docSellerSign') + '</div><div>' + t('docBuyerSign') + '</div></div>'
+    + '<div class="doc-disclaimer">' + t('docDisclaimer') + '</div>'
+    + '</div>';
+}
+
+function openPrintDoc(inquiryId, type) {
+  const i = state.inquiries.find(x => x.id === inquiryId);
+  if (!i || !i.quote) return;
+  const doc = buildDoc(i, type);
+  if (!doc) return;
+  const printEl = document.getElementById('printDoc');
+  if (printEl) printEl.innerHTML = doc;
+  const title = type === 'proforma' ? t('docProforma') : t('docQuotation');
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + esc(title) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">' + doc
+    + '<p class="small muted">' + icon('file') + ' ' + t('printHint') + '</p>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
+    + '</div></div>');
+}
+
+function renderPublishForm() {
+  const { params } = parseHash();
+  const editId = params.get('id') || '';
+  const p = editId ? productById(editId) : null;
+  const hue = p ? p.hue : 210;
+  const cat = p ? p.cat : 'machinery';
+  const hueList = [210, 262, 330, 24, 160, 0];
+  return '<div class="card panel"><div class="panel-head"><h2>' + (p ? t('updateProduct') : t('publish')) + '</h2>'
+    + (p ? '<button type="button" class="btn btn-sm" data-action="cancel-edit">' + t('cancelEdit') + '</button>' : '')
+    + '</div>'
+    + '<div class="form-grid">'
+    + '<form data-form="product-form" data-id="' + (p ? p.id : '') + '" class="full">'
+    + '<input type="hidden" name="hue" value="' + hue + '">'
+    + '<div class="form-grid">'
+    + '<div class="field"><label>' + t('titleEn') + ' *</label><input class="input" name="titleEn" value="' + esc(p ? p.en.title : '') + '" required></div>'
+    + '<div class="field"><label>' + t('titleZh') + ' *</label><input class="input" name="titleZh" value="' + esc(p ? p.zh.title : '') + '" required></div>'
+    + '<div class="field"><label>' + t('srcLangField') + ' <span class="hint">' + t('srcLangAuto') + '</span></label><select class="select" name="srcLang">'
+    + '<option value="auto"' + (!p || !p.srcLang ? ' selected' : '') + '>' + t('srcLangAuto') + '</option>'
+    + '<option value="zh"' + (p && p.srcLang === 'zh' ? ' selected' : '') + '>中文</option>'
+    + '<option value="en"' + (p && p.srcLang === 'en' ? ' selected' : '') + '>English</option>'
+    + '</select></div>'
+    + '<div class="field"><label>' + t('categoryField') + ' *</label><select class="select" name="cat">' + CATEGORIES.map(c => '<option value="' + c.id + '" ' + (cat === c.id ? 'selected' : '') + '>' + langObj(c) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('chooseImage') + '</label><div class="palette">' + hueList.map(h => '<span class="swatch ' + (h === hue ? 'on' : '') + '" data-action="pick-hue" data-hue="' + h + '" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 48%),hsl(' + ((h + 45) % 360) + ' 55% 30%))"></span>').join('') + '</div></div>'
+    + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'
+    + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
+    + '<div class="field"><label>' + t('moqField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="moq" value="' + (p ? p.moq : '') + '" required><select class="select" name="unit" style="width:100px">' + UNITS.map(u => '<option value="' + u + '" ' + (p && p.unit === u ? 'selected' : '') + '>' + u + '</option>').join('') + '</select></div></div>'
+    + '<div class="field"><label>' + t('leadTimeField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '') + '" required><span class="sep">' + t('days') + '</span></div></div>'
+    + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('hsCode') + ' <span class="hint">' + t('hsHint') + '</span></label><input class="input" name="hsCode" value="' + esc(p ? (p.hsCode || '') : '') + '" placeholder="8456.11"></div>'
+    + '<div class="field full"><label>' + t('termsField') + '</label><div class="check-group">' + TERM_LIST.map(tr => '<label class="check-pill"><input type="checkbox" name="terms" value="' + tr + '" ' + (p && p.terms.includes(tr) ? 'checked' : '') + '>' + tr + '</label>').join('') + '</div></div>'
+    + '<div class="field full"><label>' + t('certsField') + '</label><div class="check-group">' + CERT_LIST.map(c => '<label class="check-pill"><input type="checkbox" name="certs" value="' + c + '" ' + (p && p.certs.includes(c) ? 'checked' : '') + '>' + c + '</label>').join('') + '</div></div>'
+    + '<div class="field full"><label>' + t('marketsField') + ' <span class="hint">' + t('complianceHint') + '</span></label><div class="check-group">' + Object.keys(MARKET_COMPLIANCE).map(m => '<label class="check-pill"><input type="checkbox" name="markets" value="' + m + '" ' + (p && (p.markets || []).includes(m) ? 'checked' : '') + '>' + langObj(MARKET_COMPLIANCE[m]) + '</label>').join('') + '</div></div>'
+    + '<div class="field full"><label>' + t('descEn') + ' *</label><textarea class="textarea" name="descEn" required>' + esc(p ? p.en.desc : '') + '</textarea></div>'
+    + '<div class="field full"><label>' + t('descZh') + ' *</label><textarea class="textarea" name="descZh" required>' + esc(p ? p.zh.desc : '') + '</textarea></div>'
+    + '</div>'
+    + '<button type="submit" class="btn btn-primary btn-lg">' + icon('check') + (p ? t('updateProduct') : t('saveProduct')) + '</button>'
+    + '</form>'
+    + '<div class="full publish-preview" id="publishPreview"><img src="' + productImg({ hue: hue, cat: cat, en: { title: p ? p.en.title : 'YOUR PRODUCT' }, zh: { title: '你的产品' } }, 800, 600) + '" alt="' + t('previewLabel') + '"></div>'
+    + '</div></div>';
+}
+
+function submitProduct(f) {
+  const fd = new FormData(f);
+  const titleEn = (fd.get('titleEn') || '').trim();
+  const titleZh = (fd.get('titleZh') || '').trim();
+  const priceMin = +fd.get('priceMin'), priceMax = +fd.get('priceMax');
+  const moq = +fd.get('moq'), leadTime = +fd.get('leadTime');
+  const descEn = (fd.get('descEn') || '').trim();
+  const descZh = (fd.get('descZh') || '').trim();
+  if (!titleEn || !titleZh || !priceMin || !priceMax || !moq || !leadTime || !descEn || !descZh || priceMax < priceMin) {
+    toast(t('required')); return;
+  }
+  const id = f.dataset.id;
+  let srcLang = fd.get('srcLang') || 'auto';
+  if (srcLang === 'auto') {
+    const s = sellerById(state.user.sellerId);
+    srcLang = (s && s.country === 'CN') ? 'zh' : 'en';
+  }
+  const data = {
+    cat: fd.get('cat'), country: fd.get('country'),
+    hue: +(fd.get('hue') || 210),
+    hsCode: (fd.get('hsCode') || '').trim(),
+    markets: fd.getAll('markets'),
+    priceMin, priceMax, moq, unit: fd.get('unit'), leadTime,
+    terms: fd.getAll('terms'), certs: fd.getAll('certs'),
+    srcLang: srcLang,
+    en: { title: titleEn, desc: descEn, features: [] },
+    zh: { title: titleZh, desc: descZh, features: [] },
+    rating: 0, orders: 0
+  };
+  if (id) {
+    const p = productById(id);
+    Object.assign(p, data);
+    p.status = 'pending';
+    p.rejectReason = '';
+  } else {
+    state.products.unshift(Object.assign({ id: 'u' + Date.now(), sellerId: state.user.sellerId, status: 'pending', featured: false, hot: false, addedAt: Date.now() }, data));
+  }
+  saveState();
+  toast(t('productSubmitted'));
+  go('/dashboard/products');
+}
+
+function deleteProduct(id) {
+  if (!confirm(t('deleteConfirm'))) return;
+  state.products = state.products.filter(p => p.id !== id);
+  saveState();
+  toast(t('productDeleted'));
+  renderPage();
+}
+
+function toggleStatus(id) {
+  const p = productById(id);
+  if (!p) return;
+  p.status = p.status === 'off' ? 'on' : 'off';
+  saveState();
+  toast(p.status === 'off' ? t('productOff') : t('productOn'));
+  renderPage();
+}
+
+function markHandled(id) {
+  const i = state.inquiries.find(x => x.id === id);
+  if (!i) return;
+  i.status = 'handled';
+  saveState();
+  toast(t('inquiryMarked'));
+  renderPage();
+}
+
+function submitReply(f) {
+  const i = state.inquiries.find(x => x.id === f.dataset.id);
+  const reply = (new FormData(f).get('reply') || '').trim();
+  if (!i || !reply) { toast(t('required')); return; }
+  i.reply = reply;
+  i.status = 'handled';
+  saveState();
+  toast(t('replySent'));
+  renderPage();
+}
+
+/* ---------- 买家中台 ---------- */
+function renderBuyerDash(path) {
+  const u = state.user;
+  const activeTab = path.split('/')[2] || 'inquiries';
+  const myInquiries = state.inquiries.filter(i => i.buyerId === u.id).sort((a, b) => b.createdAt - a.createdAt);
+  const favProducts = state.products.filter(p => state.favorites.includes(p.id) && isLive(p));
+  const tabs = [
+    { tab: 'inquiries', icon: 'message', label: t('myInquiries'), count: myInquiries.filter(i => i.status === 'new').length || null },
+    { tab: 'favorites', icon: 'heart', label: t('myFavorites'), count: favProducts.length || null }
+  ];
+  let body = '';
+  if (activeTab === 'favorites') {
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('myFavorites') + '</h2></div>'
+      + (favProducts.length ? '<div class="product-grid">' + favProducts.map(productCard).join('') + '</div>' : '<div class="empty-state" style="padding:36px"><div class="ico">🤍</div><p>' + t('noFavoritesYet') + '</p></div>')
+      + '</div>';
+  } else {
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('myInquiries') + '</h2></div>'
+      + (myInquiries.length ? myInquiries.map(buyerInquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiriesYet') + '</p></div>')
+      + '</div>';
+  }
+  return '<div class="container page"><div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
+}
+
+function buyerInquiryItem(i) {
+  const p = productById(i.productId);
+  const status = i.status === 'handled' || i.status === 'quoted';
+  return '<div class="inquiry-item">'
+    + '<div class="top">'
+    + '<div class="who"><div class="nm">' + (p ? esc(langObj(p).title) : '—') + '</div>'
+    + '<div class="ct">' + t('sentAt') + ' ' + fmtDate(i.createdAt) + ' · ' + i.qty + ' ' + i.unit + ' · <span class="status-pill ' + (status ? 'done' : 'new') + '">' + (i.status === 'quoted' ? t('quotedStatus') : status ? t('statusReplied') : t('statusNew')) + '</span></div></div>'
+    + (p ? '<a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>' : '')
+    + '</div>'
+    + inquiryMsg(i)
+    + (i.quote ? '<div class="reply-box">' + quoteBlock(i) + '</div>' : status && i.reply ? '<div class="reply-box"><div class="reply-msg"><b>' + t('sellerReply') + '：</b>' + esc(i.reply) + '</div></div>' : '')
+    + '</div>';
+}
+
+/* ---------- 全局事件（表单与杂项） ---------- */
+document.addEventListener('submit', e => {
+  const f = e.target;
+  if (f.dataset.form === 'home-search') {
+    e.preventDefault();
+    const kw = $('#homeKw').value.trim();
+    go('/products' + (kw ? '?kw=' + encodeURIComponent(kw) : ''));
+  }
+});
+
+/* 发布页：色板与预览联动 */
+document.addEventListener('click', e => {
+  const sw = e.target.closest('[data-action="pick-hue"]');
+  if (!sw) return;
+  $$('.swatch').forEach(s => s.classList.toggle('on', s === sw));
+  const form = document.querySelector('form[data-form="product-form"]');
+  const hidden = form ? form.querySelector('input[name="hue"]') : null;
+  if (hidden) hidden.value = sw.dataset.hue;
+  updatePublishPreview();
+});
+
+function updatePublishPreview() {
+  const img = document.querySelector('#publishPreview img');
+  const form = document.querySelector('form[data-form="product-form"]');
+  if (!img || !form) return;
+  const fd = new FormData(form);
+  const hue = +(fd.get('hue') || 210);
+  const cat = fd.get('cat') || 'machinery';
+  const title = (fd.get('titleEn') || 'YOUR PRODUCT').trim() || 'YOUR PRODUCT';
+  img.src = productImg({ hue: hue, cat: cat, en: { title: title }, zh: { title: title } }, 800, 600);
+}
+
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.closest('form[data-form="product-form"]')) { updatePublishPreview(); return; }
+  if ((el.name === 'note' && el.closest('form[data-form="quote-form"]')) || (el.name === 'message' && el.closest('form[data-form="inquiry-form"]'))) {
+    const box = el.closest('form').querySelector('[data-trans-target]');
+    if (box) {
+      clearTimeout(box._transTimer);
+      box._transTimer = setTimeout(() => {
+        fillTransBox(box, el.value);
+      }, 350);
+    }
+  }
+});
+
+/* 取消编辑 */
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-action="cancel-edit"]')) go('/dashboard/products');
+});
+
+/* 清除筛选 */
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-action="clear-filters"]')) go('/products');
+});
+
+/* ---------- 启动 ---------- */
+window.addEventListener('hashchange', render);
+render();
