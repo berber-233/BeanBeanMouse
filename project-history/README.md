@@ -1,6 +1,6 @@
-# BeanBeanDragon（豆豆龙）项目记录
+# BeanBeanMouse（豆豆鼠）项目记录
 
-本目录保存 BeanBeanDragon（豆豆龙）外贸平台从需求到部署的完整过程记录，由对话历史整理而成，
+本目录保存 BeanBeanMouse（豆豆鼠）外贸平台从需求到部署的完整过程记录，由对话历史整理而成，
 作为项目的设计档案与决策留痕。
 
 ## 文档结构
@@ -13,7 +13,7 @@
 
 ## 项目速览
 
-- **项目名称**：BeanBeanDragon（豆豆龙）（全球 B2B 贸易平台原型）
+- **项目名称**：BeanBeanMouse（豆豆鼠）（全球 B2B 贸易平台原型）
 - **形态**：纯静态网页（HTML/CSS/JS），无需后端即可运行，数据存于浏览器本地
 - **入口**：`index.html`（双击即用；部署后通过 GitHub Pages 访问）
 - **核心功能**：
@@ -23,8 +23,8 @@
   - 贸易资讯：按地域与分类聚合权威政策信息，每条附官方来源
   - 多语言：25 种语言可选；产品按“卖家源语言 → 买家浏览语言”双向翻译
   - 实时翻译：第三方翻译服务 + 离线兜底，全程标注“仅供参考”
-- **代码仓库**：`https://github.com/berber-233/trade-boat`
-- **页面地址（部署后）**：`https://berber-233.github.io/trade-boat/`
+- **代码仓库**：`https://github.com/berber-233/BeanBeanMouse`
+- **页面地址（部署后）**：`https://berber-233.github.io/BeanBeanMouse/`
 
 ## 说明
 

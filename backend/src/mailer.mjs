@@ -20,7 +20,7 @@ export async function sendMail({ to, subject, body }) {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS,
           secure: process.env.SMTP_SECURE === '1',
-          from: process.env.MAIL_FROM || 'no-reply@beanbeandragon.local',
+          from: process.env.MAIL_FROM || 'no-reply@beanbeanmouse.local',
           to,
           subject,
           body

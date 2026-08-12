@@ -29,7 +29,7 @@ export function sendSmtp({ host, port = 587, user, pass, from, to, subject, body
       if (stage === 'greet') {
         if (code !== 220) return fail(new Error('SMTP 220 失败: ' + line));
         stage = 'ehlo';
-        socket.write('EHLO beanbeandragon.local\r\n');
+        socket.write('EHLO beanbeanmouse.local\r\n');
       } else if (stage === 'ehlo') {
         if (code === 250) {
           if (line[3] === '-') return; // 多行 250 续行，等待最后一行
@@ -54,7 +54,7 @@ export function sendSmtp({ host, port = 587, user, pass, from, to, subject, body
         socket.on('data', onData);
         stage = 'ehlo';
         buffer = '';
-        socket.write('EHLO beanbeandragon.local\r\n');
+        socket.write('EHLO beanbeanmouse.local\r\n');
       } else if (stage === 'auth') {
         if (code !== 235) return fail(new Error('SMTP AUTH 失败: ' + line));
         stage = 'from';

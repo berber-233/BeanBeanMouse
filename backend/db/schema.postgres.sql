@@ -1,4 +1,4 @@
--- BeanBeanDragon（豆豆龙）数据库（PostgreSQL · 生产环境）
+-- BeanBeanMouse（豆豆鼠）数据库（PostgreSQL · 生产环境）
 -- 与 db/schema.sqlite.sql 结构对应；本地开发/测试使用 SQLite。
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

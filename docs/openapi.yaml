@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
-  title: BeanBeanDragon API
+  title: BeanBeanMouse API
   version: 0.1.0
   description: >
-    BeanBeanDragon（豆豆龙）外贸平台后端接口定义（阶段 0）。
+    BeanBeanMouse（豆豆鼠）外贸平台后端接口定义（阶段 0）。
     当前前端以 mock 模式运行；接入真实后端时按本契约实现。
 servers:
-  - url: https://api.beanbeandragon.example.com
+  - url: https://api.beanbeanmouse.example.com
 security:
   - bearerAuth: []
 tags:
@@ -354,7 +354,7 @@ paths:
               type: object
               required: [code]
               properties:
-                code: { type: string, example: BBD-P3-53 }
+                code: { type: string, example: BBM-P3-53 }
       responses:
         '200':
           description: 验真结果

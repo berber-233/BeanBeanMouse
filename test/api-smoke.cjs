@@ -1,4 +1,4 @@
-/* BeanBeanDragon 数据层（api.js）冒烟测试：在浏览器里直接调用 window.api */
+/* BeanBeanMouse 数据层（api.js）冒烟测试：在浏览器里直接调用 window.api */
 const { chromium } = require('playwright-core');
 
 (async () => {
@@ -93,7 +93,7 @@ const { chromium } = require('playwright-core');
 
   await run('antiFake.verify invalid code', async () =>
     page.evaluate(async () => {
-      try { await api.antiFake.verify('BBD-NOTEXIST-00'); return false; }
+      try { await api.antiFake.verify('BBM-NOTEXIST-00'); return false; }
       catch (e) { return e.message === 'CODE_NOT_FOUND'; }
     }));
 

@@ -4,7 +4,7 @@ process.env.MAIL_TRANSPORT = 'smtp';
 process.env.SMTP_HOST = '127.0.0.1';
 process.env.SMTP_USER = 'smtp-user';
 process.env.SMTP_PASS = 'smtp-pass';
-process.env.MAIL_FROM = 'no-reply@beanbeandragon.local';
+process.env.MAIL_FROM = 'no-reply@beanbeanmouse.local';
 
 import { createServer } from 'node:net';
 const { sendMail } = await import('../src/mailer.mjs');
@@ -49,7 +49,7 @@ const outbox = all('SELECT * FROM mail_outbox');
 
 check('sendMail via smtp ok', res.ok === true && res.status === 'sent' && res.transport === 'smtp');
 check('outbox row sent', outbox.length === 1 && outbox[0].status === 'sent' && outbox[0].recipient === 'buyer@demo.com');
-check('smtp MAIL FROM sent', lines.some(l => l.toUpperCase() === 'MAIL FROM:<NO-REPLY@BEANBEANDRAGON.LOCAL>'));
+check('smtp MAIL FROM sent', lines.some(l => l.toUpperCase() === 'MAIL FROM:<NO-REPLY@BEANBEANMOUSE.LOCAL>'));
 check('smtp RCPT TO sent', lines.some(l => l.toUpperCase() === 'RCPT TO:<BUYER@DEMO.COM>'));
 check('smtp AUTH PLAIN sent', lines.some(l => l.startsWith('AUTH PLAIN ')));
 check('smtp DATA has subject + body', lines.includes('Subject: Test Mail') && lines.includes('Hello body'));

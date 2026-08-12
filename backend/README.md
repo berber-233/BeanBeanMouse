@@ -1,4 +1,4 @@
-# BeanBeanDragon（豆豆龙）后端（阶段 1 MVP）
+# BeanBeanMouse（豆豆鼠）后端（阶段 1 MVP）
 
 > 零依赖：Node.js 内置 `node:http` + `node:sqlite`，无需安装任何包即可运行。
 > 结构对应 `docs/er-diagram.md` 与 `docs/openapi.yaml`。
@@ -99,7 +99,7 @@ SMTP_PORT=587
 SMTP_USER=账号
 SMTP_PASS=密码
 SMTP_SECURE=0        # 465 端口设 1（直连 TLS）
-MAIL_FROM=no-reply@beanbeandragon.local
+MAIL_FROM=no-reply@beanbeanmouse.local
 ```
 
 发送结果（sent/failed + 原因）写入 `mail_outbox`；SMTP 失败不影响询盘/报价主流程。

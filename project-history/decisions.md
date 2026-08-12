@@ -198,3 +198,20 @@
   4. 前端回归 105 项全绿。
 - **提交与推送**：本地提交后推送到 `origin`（GitHub berber-233/trade-boat）；
   沙箱只读 .git，实际提交/推送由用户终端执行 `commit.ps1` + `git push`。
+
+## D21：品牌定名 BeanBeanMouse（豆豆鼠）+ 吉祥物定稿 + 域名查证（2026-08-12）
+
+- **背景**：用户最终将品牌定为中文"豆豆鼠"、英文"BeanBeanMouse"；GitHub 仓库已自行改名
+  `BeanBeanMouse`；吉祥物确定为 AI 生成的 Q 版仓鼠送货员形象，用户明确"以后不会更改"。
+- **决策**：
+  1. 全项目名称由 BeanBeanDragon/豆豆龙 统一改为 BeanBeanMouse/豆豆鼠
+     （代码、文案、文档、后端服务、防伪码前缀 `BBD-` → `BBM-`）；
+  2. 吉祥物接入 `assets/mascot.jpg`（512px 网页用）+ `assets/mascot-source.jpg`（1024px 原图），
+     右下角帮助浮标改用该形象；旧的 `assets/mascot.svg` / `mascot.png`（火柴人）移除；
+  3. 域名查证（RDAP 实测）：`beanbeanmouse.com` ✅ 可注册；
+     `beanbeanmouse.cn/.net/.org/.co/.io` ✅ 可注册；`doudoushu.com` ❌ 已被他人注册；
+     `doudoushu.cn` ✅ 可注册；
+  4. 推荐注册商：阿里云（支持支付宝，.com 首年约 ¥85）；备选 Namecheap / Namesilo（也支持支付宝）。
+- **待办（等域名跑通后继续）**：DNS、HTTPS、SPF/DKIM/DMARC、站内官方域名、后端邮件发信、正式部署；
+  支付/托管、商标检索、海外主体等仍按 todo.md 挂起。
+- **提交与推送**：本次改动提交并推送到 GitHub `berber-233/BeanBeanMouse`。

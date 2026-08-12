@@ -1,4 +1,4 @@
-# Commit current changes in the BeanBeanDragon (豆豆龙) project.
+# Commit current changes in the BeanBeanMouse (豆豆鼠) project.
 # Run in your own terminal (right-click -> Run with PowerShell).
 # 脚本放在仓库根目录，无论文件夹叫什么名字都能正确执行。
 Set-Location -LiteralPath $PSScriptRoot

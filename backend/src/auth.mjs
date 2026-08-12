@@ -13,7 +13,7 @@ export function verifyPassword(pw, stored) {
   return timingSafeEqual(Buffer.from(hash, 'hex'), calc);
 }
 
-const SECRET = process.env.JWT_SECRET || 'beanbeandragon-dev-secret-change-me';
+const SECRET = process.env.JWT_SECRET || 'beanbeanmouse-dev-secret-change-me';
 function b64url(buf) { return Buffer.from(buf).toString('base64url'); }
 
 export function signToken(payload, expiresSec = 3600) {

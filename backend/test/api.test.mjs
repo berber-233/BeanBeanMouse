@@ -1,4 +1,4 @@
-/* BeanBeanDragon 后端接口测试：启动内存 SQLite + HTTP 服务，逐接口断言 */
+/* BeanBeanMouse 后端接口测试：启动内存 SQLite + HTTP 服务，逐接口断言 */
 process.env.DB_PATH = ':memory:';
 process.env.TRANSLATION_PROVIDER = 'mock';
 process.env.TRANSLATION_DAILY_QUOTA = '10';

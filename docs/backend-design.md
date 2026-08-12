@@ -1,4 +1,4 @@
-# BeanBeanDragon（豆豆龙）后端设计方案与建设路线
+# BeanBeanMouse（豆豆鼠）后端设计方案与建设路线
 
 > 目标：把当前纯前端演示原型升级为可真实运营的 B2B 外贸平台。
 > 原则：沿用现有页面与交互，仅把“浏览器本地数据”替换为“后端 API + 数据库”，
@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart LR
-  U[买家 / 卖家 / 管理员] --> F[前端 · BeanBeanDragon（豆豆龙）<br/>现有页面 + API 对接]
+  U[买家 / 卖家 / 管理员] --> F[前端 · BeanBeanMouse（豆豆鼠）<br/>现有页面 + API 对接]
   F --> CDN[静态托管 / CDN]
   F --> API[后端 API 服务<br/>REST / WebSocket]
   API --> A[认证与权限]

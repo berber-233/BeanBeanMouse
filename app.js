@@ -1,4 +1,4 @@
-/* ================= BeanBeanDragon（豆豆龙）前端逻辑 ================= */
+/* ================= BeanBeanMouse（豆豆鼠）前端逻辑 ================= */
 
 /* ---------- 基础工具 ---------- */
 const $ = sel => document.querySelector(sel);
@@ -682,7 +682,7 @@ function fakeCodeOf(p) {
   if (!p) return '';
   const pid = String(p.id).toUpperCase().replace(/[^A-Z0-9]/g, '');
   const seed = p.id + ':' + p.sellerId + ':' + (p.en ? p.en.title : '');
-  return 'BBD-' + pid + '-' + fakeChecksum(seed);
+  return 'BBM-' + pid + '-' + fakeChecksum(seed);
 }
 
 function productByFakeCode(code) {
@@ -733,7 +733,7 @@ function showFakeResult(p, code) {
     + '<div class="fake-row"><span>' + t('fakeCode') + '</span><b class="fake-code">' + esc(code) + '</b></div>'
     + '<div class="fake-row"><span>' + t('fakeProduct') + '</span><b>' + esc(langObj(p).title) + '</b></div>'
     + '<div class="fake-row"><span>' + t('fakeSeller') + '</span><b>' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ✅' : '') + '</b></div>'
-    + '<div class="fake-row"><span>' + t('fakeIssued') + '</span><b>BeanBeanDragon</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeIssued') + '</span><b>BeanBeanMouse</b></div>'
     + '<div class="fake-row"><span>' + t('fakeVerifiedAt') + '</span><b>' + fmtDate(Date.now()) + '</b></div>'
     + '<div class="fake-qr">' + fakeQrSvg(code + p.id) + '</div>'
     + '<p class="small muted fake-scan-label">' + t('fakeScan') + '</p>'
@@ -747,9 +747,9 @@ function openSiteVerify() {
     '<div class="modal-head"><h3>🛡 ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body fake-result">'
     + '<div class="fake-ico fake-ico--ok">✓</div>'
-    + '<p class="fake-genuine">BeanBeanDragon · ' + t('fakeSiteTitle') + '</p>'
-    + '<div class="fake-row"><span>' + t('fakeSiteCode') + '</span><b class="fake-code">BBD-OFFICIAL-2026</b></div>'
-    + '<div class="fake-row"><span>' + t('fakeDomain') + '</span><b>beanbeandragon.com</b></div>'
+    + '<p class="fake-genuine">BeanBeanMouse · ' + t('fakeSiteTitle') + '</p>'
+    + '<div class="fake-row"><span>' + t('fakeSiteCode') + '</span><b class="fake-code">BBM-OFFICIAL-2026</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeDomain') + '</span><b>beanbeanmouse.com</b></div>'
     + '<p class="small muted">' + t('fakeSiteDesc') + '</p>'
     + '<p class="small muted">' + t('fakeScanNote') + '</p>'
     + '</div>'
@@ -887,7 +887,7 @@ function toggleHelp() {
 function closeHelp() { $('#helpPanel').hidden = true; }
 
 function renderHome() {
-  document.title = 'BeanBeanDragon · ' + t('heroTitle');
+  document.title = 'BeanBeanMouse · ' + t('heroTitle');
   const live = state.products.filter(isLive);
   const featured = live.filter(p => p.featured).slice(0, 6);
   const countries = new Set(live.map(p => p.country)).size;
@@ -934,7 +934,7 @@ function renderHome() {
 
 /* ---------- 产品市场 ---------- */
 function renderProducts(params) {
-  document.title = t('marketplace') + ' · BeanBeanDragon';
+  document.title = t('marketplace') + ' · BeanBeanMouse';
   const kw = (params.get('kw') || '').trim();
   const cat = params.get('cat') || '';
   const sort = params.get('sort') || 'recommended';
@@ -1089,7 +1089,7 @@ function briefCard(n) {
 }
 
 function renderNews(params) {
-  document.title = t('newsTitle') + ' · BeanBeanDragon';
+  document.title = t('newsTitle') + ' · BeanBeanMouse';
   const cat = params.get('cat') || 'all';
   const regions = state.newsRegions || ['GLOBAL'];
   const showAll = regions.includes('GLOBAL');
@@ -1145,7 +1145,7 @@ function bindNewsPage() {
 function renderDetail(pid) {
   const p = productById(pid);
   if (!p || !isLive(p)) return renderHome();
-  document.title = langObj(p).title + ' · BeanBeanDragon';
+  document.title = langObj(p).title + ' · BeanBeanMouse';
   const seller = sellerOf(p);
   const cat = catById(p.cat);
   const fav = state.favorites.includes(p.id);
@@ -1328,7 +1328,7 @@ function submitInquiry(f) {
 
 /* ---------- 登录页 ---------- */
 function renderLogin() {
-  document.title = t('login') + ' · BeanBeanDragon';
+  document.title = t('login') + ' · BeanBeanMouse';
   return '<div class="container"><div class="login-wrap">'
     + '<h1>' + t('loginTitle') + '</h1>'
     + '<p class="sub">' + t('loginDesc') + '</p>'
@@ -1445,7 +1445,7 @@ function renderSellerDash(path) {
 
 /* ---------- 平台管理员后台 ---------- */
 function renderAdminDash(path) {
-  document.title = t('adminPanel') + ' · BeanBeanDragon';
+  document.title = t('adminPanel') + ' · BeanBeanMouse';
   const activeTab = path.split('/')[2] || 'overview';
   const pendingCount = state.products.filter(p => p.status === 'pending').length;
   const verifyCount = (state.companies || []).filter(c => c.status === 'pending').length;
@@ -1732,7 +1732,7 @@ function buildDoc(i, type) {
   const dateFmt = ts => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
   return '<div class="doc" id="docSheet">'
     + '<div class="doc-head">'
-    + '<div class="doc-brand"><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div><div class="doc-web">BeanBeanDragon</div></div>'
+    + '<div class="doc-brand"><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div><div class="doc-web">BeanBeanMouse</div></div>'
     + '<div class="doc-title"><h2>' + esc(title) + '</h2><div>DOCUMENT · ' + t('quoteBlock') + '</div></div>'
     + '</div>'
     + '<div class="doc-meta">'

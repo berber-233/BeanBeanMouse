@@ -367,7 +367,7 @@ async function route(m, segs, q, req, res) {
       const seller = get('SELECT * FROM users WHERE id = ?', p.seller_id);
       if (seller) {
         await notifyUser(seller.id, 'inquiry', '收到新询盘', '产品 ' + (body.productId) + ' 收到新询盘：' + String(body.message).slice(0, 120));
-        try { await sendMail({ to: seller.email, subject: '[BeanBeanDragon] 收到新询盘', body: String(body.message) }); }
+        try { await sendMail({ to: seller.email, subject: '[BeanBeanMouse] 收到新询盘', body: String(body.message) }); }
         catch (e) { console.error('邮件发送失败（不影响询盘）:', e.message); }
       }
       return send(res, 201, get('SELECT * FROM inquiries WHERE id = ?', id));
@@ -390,7 +390,7 @@ async function route(m, segs, q, req, res) {
       const buyer = i.buyer_id ? get('SELECT * FROM users WHERE id = ?', i.buyer_id) : null;
       if (buyer) {
         await notifyUser(buyer.id, 'quote', '收到供应商报价', '您的询盘已收到报价：' + body.incoterm + ' ' + body.price);
-        try { await sendMail({ to: buyer.email, subject: '[BeanBeanDragon] 您收到新的报价', body: '询盘 ' + b + ' 的新报价：' + body.incoterm + ' ' + body.price }); }
+        try { await sendMail({ to: buyer.email, subject: '[BeanBeanMouse] 您收到新的报价', body: '询盘 ' + b + ' 的新报价：' + body.incoterm + ' ' + body.price }); }
         catch (e) { console.error('邮件发送失败（不影响报价）:', e.message); }
       }
       return send(res, 200, get('SELECT * FROM inquiries WHERE id = ?', b));
@@ -568,5 +568,5 @@ export function startServer(port = PORT) {
 /* 直接运行时启动 */
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = await startServer();
-  console.log('BeanBeanDragon API 已启动: http://127.0.0.1:' + server.address().port);
+  console.log('BeanBeanMouse API 已启动: http://127.0.0.1:' + server.address().port);
 }
