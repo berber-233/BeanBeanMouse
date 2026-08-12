@@ -141,7 +141,7 @@
 - **吉祥物（定稿 · AI 仓鼠）**：豆豆鼠使用 AI 生成的 Q 版仓鼠送货员——圆润身形、
   鼓鼓颊囊、背着塞满货物的运货袋，暖米色背景与网站浅色基调融合；
   主视觉 `assets/mascot.jpg`（512px）+ `assets/mascot-source.jpg`（1024px 原图），
-  导航 Logo/favicon 继续使用 `assets/logo.svg`；固定在网站右下角作为帮助入口。
+  导航 Logo/favicon/帮助面板头像使用 `assets/mascot-icon.png`；固定在网站右下角作为帮助入口。
 
 ### 域名实测（多来源交叉验证，whois.com 复查确认）
 

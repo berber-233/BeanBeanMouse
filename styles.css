@@ -59,6 +59,7 @@ button { font-family: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; color: #fff; }
 .brand:hover { color: #fff; opacity: .92; }
 .brand-mark { color: var(--accent); display: flex; }
+.brand-mark img { width: 24px; height: 24px; border-radius: 50%; display: block; object-fit: cover; flex-shrink: 0; }
 .brand-name { font-size: 19px; font-weight: 700; letter-spacing: .2px; }
 .brand-name span { color: #7DA2FF; }
 .brand-name--footer span { color: #7DA2FF; }
