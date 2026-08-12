@@ -784,6 +784,20 @@ function logout(guest, goLogin) {
   go(goLogin ? '/login' : '/');
 }
 
+/* 标语一行自适应：无论语言多长都保持一行，过长自动缩小字号 */
+function fitHeroTitle() {
+  const h = document.querySelector('.hero h1');
+  if (!h) return;
+  h.style.fontSize = '';
+  const avail = Math.max(80, h.parentElement.clientWidth - 40);
+  let fs = parseFloat(window.getComputedStyle(h).fontSize) || 38;
+  h.style.fontSize = fs + 'px';
+  while (h.scrollWidth > avail && fs > 11) {
+    fs -= 0.5;
+    h.style.fontSize = fs + 'px';
+  }
+}
+
 /* ---------- 主渲染 ---------- */
 function render() {
   renderHeader();
@@ -798,6 +812,7 @@ function render() {
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
   else app.innerHTML = renderHome();
   applyViewerLang(app);
+  if (path === '' || path === '/') fitHeroTitle();
   window.scrollTo(0, 0);
 }
 
@@ -812,6 +827,7 @@ function renderPage() {
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
   else app.innerHTML = renderHome();
   applyViewerLang(app);
+  if (path === '' || path === '/') fitHeroTitle();
 }
 
 /* ---------- 产品卡片 ---------- */
@@ -890,8 +906,6 @@ function renderHome() {
   document.title = 'BeanBeanMouse · ' + t('heroTitle');
   const live = state.products.filter(isLive);
   const featured = live.filter(p => p.featured).slice(0, 6);
-  const countries = new Set(live.map(p => p.country)).size;
-  const avgResp = Math.round(SELLERS.reduce((s, x) => s + x.responseRate, 0) / SELLERS.length);
   const hotKw = state.lang === 'zh'
     ? ['激光切割机', '氮化镓充电器', '柚木家具', '柠檬酸', '充电枪']
     : ['laser cutter', 'GaN charger', 'teak furniture', 'citric acid', 'EV cable'];
@@ -906,12 +920,8 @@ function renderHome() {
     + '</form>'
     + '<div class="hero-popular">' + t('popular') + hotKw.map(k => '<a href="#/products?kw=' + encodeURIComponent(k) + '" data-nav="/products?kw=' + encodeURIComponent(k) + '">' + esc(k) + '</a>').join('') + '</div>'
     + '</div>'
-    + '<div class="hero-stats">'
-    + '<div class="stat-box"><div class="num">' + SELLERS.length + ',000+</div><div class="lbl">' + t('statsSuppliers') + '</div></div>'
-    + '<div class="stat-box"><div class="num">' + (live.length * 6000).toLocaleString() + '+</div><div class="lbl">' + t('statsProducts') + '</div></div>'
-    + '<div class="stat-box"><div class="num">' + (countries * 20 + 80) + '+</div><div class="lbl">' + t('statsCountries') + '</div></div>'
-    + '<div class="stat-box"><div class="num">' + avgResp + '%</div><div class="lbl">' + t('statsResponse') + '</div></div>'
-    + '</div>'
+    /* 预留：今日交易成功案例实时滚动条（后续接入实时数据流后替换此占位） */
+    + '<div class="hero-deals" id="heroDeals"><span class="hero-deals-hint">' + (state.lang === 'zh' ? '今日交易成功案例 · 实时滚动（预留）' : 'Today\'s closed deals · live ticker (reserved)') + '</span></div>'
     + '</section>'
     + '<div class="container page">'
     + '<section class="section"><div class="section-head"><h2>' + t('categoriesTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
@@ -1994,4 +2004,5 @@ document.addEventListener('click', e => {
 
 /* ---------- 启动 ---------- */
 window.addEventListener('hashchange', render);
+window.addEventListener('resize', fitHeroTitle);
 render();

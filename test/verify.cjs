@@ -45,7 +45,7 @@ let page;
   await page.click('[data-action="close-help"]');
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
-  check('home: 4 stats', await page.locator('.stat-box').count() === 4);
+  check('home: deals ticker placeholder', await page.locator('.hero-deals').count() === 1);
   check('home: 6 categories', await page.locator('.cat-card').count() === 6);
   check('home: product cards >= 4', await page.locator('.product-card').count() >= 4);
   check('home: simplified (no steps section)', await page.locator('.steps').count() === 0);

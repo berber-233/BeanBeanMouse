@@ -11,7 +11,7 @@ const { chromium } = require('playwright-core');
   await page.waitForTimeout(400);
   log('hero h1', await box('.hero h1'));
   log('hero search', await box('.hero-search'));
-  log('hero stat1', await box('.stat-box'));
+  log('hero deals placeholder', await box('.hero-deals'));
   log('cat card1', await box('.cat-card'));
   log('product card1', await box('.product-card'));
 

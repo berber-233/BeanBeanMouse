@@ -229,7 +229,7 @@ button { font-family: inherit; }
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent);
 }
 .hero-inner { max-width: 860px; margin: 0 auto; text-align: center; padding: 0 20px; }
-.hero h1 { font-size: 38px; line-height: 1.25; margin: 0 0 12px; font-weight: 800; letter-spacing: .3px; }
+.hero h1 { font-size: 38px; line-height: 1.25; margin: 0 0 12px; font-weight: 800; letter-spacing: .3px; white-space: nowrap; }
 .hero p { font-size: 16px; color: #C7D4EE; margin: 0 auto 30px; max-width: 620px; }
 .hero-search {
   display: flex; background: #fff; border-radius: 14px; padding: 6px;
@@ -243,16 +243,13 @@ button { font-family: inherit; }
 .hero-popular { margin-top: 16px; font-size: 13px; color: #9FB0CF; }
 .hero-popular a { color: #D5E1F7; margin: 0 6px; }
 .hero-popular a:hover { color: #fff; }
-.hero-stats {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
-  max-width: 980px; margin: 56px auto 0; padding: 0 20px;
+.hero-deals {
+  max-width: 980px; margin: 48px auto 0; padding: 0 20px;
+  min-height: 84px; display: flex; align-items: center; justify-content: center;
+  border: 1.5px dashed rgba(255, 255, 255, .18); border-radius: 14px;
+  background: rgba(255, 255, 255, .03);
 }
-.stat-box {
-  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12);
-  border-radius: 14px; padding: 18px 16px; text-align: center; backdrop-filter: blur(4px);
-}
-.stat-box .num { font-size: 26px; font-weight: 800; color: #fff; line-height: 1.2; }
-.stat-box .lbl { font-size: 12.5px; color: #9FB0CF; margin-top: 4px; }
+.hero-deals-hint { font-size: 13px; color: #9FB0CF; letter-spacing: .3px; }
 
 /* ---------- Category grid ---------- */
 .cat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
@@ -817,7 +814,6 @@ button { font-family: inherit; }
   .site-header { position: static; }
   .header-inner { height: auto; padding-top: 12px; flex-wrap: wrap; }
   .hero h1 { font-size: 28px; }
-  .hero-stats { grid-template-columns: repeat(2, 1fr); }
   .products-layout, .dash-layout, .detail-layout { grid-template-columns: 1fr; }
   .filter-panel, .dash-side { position: static; }
   .steps, .trust-grid { grid-template-columns: 1fr; }
