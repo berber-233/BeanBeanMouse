@@ -2,6 +2,8 @@
 
 > 主域名：`beanbeanmouse.com`（已在 Cloudflare 注册，2026-08-13）
 > 部署目标：Cloudflare Pages（全球 CDN + 自动 HTTPS，免费额度足够原型期使用）
+> 状态：**已上线（2026-08-13）**——https://beanbeanmouse.com 可访问，
+> 域名与 www 均已 active；核心流程线上实测通过。
 
 ## 1. 当前架构
 

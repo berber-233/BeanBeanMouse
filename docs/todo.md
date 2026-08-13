@@ -9,12 +9,14 @@
 - [x] **防伪码前缀**：`BBM-`（随品牌统一更新）
 - [x] **本地文件**：全项目名称/文案/代码统一为 BeanBeanMouse（豆豆鼠）
 
-## 二、部署中（2026-08-13）
+## 二、部署状态（2026-08-13）
 
 - [x] **域名注册**：`beanbeanmouse.com` 已在 Cloudflare 注册（DNS 为空，待绑定）
-- [ ] **Cloudflare Pages 部署**：需用户授权（`wrangler login` 或控制台 Connect to Git）
-- [ ] 绑定自定义域名 `beanbeanmouse.com` + `www`
-- [ ] 验证 https://beanbeanmouse.com 核心流程（本地诊断脚本已就绪）
+- [x] **Cloudflare Pages 部署**：项目 `beanbean-mouse`，直接上传部署（wrangler）
+- [x] 绑定自定义域名 `beanbeanmouse.com` + `www`（均已 active）
+- [x] 验证 https://beanbeanmouse.com 核心流程（15 项选择操作全通过、零报错）
+- [x] 上线查漏补缺：SEO（robots/sitemap/meta/OG）、安全头、404、www→主域 301
+- [ ] 复核 www→主域 301 在边缘缓存生效（部署已含 `_redirects`，网络稳定后复核）
 - [ ] 提交 Google/Bing/百度收录
 
 ## 三、待我执行（依赖前端上线）

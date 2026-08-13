@@ -1,7 +1,7 @@
 # 域名注册指南（BeanBeanMouse 豆豆鼠）
 
-> 状态：**已注册（2026-08-13）**——`beanbeanmouse.com` 已在 Cloudflare Registrar 注册，
-> 当前 DNS 尚无解析记录；下一步部署 Cloudflare Pages 并绑定域名（见 deployment-guide.md）。
+> 状态：**已上线（2026-08-13）**——`beanbeanmouse.com` 已在 Cloudflare 注册并部署
+> Cloudflare Pages，主域名与 www 均已 active，https://beanbeanmouse.com 可访问。
 
 ## 1. 要注册的域名
 

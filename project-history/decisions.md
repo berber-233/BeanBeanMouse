@@ -230,3 +230,18 @@
      todo 记录部署待办。
 - **待办**：用户完成 Cloudflare 授权后部署 Pages 并绑定域名；验证线上核心流程；
   后端（阶段 1）与邮件/翻译正式通道随后接入。
+
+## D23：Cloudflare Pages 正式上线 beanbeanmouse.com（2026-08-13）
+
+- **背景**：用户确认域名已注册后要求"初步跑通项目"；经排查本机网络对 Cloudflare API
+  不稳定（直连+代理均尝试），最终在直连恢复后完成 `wrangler login`。
+- **执行**：
+  1. 安装 wrangler 4.122.0（作为 devDependency），`wrangler login` OAuth 登录成功；
+  2. 创建 Pages 项目 `beanbean-mouse`，构建 `dist/`（仅公开网站文件）并直接上传部署；
+  3. 通过 API 添加自定义域名 `beanbeanmouse.com` + `www`，用户补加两条 CNAME
+     （→ beanbean-mouse.pages.dev，代理开启）后，两域名均转为 **active**；
+  4. 线上实测 15 项选择操作全部通过、零页面报错；www→主域 301 已随 `_redirects` 部署。
+- **上线查漏补缺**：`_headers` 安全头、`robots.txt`、`sitemap.xml`、`404.html`、
+  meta description + OG/Twitter 卡片 + canonical、`wrangler.jsonc`、构建脚本。
+- **待办**：复核 www 301 边缘生效；提交搜索引擎收录；后端 API（阶段 1）与
+  邮件/翻译正式通道；支付、商标、海外主体仍挂起。

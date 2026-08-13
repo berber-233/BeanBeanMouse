@@ -11,7 +11,7 @@ mkdirSync(dist, { recursive: true });
 
 const entries = [
   'index.html', 'styles.css', 'app.js', 'data.js', 'api.js',
-  '_headers', 'robots.txt', 'sitemap.xml', '404.html', '.nojekyll',
+  '_headers', '_redirects', 'robots.txt', 'sitemap.xml', '404.html', '.nojekyll',
   'assets'
 ];
 
