@@ -1,0 +1,9 @@
+{
+  "name": "beanbean-mouse-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BeanBeanMouse (豆豆鼠) static site build for Cloudflare Pages",
+  "scripts": {
+    "build": "node scripts/build-site.mjs"
+  }
+}

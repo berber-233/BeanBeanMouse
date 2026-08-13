@@ -215,3 +215,18 @@
 - **待办（等域名跑通后继续）**：DNS、HTTPS、SPF/DKIM/DMARC、站内官方域名、后端邮件发信、正式部署；
   支付/托管、商标检索、海外主体等仍按 todo.md 挂起。
 - **提交与推送**：本次改动提交并推送到 GitHub `berber-233/BeanBeanMouse`。
+
+## D22：域名注册完成 + 上线查漏补缺（2026-08-13）
+
+- **背景**：用户确认 `beanbeanmouse.com` 已在 **Cloudflare Registrar** 注册；
+  要求"初步跑通项目"，并作为服务全球买家和卖家的网站做查漏补缺。
+- **决策**：
+  1. 部署方案定为 **Cloudflare Pages**（全球 CDN + 自动 HTTPS + 免费额度），
+     正式地址 `https://beanbeanmouse.com`；GitHub Pages 降级为原型预览；
+  2. 上线查漏补缺：新增 `_headers`（安全响应头 + 缓存策略）、`robots.txt`、
+     `sitemap.xml`、`404.html`、`wrangler.jsonc`；index.html 补 meta description、
+     OG/Twitter 卡片、canonical；
+  3. 文档更新：deployment-guide 改为 Cloudflare Pages 主方案；domain-guide 状态更新；
+     todo 记录部署待办。
+- **待办**：用户完成 Cloudflare 授权后部署 Pages 并绑定域名；验证线上核心流程；
+  后端（阶段 1）与邮件/翻译正式通道随后接入。

@@ -1,71 +1,83 @@
-# BeanBeanMouse（豆豆鼠）生产部署指南
+# BeanBeanMouse（豆豆鼠）部署指南
 
-## 1. 后端（Docker Compose 起步）
+> 主域名：`beanbeanmouse.com`（已在 Cloudflare 注册，2026-08-13）
+> 部署目标：Cloudflare Pages（全球 CDN + 自动 HTTPS，免费额度足够原型期使用）
+
+## 1. 当前架构
+
+- **前端（本次上线）**：纯静态站点（HTML/CSS/JS），部署到 Cloudflare Pages；
+- **后端（阶段 1，待部署）**：Node 内置 HTTP + SQLite（`backend/`），需要常驻服务或改造成
+  Pages Functions/D1；上线前先跑通前端，后端见本文第 4 节。
+- 数据：当前原型数据存浏览器 localStorage；后端接入后落库。
+
+## 2. Cloudflare Pages 部署（本次执行）
+
+### 2.1 直接上传（wrangler CLI）
+
+```bash
+npm i -g wrangler          # 或 npx wrangler
+wrangler login             # 首次授权（打开浏览器登录 Cloudflare）
+npm run build              # 生成 dist/（只含公开网站文件）
+wrangler pages project create beanbean-mouse
+wrangler pages deploy dist --project-name=beanbean-mouse --branch=main
+```
+
+> 注意：`dist/` 只包含网页所需文件（index.html / styles.css / app.js / data.js /
+> api.js / assets/ / _headers / robots.txt / sitemap.xml / 404.html），
+> 不会把后端、文档、测试或 .git 传上去。
+
+### 2.2 绑定自定义域名
+
+Cloudflare 控制台：Workers & Pages → beanbean-mouse → Custom domains →
+添加 `beanbeanmouse.com` 与 `www.beanbeanmouse.com`，Cloudflare 会自动创建 DNS 记录
+（apex 用 A/AAAA 或 CNAME 扁平化，www 用 CNAME 到 pages.dev），HTTPS 证书自动签发。
+
+### 2.3 Git 集成（推荐长期方案）
+
+Cloudflare 控制台 → Workers & Pages → Create → Connect to Git →
+选择 GitHub 仓库 `berber-233/BeanBeanMouse` →
+构建命令 `npm run build`、输出目录 `dist` → 部署。
+之后每次 push 到 main 自动发布，并自动产生预览链接。
+
+## 3. 上线检查清单（本次已完成/待办）
+
+- [x] SEO：`robots.txt`、`sitemap.xml`、meta description、OG/Twitter 卡片、canonical
+- [x] 安全响应头：`_headers`（nosniff / frame / referrer / permissions-policy）
+- [x] 404 兜底页
+- [x] 品牌与防伪：站内官方域名显示为 `beanbeanmouse.com`
+- [ ] 验证 https://beanbeanmouse.com 打开与核心流程
+- [ ] Google Search Console / Bing Webmaster / 百度站长提交收录
+- [ ] 后端 API 与数据库（阶段 1）
+
+## 4. 后端部署（阶段 1，待执行）
+
+### 方案 A：海外 VPS / Docker（最直接）
 
 ```bash
 cd backend
-cp .env.example .env          # 修改 JWT_SECRET 等
+cp .env.example .env          # 修改 JWT_SECRET、SMTP、DEEPL_API_KEY
 docker compose up -d --build
 ```
 
-- 服务监听 `http://0.0.0.0:8787`
-- 数据（SQLite）与上传文件分别挂载到命名卷，删除容器不丢数据
-- 健康检查：`curl http://127.0.0.1:8787/products`
+服务监听 `http://0.0.0.0:8787`；前端 `api.js` 的 `baseUrl` 指向
+`https://api.beanbeanmouse.com`；CORS 生产环境收紧为前端域名。
 
-## 2. HTTPS 与域名
+### 方案 B：Cloudflare Pages Functions + D1（免服务器）
 
-生产建议前置 nginx/Caddy 反向代理（docker-compose 中已注释示例）：
+把 `backend/src/*.mjs` 迁移为 `functions/` 下的 Worker 路由，SQLite 换 D1，
+WebSocket 需要改造为 Durable Objects。适合后续正式版，工作量中等。
 
-- Caddy：自动申请 HTTPS 证书，配置最简；
-- nginx + certbot：经典方案；`deploy/nginx.conf` 示例：
+### 后端环境变量（.env）
 
-```nginx
-server {
-  listen 443 ssl;
-  server_name api.beanbeanmouse.example.com;
-  ssl_certificate     /etc/letsencrypt/live/api.beanbeanmouse.example.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/api.beanbeanmouse.example.com/privkey.pem;
-  location / {
-    proxy_pass http://backend:8787;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-  location /ws {
-    proxy_pass http://backend:8787;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-}
-```
+| 变量 | 说明 |
+| --- | --- |
+| `JWT_SECRET` | 签名密钥，必须改为强随机值 |
+| `SMTP_HOST/USER/PASS` | 发信通道（建议 Cloudflare Email Routing 或专业邮件服务） |
+| `DEEPL_API_KEY` | 正式翻译密钥（前端当前用免费通道 + 离线兜底） |
 
-前端（静态文件）可继续用 GitHub Pages，`api.js` 里把 `baseUrl` 指向 API 域名；
-前端跨域由后端 CORS 放行（生产环境应收紧为你的前端域名）。
+## 5. 运维清单（原型期从简）
 
-## 3. 切换 PostgreSQL（正式数据）
-
-当前后端用 SQLite（零依赖便于起步）。切换步骤：
-
-1. `npm i pg`（或改用 NestJS + Prisma 框架）；
-2. 执行 `backend/db/schema.postgres.sql` 建库；
-3. 把 `src/db.mjs` 的查询层替换为 pg 连接池（接口逻辑不变）；
-4. 用一次性脚本把 SQLite 数据迁移到 PostgreSQL（表结构一一对应）。
-
-## 4. 运维清单
-
-- 备份：`backend/db/data.db` 与 `uploads/` 每日异地备份；
-  PostgreSQL 阶段用 `pg_dump` + 对象存储冷备；
-- 监控：进程守护（systemd/容器 restart）、日志采集、`/admin/overview` 健康指标；
-- 密钥：`JWT_SECRET` 放环境变量/密钥管理，勿提交仓库；
-- 升级：先备份 → 灰度（同一 SQLite 卷新版本容器）→ 回滚预案。
-
-## 5. 上线前待接入的外部服务
-
-| 能力 | 现状 | 上线前接入 |
-| --- | --- | --- |
-| 翻译 | DeepL 通道已就绪（协议级测试通过） | 在 backend/.env 填 DEEPL_API_KEY 并联网验证 |
-| 邮件 | SMTP 客户端已就绪（STARTTLS/AUTH PLAIN，协议级测试通过） | 在 backend/.env 填 SMTP_HOST/USER/PASS |
-| 文件 | 本地磁盘 | S3/OSS + 图片处理与 CDN |
-| 消息 | WebSocket 基础版 | 成熟库 + 在线状态/已读/多端同步 |
-| 支付/电子签/物流 | 未实现（阶段 2） | 持牌通道与合规流程 |
+- 前端：Cloudflare Pages 自动部署，回滚用 deployments 列表；
+- 后端：容器 restart + 每日备份 `backend/db/data.db` 与 `uploads/`；
+- 密钥只放环境变量/密钥管理，勿提交仓库；
+- 上线后监控：Pages 访问量与 4xx/5xx、翻译失败率、询盘成功路径漏斗。

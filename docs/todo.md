@@ -9,16 +9,19 @@
 - [x] **防伪码前缀**：`BBM-`（随品牌统一更新）
 - [x] **本地文件**：全项目名称/文案/代码统一为 BeanBeanMouse（豆豆鼠）
 
-## 二、用户侧操作（我无法代做）
+## 二、部署中（2026-08-13）
 
-- [ ] **域名购买（进行中）**：`beanbeanmouse.com` ✅ 可注册（阿里云，支付宝支付，约 ¥85/年）
-  - `doudoushu.com` ❌ 已被他人注册；`beanbeanmouse.cn` / `doudoushu.cn` ✅ 可注册（可选保护）
-  - 用户购买完成后告知我，继续 DNS/SSL/邮件/部署
-- [ ] 运行 `commit.ps1` 并 `git push`（如未由我推送时）
+- [x] **域名注册**：`beanbeanmouse.com` 已在 Cloudflare 注册（DNS 为空，待绑定）
+- [ ] **Cloudflare Pages 部署**：需用户授权（`wrangler login` 或控制台 Connect to Git）
+- [ ] 绑定自定义域名 `beanbeanmouse.com` + `www`
+- [ ] 验证 https://beanbeanmouse.com 核心流程（本地诊断脚本已就绪）
+- [ ] 提交 Google/Bing/百度收录
 
-## 三、待我执行（依赖域名跑通）
+## 三、待我执行（依赖前端上线）
 
-- [ ] 域名注册完成后：Cloudflare DNS、HTTPS、SPF/DKIM/DMARC、站内官方域名更新、部署
+- [ ] 后端 API 部署（VPS/Docker 或 Pages Functions + D1）
+- [ ] 邮件发信：SPF/DKIM/DMARC + SMTP 真实通道
+- [ ] 真实翻译密钥（DeepL）接入
 - [ ] 支付/托管接入（用户选方案后，主体到位优先）
 - [ ] 佣金与打赏功能、风控规则、结算对账（商业闭环）
 - [ ] 商标检索（美国 / 欧盟 / 中国）

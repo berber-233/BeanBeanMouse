@@ -1,5 +1,6 @@
 # 临时/中间文件
 work/
+dist/
 
 # 依赖与构建产物
 node_modules/
