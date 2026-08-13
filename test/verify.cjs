@@ -250,6 +250,22 @@ let page;
   const transMsgText = await waitForTranslated(page.locator('.trans-msg p').first(), 20000);
   check('buyer: translation filled (not pending)', (transMsgText || '').length > 1 && (transMsgText || '').indexOf('翻译中') === -1);
 
+  // ---- 交易达成：下单 → 确认签收 → 小费打赏（可选） ----
+  const createBtn = page.locator('[data-action="order-create"]').first();
+  check('buyer: quoted inquiry has create-order button', await createBtn.count() === 1);
+  await createBtn.click();
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { location.hash = '#/dashboard/orders'; });
+  await page.waitForTimeout(400);
+  check('buyer: order appears in orders tab', await page.locator('.card.panel').filter({ has: page.locator('[data-action="order-confirm"]') }).count() >= 1);
+  await page.click('[data-action="order-confirm"]');
+  await page.waitForTimeout(500);
+  check('buyer: tip modal opens after receipt confirm', await page.locator('#tipAmountInput').count() === 1);
+  await page.fill('#tipAmountInput', '25');
+  await page.click('[data-action="tip-send"]');
+  await page.waitForTimeout(400);
+  check('buyer: tip saved on order (both sides visible)', await page.locator('[data-action="tip-cancel"]').count() >= 1);
+
   // ---- 平台管理员后台 ----
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));

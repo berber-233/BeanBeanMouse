@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','frozen')),
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -22,6 +23,11 @@ CREATE TABLE IF NOT EXISTS companies (
   city TEXT,
   license_no TEXT,
   license_file_id UUID REFERENCES files(id),
+  registration_no TEXT,
+  website TEXT,
+  contact TEXT,
+  business_scope TEXT,
+  reject_reason TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   verified_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -132,6 +138,7 @@ CREATE TABLE IF NOT EXISTS news_items (
   summary_en TEXT,
   url TEXT,
   published_at DATE,
+  updated_at TIMESTAMPTZ,
   status TEXT NOT NULL DEFAULT 'published'
 );
 
@@ -165,15 +172,57 @@ CREATE TABLE IF NOT EXISTS files (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 第二阶段预留：订单与支付
+-- 交易订单：买家确认签收 = 交易达成
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  inquiry_id UUID,
+  inquiry_id UUID REFERENCES inquiries(id),
+  quote_id UUID REFERENCES quotes(id),
   buyer_id UUID,
   seller_id UUID,
-  status TEXT,
-  total NUMERIC(12,2),
+  status TEXT NOT NULL DEFAULT 'created' CHECK (status IN ('created','cancelled','complete')),
+  total NUMERIC(14,2),
   currency TEXT DEFAULT 'USD',
+  confirmed_at TIMESTAMPTZ,
+  receipt_confirmed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 小费打赏：交易达成后任一方可打赏对方，双方可见，可取消（未结算前）
+CREATE TABLE IF NOT EXISTS tips (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  from_user_id UUID NOT NULL,
+  to_user_id UUID NOT NULL,
+  amount NUMERIC(10,2) NOT NULL,
+  currency TEXT DEFAULT 'USD',
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','cancelled')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  cancelled_at TIMESTAMPTZ
+);
+
+-- 品类需求记录：用户没找到想要的品类时提交，平台据此邀请供应商入驻
+CREATE TABLE IF NOT EXISTS category_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  target_markets TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','invited','done')),
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 邮箱验证令牌（单次有效、带过期、只存哈希）
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  token_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'verify_email',
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

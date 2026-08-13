@@ -127,6 +127,9 @@ function migrateState() {
   if (!Array.isArray(state.logs)) { state.logs = buildLogs(now); changed = true; }
   if (!Array.isArray(state.newsRegions)) { state.newsRegions = ['CN', 'GLOBAL']; changed = true; }
   if (!state.newsSyncedAt) { state.newsSyncedAt = Date.now(); changed = true; }
+  if (!Array.isArray(state.orders)) { state.orders = []; changed = true; }
+  if (!Array.isArray(state.tips)) { state.tips = []; changed = true; }
+  if (!Array.isArray(state.categoryRequests)) { state.categoryRequests = []; changed = true; }
   state.products.forEach(p => {
     if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
     if (!Array.isArray(p.markets)) { p.markets = MARKETS_BY_PRODUCT[p.id] || []; changed = true; }
@@ -424,6 +427,9 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'product-form') submitProduct(f);
   else if (f.dataset.form === 'reply-form') submitReply(f);
   else if (f.dataset.form === 'quote-form') submitQuote(f);
+  else if (f.dataset.form === 'register-form') submitRegister(f);
+  else if (f.dataset.form === 'company-form') submitCompanyForm(f);
+  else if (f.dataset.form === 'catreq-form') submitCatReqForm(f);
 });
 
 function handleAction(el) {
@@ -435,6 +441,16 @@ function handleAction(el) {
     case 'open-product': go('/product/' + id); break;
     case 'login-role': loginAs(el.dataset.role); break;
     case 'login-guest': logout(true); break;
+    case 'show-register': showModal(registerFormHtml()); break;
+    case 'company-form': showModal(companyFormHtml()); break;
+    case 'catreq-open': showModal(catReqFormHtml()); break;
+    case 'order-create': createOrderFromInquiry(id); break;
+    case 'order-confirm': confirmOrderReceipt(id); break;
+    case 'order-cancel': cancelOrder(id); break;
+    case 'tip-open': openTipModal(id); break;
+    case 'tip-send': sendTip(el.dataset.order); break;
+    case 'tip-cancel': cancelTip(el.dataset.order, el.dataset.tip); break;
+    case 'catreq-status': setCatReqStatus(id, el.dataset.status, el.dataset.note); break;
     case 'logout': logout(false); break;
     case 'switch-role': logout(false, true); break;
     case 'go-dashboard': go('/dashboard'); break;
@@ -478,10 +494,13 @@ function handleAction(el) {
     case 'reject-verify': {
       const c = (state.companies || []).find(x => x.sellerId === id);
       if (!c) break;
+      const reason = prompt(t('rejectReasonPh'));
+      if (reason === null) break;
       c.status = 'rejected';
+      c.rejectReason = reason.trim() || t('companyRejected');
       const s = SELLERS.find(x => x.id === id);
       if (s) s.verified = false;
-      addLog(state.user ? state.user.name : '管理员', t('companyRejected'), s ? langObj(s).company : id, '');
+      addLog(state.user ? state.user.name : '管理员', t('companyRejected'), s ? langObj(s).company : id, c.rejectReason);
       saveState(); toast(t('companyRejected')); renderPage();
       break;
     }
@@ -1019,6 +1038,7 @@ function renderProducts(params) {
     + '<option value="priceAsc" ' + (sort === 'priceAsc' ? 'selected' : '') + '>' + t('sortPriceAsc') + '</option>'
     + '<option value="priceDesc" ' + (sort === 'priceDesc' ? 'selected' : '') + '>' + t('sortPriceDesc') + '</option>'
     + '</select>'
+    + '<button type="button" class="btn btn-sm" data-action="catreq-open" style="margin-left:10px">🙋 ' + t('categoryRequestBtn') + '</button>'
     + '</div>'
     + grid
     + '</div>'
@@ -1124,7 +1144,7 @@ function renderNews(params) {
     ).join('') + '</div></div>'
     + '<p class="small muted">' + icon('bell') + ' ' + t('newsRegionHint') + '</p>'
     + '</div>'
-    + '<div class="news-sync"><span>' + icon('bell') + ' ' + t('newsSyncedAt') + '：' + fmtDate(state.newsSyncedAt) + '</span>'
+    + '<div class="news-sync"><span class="status-pill done">● ' + t('newsUpdated') + '</span><span>' + icon('bell') + ' ' + t('newsSyncedAt') + '：' + fmtDate(state.newsSyncedAt) + '</span>'
     + '<button type="button" class="btn btn-sm" data-action="refresh-news">' + icon('refresh') + t('newsRefresh') + '</button></div>'
     + (list.length
       ? '<div class="news-list">' + list.map(newsCard).join('') + '</div>'
@@ -1336,6 +1356,204 @@ function submitInquiry(f) {
     + '</div></div></div></div>';
 }
 
+/* ---------- 注册 / 企业认证 / 品类需求 / 订单小费 ---------- */
+function companyOfSeller() {
+  const sid = state.user && state.user.sellerId;
+  return (state.companies || []).find(c => c.sellerId === sid) || null;
+}
+function registerFormHtml() {
+  return '<div class="modal-head"><h3>' + t('regTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="register-form" class="full">'
+    + '<input type="text" name="homepage" style="position:absolute;left:-9999px;opacity:0" tabindex="-1" autocomplete="off">'
+    + '<div class="field"><label>' + t('regName') + ' *</label><input class="input" name="name" required maxlength="80"></div>'
+    + '<div class="field"><label>' + t('regEmail') + ' *</label><input class="input" type="email" name="email" required></div>'
+    + '<div class="field"><label>' + t('regPassword') + ' *</label><input class="input" type="password" name="password" required minlength="8"></div>'
+    + '<div class="field"><label>' + t('regRole') + ' *</label><div class="check-group">'
+    + '<label class="check-pill"><input type="radio" name="role" value="buyer" checked onchange="document.getElementById(\'sellerRegFields\').hidden=true">' + t('regRoleBuyer') + '</label>'
+    + '<label class="check-pill"><input type="radio" name="role" value="seller" onchange="document.getElementById(\'sellerRegFields\').hidden=false">' + t('regRoleSeller') + '</label>'
+    + '</div></div>'
+    + '<div id="sellerRegFields" hidden>'
+    + '<div class="field"><label>' + t('regCompanyName') + ' *</label><input class="input" name="companyName" required></div>'
+    + '<div class="field"><label>' + t('regCountry') + ' *</label><input class="input" name="country" required></div>'
+    + '<div class="field"><label>' + t('regCity') + '</label><input class="input" name="city"></div>'
+    + '<div class="field"><label>' + t('regRegNo') + '</label><input class="input" name="registrationNo"></div>'
+    + '<div class="field"><label>' + t('regLicenseNo') + '</label><input class="input" name="licenseNo"></div>'
+    + '<div class="field"><label>' + t('regCompanyWebsite') + '</label><input class="input" name="companyWebsite"></div>'
+    + '<div class="field"><label>' + t('regContact') + '</label><input class="input" name="contact"></div>'
+    + '<div class="field"><label>' + t('regScope') + '</label><input class="input" name="businessScope"></div>'
+    + '</div>'
+    + '<div class="form-note">💡 ' + t('regNote') + '</div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('regSubmit') + '</button>'
+    + '</form></div>';
+}
+function companyFormHtml() {
+  const c = companyOfSeller() || {};
+  return '<div class="modal-head"><h3>' + t('companyApply') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="company-form" class="full">'
+    + '<div class="field"><label>' + t('regCompanyName') + ' *</label><input class="input" name="name" required value="' + esc(c.name || '') + '"></div>'
+    + '<div class="field"><label>' + t('regCountry') + ' *</label><input class="input" name="country" required value="' + esc(c.country || '') + '"></div>'
+    + '<div class="field"><label>' + t('regCity') + '</label><input class="input" name="city" value="' + esc(c.city || '') + '"></div>'
+    + '<div class="field"><label>' + t('regRegNo') + '</label><input class="input" name="registrationNo" value="' + esc(c.registrationNo || '') + '"></div>'
+    + '<div class="field"><label>' + t('regLicenseNo') + '</label><input class="input" name="licenseNo" value="' + esc(c.licenseNo || '') + '"></div>'
+    + '<div class="field"><label>' + t('regCompanyWebsite') + '</label><input class="input" name="website" value="' + esc(c.website || '') + '"></div>'
+    + '<div class="field"><label>' + t('regContact') + '</label><input class="input" name="contact" value="' + esc(c.contact || '') + '"></div>'
+    + '<div class="field"><label>' + t('regScope') + '</label><input class="input" name="businessScope" value="' + esc(c.businessScope || '') + '"></div>'
+    + '<div class="form-note">💡 ' + t('companyTip') + '</div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('companyApply') + '</button>'
+    + '</form></div>';
+}
+function catReqFormHtml() {
+  return '<div class="modal-head"><h3>' + t('categoryRequestTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="catreq-form" class="full">'
+    + '<div class="field"><label>' + t('catName') + ' *</label><input class="input" name="name" required maxlength="120"></div>'
+    + '<div class="field"><label>' + t('catDesc') + '</label><textarea class="input" name="description" rows="3"></textarea></div>'
+    + '<div class="field"><label>' + t('catMarkets') + '</label><input class="input" name="markets" placeholder="DE, US, ..."></div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('catSubmit') + '</button>'
+    + '</form></div>';
+}
+function companyBannerHtml() {
+  const c = companyOfSeller();
+  if (!c) {
+    return '<div class="card panel" style="border-color:rgba(245,158,11,.45)"><div class="panel-head"><h2>🏭 ' + t('companyApply') + '</h2></div>'
+      + '<p class="muted">' + t('companyTip') + '</p>'
+      + '<button type="button" class="btn btn-primary" data-action="company-form">' + t('companyApply') + '</button></div>';
+  }
+  if (c.status === 'approved') {
+    return '<div class="card panel" style="border-color:rgba(34,197,94,.35)"><div class="panel-head"><h2>✅ ' + esc(c.name || '') + '</h2><span class="status-pill done">' + t('companyApproved') + '</span></div></div>';
+  }
+  if (c.status === 'rejected') {
+    return '<div class="card panel" style="border-color:rgba(239,68,68,.35)"><div class="panel-head"><h2>🏭 ' + esc(c.name || '') + '</h2><span class="status-pill new">' + t('companyRejected') + '</span></div>'
+      + (c.rejectReason ? '<p class="muted">' + t('companyReason') + '：' + esc(c.rejectReason) + '</p>' : '')
+      + '<button type="button" class="btn btn-primary" data-action="company-form">' + t('companyResubmit') + '</button></div>';
+  }
+  return '<div class="card panel" style="border-color:rgba(245,158,11,.45)"><div class="panel-head"><h2>🏭 ' + esc(c.name || '') + '</h2><span class="status-pill new">' + t('companyPending') + '</span></div>'
+    + '<p class="muted">' + t('companyTip') + '</p></div>';
+}
+function orderStatusLabel(s) {
+  return s === 'complete' ? t('orderStatusComplete') : s === 'cancelled' ? t('orderStatusCancelled') : t('orderStatusCreated');
+}
+function orderCard(o) {
+  const p = productById(o.productId);
+  const isBuyer = state.user && o.buyerId === state.user.id;
+  const tips = o.tips || [];
+  return '<div class="card panel">'
+    + '<div class="panel-head"><h2>' + esc(p ? langObj(p).title : o.productId) + '</h2><span class="status-pill ' + (o.status === 'complete' ? 'done' : o.status === 'cancelled' ? 'new' : '') + '">' + orderStatusLabel(o.status) + '</span></div>'
+    + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
+    + (tips.length ? '<div class="reply-box"><b>' + t('tipList') + '：</b><ul style="margin:6px 0 0;padding-left:18px">'
+      + tips.map(x => '<li>' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
+        + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')
+        + '</li>').join('')
+      + '</ul></div>' : '')
+    + '<div class="flex gap-10" style="margin-top:10px">'
+    + (o.status === 'created' && isBuyer ? '<button type="button" class="btn btn-primary" data-action="order-confirm" data-id="' + o.id + '">' + t('confirmReceipt') + '</button><button type="button" class="btn" data-action="order-cancel" data-id="' + o.id + '">' + t('orderStatusCancelled') + '</button>' : '')
+    + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '">💛 ' + t('tipTitle') + '</button>' : '')
+    + '</div>'
+    + '</div>';
+}
+function ordersBody() {
+  const u = state.user;
+  let rows = (state.orders || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  if (u && u.role !== 'admin') rows = rows.filter(o => o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('myOrders') + '</h2></div>'
+    + (rows.length ? rows.map(orderCard).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📦</div><p>' + t('noOrders') + '</p></div>')
+    + '</div>';
+}
+function tipModalHtml(o) {
+  return '<div class="modal-head"><h3>💛 ' + t('tipTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + '<div style="text-align:center;margin-bottom:8px"><img src="assets/tip-mascot.svg" alt="' + t('tipTitle') + '" width="110" height="110" style="border-radius:14px;background:var(--bg)"></div>'
+    + '<p class="muted" style="text-align:center">' + t('tipHint') + '</p>'
+    + '<div class="field"><label>' + t('tipAmount') + ' *</label><input class="input" id="tipAmountInput" type="number" min="0.01" max="10000" step="0.01" placeholder="5"></div>'
+    + '<div class="field"><label>' + t('tipNote') + '</label><input class="input" id="tipNoteInput" maxlength="200"></div>'
+    + '<button type="button" class="btn btn-primary btn-block" data-action="tip-send" data-order="' + o.id + '">' + t('tipSend') + '</button>'
+    + '</div>';
+}
+async function submitRegister(form) {
+  const fd = new FormData(form);
+  const payload = {
+    email: String(fd.get('email') || '').trim(),
+    password: String(fd.get('password') || ''),
+    role: fd.get('role') || 'buyer',
+    name: String(fd.get('name') || '').trim(),
+    homepage: String(fd.get('homepage') || ''),
+    companyName: String(fd.get('companyName') || '').trim(),
+    country: String(fd.get('country') || '').trim(),
+    city: String(fd.get('city') || '').trim(),
+    registrationNo: String(fd.get('registrationNo') || '').trim(),
+    licenseNo: String(fd.get('licenseNo') || '').trim(),
+    companyWebsite: String(fd.get('companyWebsite') || '').trim(),
+    contact: String(fd.get('contact') || '').trim(),
+    businessScope: String(fd.get('businessScope') || '').trim()
+  };
+  try {
+    const r = await api.auth.register(payload);
+    closeModal();
+    toast(t('registerOk'));
+    if (r && r.emailVerified !== false) go('/dashboard');
+  } catch (e) {
+    const msg = e.message === 'EMAIL_EXISTS' ? t('emailExists') : e.message === 'BOT_DETECTED' ? t('botDetected') : e.message === 'VALIDATION' ? t('required') : (e.message || String(e));
+    toast(msg);
+  }
+}
+async function submitCompanyForm(form) {
+  const payload = {
+    name: form.name.value, country: form.country.value,
+    city: form.city ? form.city.value : '', registrationNo: form.registrationNo ? form.registrationNo.value : '',
+    licenseNo: form.licenseNo ? form.licenseNo.value : '', website: form.website ? form.website.value : '',
+    contact: form.contact ? form.contact.value : '', businessScope: form.businessScope ? form.businessScope.value : ''
+  };
+  try {
+    await api.companies.apply(payload);
+    closeModal();
+    toast(t('companyApply') + ' ✓');
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function submitCatReqForm(form) {
+  const fd = new FormData(form);
+  const markets = String(fd.get('markets') || '').split(',').map(s => s.trim()).filter(Boolean);
+  try {
+    await api.categoryRequests.create({ name: fd.get('name'), description: fd.get('description'), targetMarkets: markets });
+    closeModal();
+    toast(t('catSubmitted'));
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function createOrderFromInquiry(inquiryId) {
+  try { await api.orders.create({ inquiryId }); toast(t('orders') + ' ✓'); render(); }
+  catch (e) { toast(e.message || String(e)); }
+}
+async function confirmOrderReceipt(id) {
+  try {
+    await api.orders.confirmReceipt(id);
+    toast(t('dealDone'));
+    render();
+    openTipModal(id);
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function cancelOrder(id) {
+  try { await api.orders.cancel(id); toast(t('orderStatusCancelled')); render(); }
+  catch (e) { toast(e.message || String(e)); }
+}
+function openTipModal(id) {
+  const o = (state.orders || []).find(x => x.id === id);
+  if (o) showModal(tipModalHtml(o));
+}
+async function sendTip(orderId) {
+  const amount = parseFloat(($('#tipAmountInput') || {}).value || '');
+  const note = ($('#tipNoteInput') || {}).value || '';
+  try { await api.orders.tip(orderId, { amount, note }); closeModal(); toast('💛 ' + t('tipReceived') + ' ✓'); render(); }
+  catch (e) { toast(e.message || String(e)); }
+}
+async function cancelTip(orderId, tipId) {
+  try { await api.orders.cancelTip(orderId, tipId); toast(t('tipCancel') + ' ✓'); render(); }
+  catch (e) { toast(e.message || String(e)); }
+}
+async function setCatReqStatus(id, status, note) {
+  const reason = note || (status === 'done' ? '' : prompt(t('catNote')) || '');
+  try { await api.categoryRequests.setStatus(id, { status, note: reason }); toast('✓'); render(); }
+  catch (e) { toast(e.message || String(e)); }
+}
+
 /* ---------- 登录页 ---------- */
 function renderLogin() {
   document.title = t('login') + ' · BeanBeanMouse';
@@ -1360,6 +1578,7 @@ function renderLogin() {
     + '</div>'
     + '</div>'
     + '<button type="button" class="btn btn-lg guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
+    + '<button type="button" class="btn btn-lg" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
     + '<div class="login-note">💡 ' + t('loginNote') + '</div>'
     + '</div></div>';
 }
@@ -1400,13 +1619,14 @@ function renderSellerDash(path) {
     { tab: '', icon: 'chart', label: t('overview') },
     { tab: 'products', icon: 'box', label: t('productManage'), count: myProducts.length },
     { tab: 'publish', icon: 'plus', label: t('publish') },
-    { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: pending || null }
+    { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: pending || null },
+    { tab: 'orders', icon: 'box', label: t('orders'), count: (state.orders || []).filter(o => o.sellerId === sid && o.status === 'created').length || null }
   ];
   const activeTab = path.split('/')[2] || '';
   let body = '';
 
   if (activeTab === '' || activeTab === 'overview') {
-    body = '<div class="stat-grid">'
+    body = companyBannerHtml() + '<div class="stat-grid">'
       + '<div class="card stat-card"><div class="stat-ico ico-blue">' + icon('box') + '</div><div><div class="n">' + live + '</div><div class="l">' + t('statLive') + '</div></div></div>'
       + '<div class="card stat-card"><div class="stat-ico ico-amber">' + icon('message') + '</div><div><div class="n">' + monthInq + '</div><div class="l">' + t('statInquiries') + '</div></div></div>'
       + '<div class="card stat-card"><div class="stat-ico ico-green">' + icon('clock') + '</div><div><div class="n">' + pending + '</div><div class="l">' + t('statPending') + '</div></div></div>'
@@ -1443,6 +1663,8 @@ function renderSellerDash(path) {
         }).join('') + '</tbody></table></div>'
         : '<div class="empty-state" style="padding:36px"><div class="ico">📦</div><p>' + t('noProducts') + '</p></div>')
       + '</div>';
+  } else if (activeTab === 'orders') {
+    body = companyBannerHtml() + ordersBody();
   } else if (activeTab === 'publish') {
     body = renderPublishForm();
   } else if (activeTab === 'inquiries') {
@@ -1463,12 +1685,14 @@ function renderAdminDash(path) {
     { tab: 'overview', icon: 'chart', label: t('adminOverview') },
     { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
     { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
+    { tab: 'catreqs', icon: 'sparkle', label: t('catRequests'), count: (state.categoryRequests || []).filter(r => r.status === 'new').length || null },
     { tab: 'users', icon: 'users', label: t('userManage') },
     { tab: 'logs', icon: 'clock', label: t('auditLog') }
   ];
   let body = '';
   if (activeTab === 'review') body = adminReviewBody();
   else if (activeTab === 'verify') body = adminVerifyBody();
+  else if (activeTab === 'catreqs') body = adminCatReqBody();
   else if (activeTab === 'users') body = adminUsersBody();
   else if (activeTab === 'logs') body = adminLogsBody();
   else body = adminOverviewBody();
@@ -1477,6 +1701,23 @@ function renderAdminDash(path) {
 
 function adminStatCard(cls, iconName, n, label) {
   return '<div class="card stat-card"><div class="stat-ico ' + cls + '">' + icon(iconName) + '</div><div><div class="n">' + n + '</div><div class="l">' + label + '</div></div></div>';
+}
+
+function adminCatReqBody() {
+  const rows = (state.categoryRequests || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('catRequests') + '</h2></div>'
+    + (rows.length ? rows.map(r =>
+      '<div class="inquiry-item"><div class="top"><div class="who"><div class="nm">' + esc(r.name) + '</div>'
+      + '<div class="ct">' + fmtDate(r.createdAt) + ' · ' + (r.targetMarkets || []).join(', ') + ' · <span class="status-pill ' + (r.status === 'done' ? 'done' : r.status === 'invited' ? '' : 'new') + '">' + (r.status === 'new' ? t('catStatusNew') : r.status === 'invited' ? t('catStatusInvited') : t('catStatusDone')) + '</span></div></div>'
+      + '<div class="flex gap-10">'
+      + (r.status === 'new' ? '<button type="button" class="btn btn-sm btn-primary" data-action="catreq-status" data-id="' + r.id + '" data-status="invited">' + t('catStatusInvited') + '</button>' : '')
+      + '<button type="button" class="btn btn-sm" data-action="catreq-status" data-id="' + r.id + '" data-status="done">' + t('catStatusDone') + '</button>'
+      + '</div>'
+      + (r.description ? '<p class="muted" style="margin-top:6px">' + esc(r.description) + '</p>' : '')
+      + (r.note ? '<p class="small muted">📝 ' + esc(r.note) + '</p>' : '')
+      + '</div></div>').join('')
+      : '<div class="empty-state" style="padding:36px"><div class="ico">🙋</div><p>' + t('noUsers') + '</p></div>')
+    + '</div>';
 }
 
 function adminOverviewBody() {
@@ -1831,6 +2072,13 @@ function renderPublishForm() {
 }
 
 function submitProduct(f) {
+  if (state.user && state.user.role === 'seller') {
+    const co = companyOfSeller();
+    if (!co || co.status !== 'approved') {
+      toast(t('companyPending'));
+      return;
+    }
+  }
   const fd = new FormData(f);
   const titleEn = (fd.get('titleEn') || '').trim();
   const titleZh = (fd.get('titleZh') || '').trim();
@@ -1917,13 +2165,16 @@ function renderBuyerDash(path) {
   const favProducts = state.products.filter(p => state.favorites.includes(p.id) && isLive(p));
   const tabs = [
     { tab: 'inquiries', icon: 'message', label: t('myInquiries'), count: myInquiries.filter(i => i.status === 'new').length || null },
-    { tab: 'favorites', icon: 'heart', label: t('myFavorites'), count: favProducts.length || null }
+    { tab: 'favorites', icon: 'heart', label: t('myFavorites'), count: favProducts.length || null },
+    { tab: 'orders', icon: 'box', label: t('orders'), count: (state.orders || []).filter(o => o.buyerId === u.id && o.status === 'created').length || null }
   ];
   let body = '';
   if (activeTab === 'favorites') {
     body = '<div class="card panel"><div class="panel-head"><h2>' + t('myFavorites') + '</h2></div>'
       + (favProducts.length ? '<div class="product-grid">' + favProducts.map(productCard).join('') + '</div>' : '<div class="empty-state" style="padding:36px"><div class="ico">🤍</div><p>' + t('noFavoritesYet') + '</p></div>')
       + '</div>';
+  } else if (activeTab === 'orders') {
+    body = ordersBody();
   } else {
     body = '<div class="card panel"><div class="panel-head"><h2>' + t('myInquiries') + '</h2></div>'
       + (myInquiries.length ? myInquiries.map(buyerInquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiriesYet') + '</p></div>')
@@ -1940,6 +2191,7 @@ function buyerInquiryItem(i) {
     + '<div class="who"><div class="nm">' + (p ? esc(langObj(p).title) : '—') + '</div>'
     + '<div class="ct">' + t('sentAt') + ' ' + fmtDate(i.createdAt) + ' · ' + i.qty + ' ' + i.unit + ' · <span class="status-pill ' + (status ? 'done' : 'new') + '">' + (i.status === 'quoted' ? t('quotedStatus') : status ? t('statusReplied') : t('statusNew')) + '</span></div></div>'
     + (p ? '<a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>' : '')
+    + (i.quote ? '<button type="button" class="btn btn-sm btn-primary" data-action="order-create" data-id="' + i.id + '" style="margin-left:6px">📦 ' + t('orders') + '</button>' : '')
     + '</div>'
     + inquiryMsg(i)
     + (i.quote ? '<div class="reply-box">' + quoteBlock(i) + '</div>' : status && i.reply ? '<div class="reply-box"><div class="reply-msg"><b>' + t('sellerReply') + '：</b>' + esc(i.reply) + '</div></div>' : '')

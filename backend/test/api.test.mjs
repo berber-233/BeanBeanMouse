@@ -2,8 +2,11 @@
 process.env.DB_PATH = ':memory:';
 process.env.TRANSLATION_PROVIDER = 'mock';
 process.env.TRANSLATION_DAILY_QUOTA = '10';
+process.env.REGISTER_LIMIT = '100';
+process.env.LOGIN_LIMIT = '100';
 
 const { startServer } = await import('../src/server.mjs');
+const { get } = await import('../src/db.mjs');
 
 const server = await startServer(0);
 const base = 'http://127.0.0.1:' + server.address().port;
@@ -21,10 +24,16 @@ async function req(path, { method = 'GET', body, token } = {}) {
   });
   let data = null;
   try { data = await res.json(); } catch (e) { /* 无响应体 */ }
-  return { status: res.status, data };
+  return { status: res.status, data, headers: res.headers };
 }
 
-let sellerToken, adminToken, buyerToken, createdProductId;
+function lastVerifyToken(email) {
+  const mail = get('SELECT * FROM mail_outbox WHERE recipient = ? AND subject LIKE ? ORDER BY created_at DESC LIMIT 1', email, '%验证%');
+  const m = mail ? /token=([0-9a-f]+)/.exec(mail.body || '') : null;
+  return m ? m[1] : null;
+}
+
+let sellerToken, adminToken, buyerToken, createdProductId, inquiryId, orderId;
 
 /* ---- 认证 ---- */
 {
@@ -50,13 +59,86 @@ let sellerToken, adminToken, buyerToken, createdProductId;
   const r = await req('/auth/login', { method: 'POST', body: { email: 'tanaka@tokyo-trading.jp', password: 'frozen123' } });
   check('login frozen user -> 401 ACCOUNT_FROZEN', r.status === 401 && r.data.error === 'ACCOUNT_FROZEN');
 }
+
+/* 注册 → 邮箱验证 → 登录 */
 {
-  const r = await req('/auth/register', { method: 'POST', body: { email: 'new@test.com', password: 'pass1234', role: 'buyer', name: 'New User' } });
-  check('register -> 201', r.status === 201 && !!r.data.token);
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'new@test.com', password: 'Passw0rd', role: 'buyer', name: 'New User' } });
+  check('register -> 201 + 未验证（无 token）', r.status === 201 && r.data.emailVerified === false && !r.data.token);
 }
 {
-  const r = await req('/auth/register', { method: 'POST', body: { email: 'new@test.com', password: 'pass1234', role: 'buyer', name: 'Dup' } });
+  const r = await req('/auth/login', { method: 'POST', body: { email: 'new@test.com', password: 'Passw0rd' } });
+  check('未验证邮箱登录 -> 403 VERIFY_EMAIL_REQUIRED', r.status === 403 && r.data.error === 'VERIFY_EMAIL_REQUIRED');
+}
+{
+  const token = lastVerifyToken('new@test.com');
+  const r = await req('/auth/verify-email', { method: 'POST', body: { token } });
+  check('邮箱验证 -> 200', r.status === 200 && r.data.ok === true && r.data.user.email_verified === undefined);
+}
+{
+  const r = await req('/auth/login', { method: 'POST', body: { email: 'new@test.com', password: 'Passw0rd' } });
+  check('验证后登录 -> 200', r.status === 200 && !!r.data.token);
+}
+{
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'new@test.com', password: 'Passw0rd', role: 'buyer', name: 'Dup' } });
   check('register duplicate email -> 409', r.status === 409 && r.data.error === 'EMAIL_EXISTS');
+}
+{
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'bot@test.com', password: 'Passw0rd', role: 'buyer', name: 'Bot', homepage: 'http://spam.example' } });
+  check('蜜罐字段注册 -> 400 BOT_DETECTED', r.status === 400 && r.data.error === 'BOT_DETECTED');
+}
+{
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'weak@test.com', password: 'abc', role: 'buyer', name: 'Weak' } });
+  check('弱密码注册 -> 400 VALIDATION', r.status === 400 && r.data.error === 'VALIDATION');
+}
+{
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'bad-email', password: 'Passw0rd', role: 'buyer', name: 'Bad' } });
+  check('非法邮箱注册 -> 400 VALIDATION', r.status === 400 && r.data.error === 'VALIDATION');
+}
+{
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'fac@test.com', password: 'Passw0rd', role: 'seller', name: 'Factory', companyName: '', country: '' } });
+  check('卖家注册缺公司资料 -> 400 VALIDATION', r.status === 400 && r.data.error === 'VALIDATION');
+}
+
+/* 卖家注册 + 公司审核（真实可查证）→ 审核通过后才能发布产品 */
+let newSellerToken, newSellerUserId;
+{
+  const r = await req('/auth/register', {
+    method: 'POST',
+    body: {
+      email: 'factory@test.com', password: 'Passw0rd', role: 'seller', name: 'Factory Owner',
+      companyName: 'Suzhou Precision Factory Co., Ltd.', country: 'CN', city: 'Suzhou',
+      registrationNo: '91320594MA1X000000', licenseNo: 'LIC-2026-088', companyWebsite: 'https://example-factory.cn',
+      contact: '+86 138 0000 0000', businessScope: 'CNC machining, sheet metal fabrication'
+    }
+  });
+  check('卖家注册（含公司资料）-> 201', r.status === 201 && r.data.user.role === 'seller' && r.data.emailVerified === false);
+  newSellerUserId = r.data.user.id;
+  const vtoken = lastVerifyToken('factory@test.com');
+  await req('/auth/verify-email', { method: 'POST', body: { token: vtoken } });
+  const login = await req('/auth/login', { method: 'POST', body: { email: 'factory@test.com', password: 'Passw0rd' } });
+  newSellerToken = login.data.token;
+}
+{
+  const r = await req('/companies/mine', { token: newSellerToken });
+  check('卖家查看公司资料 -> pending', r.status === 200 && r.data.status === 'pending' && r.data.registration_no === '91320594MA1X000000');
+}
+{
+  const r = await req('/products', {
+    method: 'POST', token: newSellerToken,
+    body: { category: 'auto', country: 'CN', translations: { en: { title: 'X' }, zh: { title: 'X' } } }
+  });
+  check('公司未审核时发布产品 -> 403 COMPANY_NOT_VERIFIED', r.status === 403 && r.data.error === 'COMPANY_NOT_VERIFIED');
+}
+{
+  const r = await req('/companies/' + newSellerUserId + '/verify', { method: 'PUT', token: adminToken, body: { action: 'approve' } });
+  check('管理员通过公司审核 -> approved', r.status === 200 && r.data.status === 'approved');
+}
+{
+  const r = await req('/products', {
+    method: 'POST', token: newSellerToken,
+    body: { category: 'auto', country: 'CN', translations: { en: { title: 'Y' }, zh: { title: 'Y' } } }
+  });
+  check('公司审核后发布产品 -> 201', r.status === 201);
 }
 {
   const r = await req('/auth/me', { token: buyerToken });
@@ -114,7 +196,6 @@ let sellerToken, adminToken, buyerToken, createdProductId;
 }
 
 /* ---- 询盘与报价 ---- */
-let inquiryId;
 {
   const r = await req('/inquiries', {
     method: 'POST',
@@ -147,6 +228,81 @@ let inquiryId;
   check('buyer quote -> 403', r.status === 403);
 }
 
+/* ---- 订单：买家确认签收 = 交易达成 ---- */
+{
+  const r = await req('/orders', { method: 'POST', token: buyerToken, body: { inquiryId } });
+  check('buyer create order from quoted inquiry -> 201 created', r.status === 201 && r.data.status === 'created' && r.data.total === 13500);
+  orderId = r.data.id;
+}
+{
+  const r = await req('/orders', { token: buyerToken });
+  check('buyer order list contains own', r.status === 200 && r.data.items.some(o => o.id === orderId));
+}
+{
+  const r = await req('/orders', { token: sellerToken });
+  check('seller order list contains received', r.status === 200 && r.data.items.some(o => o.id === orderId));
+}
+{
+  const r = await req('/orders/' + orderId + '/confirm-receipt', { method: 'POST', token: sellerToken });
+  check('卖家确认签收 -> 403', r.status === 403);
+}
+{
+  const r = await req('/orders/' + orderId + '/confirm-receipt', { method: 'POST', token: buyerToken });
+  check('买家确认签收 -> complete（交易达成）', r.status === 200 && r.data.status === 'complete' && !!r.data.receipt_confirmed_at);
+}
+
+/* ---- 小费打赏：双方可见、可取消 ---- */
+let tipId;
+{
+  const r = await req('/orders/' + orderId + '/tips', { method: 'POST', token: buyerToken, body: { amount: 25, note: 'Great service!' } });
+  check('买家打赏卖家 -> 201 active', r.status === 201 && r.data.status === 'active' && r.data.to_user_id !== r.data.from_user_id);
+  tipId = r.data.id;
+}
+{
+  const r = await req('/orders/' + orderId, { token: sellerToken });
+  check('卖家可见订单小费（双方可见）', r.status === 200 && r.data.tips.length >= 1 && r.data.tips[0].status === 'active');
+}
+{
+  const r = await req('/orders/' + orderId + '/tips', { method: 'POST', token: buyerToken, body: { amount: 0 } });
+  check('非法打赏金额 -> 400', r.status === 400);
+}
+{
+  const r = await req('/orders/' + orderId + '/tips', { method: 'POST', token: sellerToken, body: { amount: 5 } });
+  check('卖家也可打赏买家 -> 201', r.status === 201);
+}
+{
+  const r = await req('/orders/' + orderId + '/tips/' + tipId + '/cancel', { method: 'POST', token: sellerToken });
+  check('非打赏方取消 -> 403', r.status === 403);
+}
+{
+  const r = await req('/orders/' + orderId + '/tips/' + tipId + '/cancel', { method: 'POST', token: buyerToken });
+  check('打赏方取消 -> cancelled', r.status === 200 && r.data.status === 'cancelled');
+}
+{
+  const r = await req('/orders/' + orderId + '/cancel', { method: 'POST', token: buyerToken });
+  check('已达成订单不可取消 -> 400', r.status === 400);
+}
+
+/* ---- 品类需求 ---- */
+let catReqId;
+{
+  const r = await req('/category-requests', { method: 'POST', token: buyerToken, body: { name: 'Solar inverters', description: 'Looking for 5kW hybrid inverters', targetMarkets: ['DE', 'NL'] } });
+  check('用户提交品类需求 -> 201 new', r.status === 201 && r.data.status === 'new');
+  catReqId = r.data.id;
+}
+{
+  const r = await req('/category-requests', { token: buyerToken });
+  check('用户可见自己的品类需求', r.status === 200 && r.data.items.some(x => x.id === catReqId));
+}
+{
+  const r = await req('/category-requests', { token: adminToken });
+  check('管理员可见全部品类需求', r.status === 200 && r.data.items.some(x => x.id === catReqId));
+}
+{
+  const r = await req('/category-requests/' + catReqId + '/status', { method: 'POST', token: adminToken, body: { status: 'invited', note: '已联系 2 家逆变器厂商' } });
+  check('管理员标记已邀请 -> invited', r.status === 200 && r.data.status === 'invited');
+}
+
 /* ---- 防伪验真 ---- */
 {
   const code = (await req('/products/p1')).data.antiFakeCode;
@@ -158,23 +314,21 @@ let inquiryId;
   check('anti-fake verify invalid -> 404', r.status === 404 && r.data.error === 'CODE_NOT_FOUND');
 }
 
-/* ---- 翻译 / 资讯 / 通知 / 管理 ---- */
+/* ---- 翻译 / 资讯 / 通知 / 管理 / 安全头 ---- */
 {
   const r = await req('/translate', { method: 'POST', body: { text: 'Hello', target: 'zh' } });
   check('translate proxy -> 200', r.status === 200 && r.data.target === 'zh' && r.data.provider === 'offline');
 }
 {
-  const reg = await req('/auth/register', { method: 'POST', body: { email: 'quota@test.com', password: 'pass1234', role: 'buyer', name: 'Quota User' } });
-  const quotaToken = reg.data.token;
-  const t1 = await req('/translate', { method: 'POST', token: quotaToken, body: { text: 'Hi', target: 'zh' } });
-  const t2 = await req('/translate', { method: 'POST', token: quotaToken, body: { text: 'Hi', target: 'zh' } });
-  const t3 = await req('/translate', { method: 'POST', token: quotaToken, body: { text: 'Hello', target: 'zh' } });
-  const t4 = await req('/translate', { method: 'POST', token: quotaToken, body: { text: 'World', target: 'zh' } });
+  const t1 = await req('/translate', { method: 'POST', token: buyerToken, body: { text: 'Hi', target: 'zh' } });
+  const t2 = await req('/translate', { method: 'POST', token: buyerToken, body: { text: 'Hi', target: 'zh' } });
+  const t3 = await req('/translate', { method: 'POST', token: buyerToken, body: { text: 'Hello', target: 'zh' } });
+  const t4 = await req('/translate', { method: 'POST', token: buyerToken, body: { text: 'World', target: 'zh' } });
   check('translate daily quota enforced (429)', t1.status === 200 && t2.status === 200 && t3.status === 200 && t4.status === 429 && t4.data.error === 'QUOTA_EXCEEDED');
 }
 {
   const r = await req('/news');
-  check('news list paginated >= 2', r.status === 200 && r.data.items.length >= 2);
+  check('news list 带来源与更新时间', r.status === 200 && r.data.items.length >= 2 && !!r.data.items[0].source_name && !!r.data.items[0].source_url && typeof r.data.updatedAt === 'number');
 }
 {
   const r = await req('/news?region=EU');
@@ -185,12 +339,28 @@ let inquiryId;
   check('news sources', r.status === 200 && r.data.length >= 2);
 }
 {
+  const r = await req('/news', { method: 'POST', token: adminToken, body: { title: 'US announces new tariff timeline', url: 'https://ustr.gov/news/2026/tariffs', region: 'US', category: 'policy', sourceName: 'USTR' } });
+  check('admin 发布资讯 -> 201', r.status === 201 && r.data.source_id);
+}
+{
+  const r = await req('/news', { method: 'POST', token: buyerToken, body: { title: 'x', url: 'https://x.example/1' } });
+  check('非管理员发布资讯 -> 403', r.status === 403);
+}
+{
+  const r = await req('/news/refresh', { method: 'POST', token: adminToken });
+  check('news refresh 尽力而为 -> 200', r.status === 200 && typeof r.data.added === 'number' && typeof r.data.failed === 'number');
+}
+{
   const r = await req('/notifications', { token: buyerToken });
   check('notifications -> 200', r.status === 200 && Array.isArray(r.data));
 }
 {
+  const r = await req('/auth/register', { method: 'POST', body: { email: 'factory2@test.com', password: 'Passw0rd', role: 'seller', name: 'F2', companyName: 'Ningbo Hardware Co., Ltd.', country: 'CN' } });
+  check('新增待审卖家公司', r.status === 201);
+}
+{
   const r = await req('/admin/overview', { token: adminToken });
-  check('admin overview', r.status === 200 && r.data.products >= 3 && r.data.pendingReviews === 1);
+  check('admin overview 含新增统计', r.status === 200 && r.data.products >= 3 && r.data.pendingReviews >= 1 && r.data.orders >= 1 && r.data.tips >= 1 && r.data.categoryRequests >= 1 && r.data.pendingCompanies >= 1);
 }
 {
   const r = await req('/admin/overview', { token: buyerToken });
@@ -199,6 +369,10 @@ let inquiryId;
 {
   const r = await req('/admin/logs', { token: adminToken });
   check('admin logs paginated', r.status === 200 && Array.isArray(r.data.items) && r.data.items.length >= 5 && r.data.total >= 5);
+}
+{
+  const r = await req('/products');
+  check('API 安全头存在', r.headers.get('x-content-type-options') === 'nosniff' && r.headers.get('x-frame-options') === 'SAMEORIGIN');
 }
 {
   const fd = new FormData();

@@ -422,6 +422,206 @@ paths:
       responses:
         '200':
           description: 日志列表
+  /auth/verify-email:
+    post:
+      tags: [auth]
+      summary: 邮箱验证（令牌只存哈希、单次有效、24h 过期）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200': { description: 验证成功 }
+        '400': { description: 令牌无效或已过期 }
+  /auth/resend-verification:
+    post:
+      tags: [auth]
+      summary: 重发验证邮件（防邮箱枚举）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200': { description: 已发送（无论邮箱是否存在） }
+  /companies:
+    post:
+      tags: [companies]
+      summary: 卖家提交/更新公司资料（待审核）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, country]
+              properties:
+                name: { type: string }
+                country: { type: string }
+                city: { type: string }
+                registrationNo: { type: string }
+                licenseNo: { type: string }
+                website: { type: string }
+                contact: { type: string }
+                businessScope: { type: string }
+      responses:
+        '201': { description: 提交成功（pending） }
+    get:
+      tags: [companies]
+      summary: 管理员查看公司审核列表（可按 status 筛选）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 分页公司列表 }
+  /orders:
+    post:
+      tags: [orders]
+      summary: 买家基于询盘/报价创建订单
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inquiryId]
+              properties:
+                inquiryId: { type: string }
+                total: { type: number }
+                currency: { type: string, default: USD }
+      responses:
+        '201': { description: 订单已创建 }
+    get:
+      tags: [orders]
+      summary: 订单列表（买家/卖家/管理员按角色）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 分页订单列表 }
+  /orders/{id}:
+    get:
+      tags: [orders]
+      summary: 订单详情（含双方信息与小费，双方可见）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 订单详情 }
+  /orders/{id}/confirm-receipt:
+    post:
+      tags: [orders]
+      summary: 买家确认签收 = 交易达成
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 订单状态变为 complete }
+  /orders/{id}/tips:
+    post:
+      tags: [orders]
+      summary: 交易达成后互发小费（可选，双方可见）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, minimum: 0.01, maximum: 10000 }
+                note: { type: string }
+      responses:
+        '201': { description: 小费已发送 }
+    get:
+      tags: [orders]
+      summary: 查看订单小费记录（双方可见）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 小费列表 }
+  /orders/{id}/tips/{tipId}/cancel:
+    post:
+      tags: [orders]
+      summary: 打赏方取消小费（未结算前）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: tipId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 小费已取消 }
+  /category-requests:
+    post:
+      tags: [category-requests]
+      summary: 用户提交想要的品类（平台据此邀请供应商）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                targetMarkets: { type: array, items: { type: string } }
+      responses:
+        '201': { description: 需求已记录 }
+    get:
+      tags: [category-requests]
+      summary: 品类需求列表（管理员全部，用户仅本人）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 分页列表 }
+  /category-requests/{id}/status:
+    post:
+      tags: [category-requests]
+      summary: 管理员标记已邀请/完成
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [invited, done] }
+                note: { type: string }
+      responses:
+        '200': { description: 状态已更新 }
+  /news/refresh:
+    post:
+      tags: [news]
+      summary: 管理员触发 RSS 抓取刷新（尽力而为）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 返回新增/失败数量 }
 components:
   securitySchemes:
     bearerAuth:

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import './env.mjs';
 import { all, get, run } from './db.mjs';
@@ -15,6 +15,7 @@ seedIfEmpty();
 
 /* 简单登录限流：同 IP 每分钟最多 10 次（防暴力破解） */
 const loginAttempts = new Map();
+const LOGIN_LIMIT = Number(process.env.LOGIN_LIMIT || 10);
 function loginRateLimit(ip) {
   const now = Date.now();
   const win = 60 * 1000;
@@ -25,16 +26,59 @@ function loginRateLimit(ip) {
   return rec.count;
 }
 
+/* 注册限流：同 IP 每分钟最多 5 次（防批量机器人注册，可通过 REGISTER_LIMIT 调整） */
+const registerAttempts = new Map();
+const REGISTER_LIMIT = Number(process.env.REGISTER_LIMIT || 5);
+function registerRateLimit(ip) {
+  const now = Date.now();
+  const win = 60 * 1000;
+  const rec = registerAttempts.get(ip) || { count: 0, resetAt: now + win };
+  if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + win; }
+  rec.count++;
+  registerAttempts.set(ip, rec);
+  return rec.count;
+}
+
+/* 邮箱验证令牌：只存哈希、单次有效、24 小时过期 */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function sha256(s) { return createHash('sha256').update(String(s)).digest('hex'); }
+function newEmailToken(userId) {
+  const token = randomBytes(24).toString('hex');
+  run(
+    'INSERT INTO email_tokens (id, user_id, token_hash, purpose, expires_at, created_at) VALUES (?,?,?,?,?,?)',
+    randomUUID(), userId, sha256(token), 'verify_email', Date.now() + 24 * 3600 * 1000, Date.now()
+  );
+  return token;
+}
+async function sendVerifyEmail(userId, email) {
+  const token = newEmailToken(userId);
+  const appUrl = process.env.APP_URL || 'https://beanbeanmouse.com';
+  const link = appUrl + '/#/verify-email?token=' + token;
+  await sendMail({
+    to: email,
+    subject: '[BeanBeanMouse] 请验证您的邮箱',
+    body: '欢迎注册 BeanBeanMouse！请点击以下链接完成邮箱验证（24 小时内有效）：\n\n' + link + '\n\n如非本人操作，请忽略本邮件。'
+  });
+  return link;
+}
+
 /* ---------- HTTP 基础 ---------- */
+const CORS_ORIGIN = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',')[0].trim() : '*';
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': CORS_ORIGIN,
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'"
 };
 
 function send(res, status, data) {
   const body = data === undefined ? '' : JSON.stringify(data);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...CORS });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...CORS, ...SECURITY_HEADERS });
   res.end(body);
 }
 function sendBytes(res, status, buf, contentType, extraHeaders = {}) {
@@ -43,6 +87,7 @@ function sendBytes(res, status, buf, contentType, extraHeaders = {}) {
     'Content-Length': buf.length,
     'Cache-Control': 'private, max-age=3600',
     ...CORS,
+    ...SECURITY_HEADERS,
     ...extraHeaders
   });
   res.end(buf);
@@ -156,20 +201,49 @@ function productView(row) {
   };
 }
 
+function orderView(o) {
+  const tips = all('SELECT * FROM tips WHERE order_id = ? ORDER BY created_at DESC', o.id);
+  const buyer = o.buyer_id ? get('SELECT id, name, email FROM users WHERE id = ?', o.buyer_id) : null;
+  const seller = o.seller_id ? get('SELECT id, name, email FROM users WHERE id = ?', o.seller_id) : null;
+  return { ...o, buyer, seller, tips };
+}
+
 /* ---------- 路由 ---------- */
 async function route(m, segs, q, req, res) {
-  const [a, b, c, d] = segs;
+  const [a, b, c, d, e] = segs;
 
   /* 认证 */
   if (a === 'auth') {
     if (m === 'POST' && b === 'register') {
+      const ip = req.socket.remoteAddress || 'unknown';
+      if (registerRateLimit(ip) > REGISTER_LIMIT) return fail(res, 429, 'TOO_MANY_ATTEMPTS', '注册过于频繁，请稍后再试');
       const body = await readBody(req);
+      /* 蜜罐字段：正常用户看不到，机器人填写即拦截 */
+      if (String(body.homepage || '').trim() !== '') {
+        return fail(res, 400, 'BOT_DETECTED', '检测到异常注册行为');
+      }
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       const role = body.role;
       const name = String(body.name || '').trim();
-      if (!email || password.length < 6 || !['buyer', 'seller'].includes(role) || !name) {
-        return fail(res, 400, 'VALIDATION', '邮箱、密码（至少6位）、角色、姓名为必填');
+      if (!EMAIL_RE.test(email)) return fail(res, 400, 'VALIDATION', '邮箱格式不正确');
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+        return fail(res, 400, 'VALIDATION', '密码至少 8 位，且需同时包含字母和数字');
+      }
+      if (!['buyer', 'seller'].includes(role)) return fail(res, 400, 'VALIDATION', '角色必须是 buyer 或 seller');
+      if (!name || name.length > 80) return fail(res, 400, 'VALIDATION', '姓名为必填且不超过 80 字符');
+      const companyData = role === 'seller' ? {
+        name: String(body.companyName || '').trim(),
+        country: String(body.country || '').trim(),
+        city: String(body.city || '').trim(),
+        licenseNo: String(body.licenseNo || '').trim(),
+        registrationNo: String(body.registrationNo || '').trim(),
+        website: String(body.companyWebsite || '').trim(),
+        contact: String(body.contact || '').trim(),
+        businessScope: String(body.businessScope || '').trim()
+      } : null;
+      if (companyData && (!companyData.name || !companyData.country)) {
+        return fail(res, 400, 'VALIDATION', '卖家注册需填写真实公司/工厂名称与所在国家');
       }
       if (get('SELECT id FROM users WHERE email = ?', email)) {
         return fail(res, 409, 'EMAIL_EXISTS', '邮箱已存在');
@@ -179,13 +253,21 @@ async function route(m, segs, q, req, res) {
         'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
         id, email, hashPassword(password), role, name, 'active', 0, Date.now()
       );
+      if (companyData) {
+        run(
+          'INSERT INTO companies (id, user_id, name, country, city, license_no, registration_no, website, contact, business_scope, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+          randomUUID(), id, companyData.name, companyData.country, companyData.city, companyData.licenseNo,
+          companyData.registrationNo, companyData.website, companyData.contact, companyData.businessScope, 'pending', Date.now()
+        );
+      }
       const u = get('SELECT * FROM users WHERE id = ?', id);
       audit(id, 'auth.register', 'user', id, email);
-      return send(res, 201, { token: signToken({ uid: id, role }), user: publicUser(u) });
+      await sendVerifyEmail(id, email);
+      return send(res, 201, { user: publicUser(u), emailVerified: false, message: '注册成功，请查收邮箱完成验证（24 小时内有效）' });
     }
     if (m === 'POST' && b === 'login') {
       const ip = req.socket.remoteAddress || 'unknown';
-      if (loginRateLimit(ip) > 10) return fail(res, 429, 'TOO_MANY_ATTEMPTS', '尝试过于频繁，请稍后再试');
+      if (loginRateLimit(ip) > LOGIN_LIMIT) return fail(res, 429, 'TOO_MANY_ATTEMPTS', '尝试过于频繁，请稍后再试');
       const body = await readBody(req);
       const email = String(body.email || '').trim().toLowerCase();
       const u = get('SELECT * FROM users WHERE email = ?', email);
@@ -193,7 +275,32 @@ async function route(m, segs, q, req, res) {
         return fail(res, 401, 'INVALID_CREDENTIALS', '账号或密码错误');
       }
       if (u.status === 'frozen') return fail(res, 401, 'ACCOUNT_FROZEN', '账号已被冻结');
+      if (!u.email_verified) return fail(res, 403, 'VERIFY_EMAIL_REQUIRED', '请先验证邮箱再登录');
+      run('UPDATE users SET last_login_at = ? WHERE id = ?', Date.now(), u.id);
       return send(res, 200, { token: signToken({ uid: u.id, role: u.role }), user: publicUser(u) });
+    }
+    if (m === 'POST' && b === 'verify-email') {
+      const body = await readBody(req);
+      const token = String(body.token || '').trim();
+      if (!token) return fail(res, 400, 'VALIDATION', '缺少验证令牌');
+      const row = get('SELECT * FROM email_tokens WHERE token_hash = ? AND purpose = ?', sha256(token), 'verify_email');
+      if (!row || row.used_at) return fail(res, 400, 'INVALID_TOKEN', '验证链接无效或已使用');
+      if (row.expires_at < Date.now()) return fail(res, 400, 'TOKEN_EXPIRED', '验证链接已过期，请重新发送');
+      run('UPDATE email_tokens SET used_at = ? WHERE id = ?', Date.now(), row.id);
+      run('UPDATE users SET email_verified = 1 WHERE id = ?', row.user_id);
+      audit(row.user_id, 'auth.verify-email', 'user', row.user_id, '');
+      const u = get('SELECT * FROM users WHERE id = ?', row.user_id);
+      return send(res, 200, { ok: true, user: publicUser(u) });
+    }
+    if (m === 'POST' && b === 'resend-verification') {
+      const ip = req.socket.remoteAddress || 'unknown';
+      if (registerRateLimit(ip) > 3) return fail(res, 429, 'TOO_MANY_ATTEMPTS', '发送过于频繁，请稍后再试');
+      const body = await readBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      const u = get('SELECT * FROM users WHERE email = ?', email);
+      if (u && !u.email_verified) await sendVerifyEmail(u.id, u.email);
+      /* 无论邮箱是否存在都返回成功，防止邮箱枚举 */
+      return send(res, 200, { ok: true, message: '如该邮箱已注册且未验证，验证邮件已重新发送' });
     }
     if (m === 'POST' && b === 'refresh') {
       const u = requireAuth(res, req);
@@ -208,15 +315,72 @@ async function route(m, segs, q, req, res) {
     if (m === 'POST' && b === 'logout') return send(res, 200, { ok: true });
   }
 
-  /* 企业认证 */
-  if (a === 'companies' && c === 'verify' && m === 'PUT') {
-    const u = requireAuth(res, req, ['admin']);
-    if (!u) return;
-    const co = get('SELECT * FROM companies WHERE user_id = ?', b);
-    if (!co) return fail(res, 404, 'NOT_FOUND', '企业不存在');
-    run('UPDATE companies SET status = ?, verified_at = ? WHERE id = ?', 'approved', Date.now(), co.id);
-    audit(u.id, 'company.verify', 'company', co.id, co.name);
-    return send(res, 200, get('SELECT * FROM companies WHERE id = ?', co.id));
+  /* 企业/工厂认证：卖家提交真实资料，管理员审核（可查证）后通过 */
+  if (a === 'companies') {
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req, ['seller']);
+      if (!u) return;
+      const body = await readBody(req);
+      const name = String(body.name || '').trim();
+      const country = String(body.country || '').trim();
+      if (!name || !country) return fail(res, 400, 'VALIDATION', '公司/工厂名称与所在国家为必填');
+      const exist = get('SELECT * FROM companies WHERE user_id = ?', u.id);
+      if (exist) {
+        run(
+          'UPDATE companies SET name=?, country=?, city=?, license_no=?, registration_no=?, website=?, contact=?, business_scope=?, status=?, reject_reason=NULL WHERE id=?',
+          name, country, String(body.city || '').trim(), String(body.licenseNo || '').trim(),
+          String(body.registrationNo || '').trim(), String(body.website || '').trim(), String(body.contact || '').trim(),
+          String(body.businessScope || '').trim(), 'pending', exist.id
+        );
+        audit(u.id, 'company.apply', 'company', exist.id, name);
+        return send(res, 200, get('SELECT * FROM companies WHERE id = ?', exist.id));
+      }
+      const id = randomUUID();
+      run(
+        'INSERT INTO companies (id, user_id, name, country, city, license_no, registration_no, website, contact, business_scope, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        id, u.id, name, country, String(body.city || '').trim(), String(body.licenseNo || '').trim(),
+        String(body.registrationNo || '').trim(), String(body.website || '').trim(), String(body.contact || '').trim(),
+        String(body.businessScope || '').trim(), 'pending', Date.now()
+      );
+      audit(u.id, 'company.apply', 'company', id, name);
+      return send(res, 201, get('SELECT * FROM companies WHERE id = ?', id));
+    }
+    if (b === 'mine' && m === 'GET') {
+      const u = requireAuth(res, req, ['seller']);
+      if (!u) return;
+      return send(res, 200, get('SELECT * FROM companies WHERE user_id = ?', u.id) || null);
+    }
+    if (!b && m === 'GET') {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const status = q.get('status') || '';
+      let rows = all('SELECT * FROM companies ORDER BY created_at DESC');
+      if (status) rows = rows.filter(co => co.status === status);
+      return send(res, 200, paginate(rows, q));
+    }
+    if (b && c === 'verify' && m === 'PUT') {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const body = await readBody(req);
+      const co = get('SELECT * FROM companies WHERE user_id = ?', b);
+      if (!co) return fail(res, 404, 'NOT_FOUND', '企业不存在');
+      if (body.action === 'approve') {
+        run('UPDATE companies SET status = ?, verified_at = ?, reject_reason = NULL WHERE id = ?', 'approved', Date.now(), co.id);
+        audit(u.id, 'company.approve', 'company', co.id, co.name);
+        const owner = get('SELECT * FROM users WHERE id = ?', co.user_id);
+        if (owner) await notifyUser(owner.id, 'company', '企业认证已通过', '您的公司/工厂资料已审核通过，现在可以发布产品。');
+        return send(res, 200, get('SELECT * FROM companies WHERE id = ?', co.id));
+      }
+      if (body.action === 'reject') {
+        const reason = String(body.reason || '资料未通过审核').slice(0, 300);
+        run('UPDATE companies SET status = ?, reject_reason = ?, verified_at = NULL WHERE id = ?', 'rejected', reason, co.id);
+        audit(u.id, 'company.reject', 'company', co.id, reason);
+        const owner = get('SELECT * FROM users WHERE id = ?', co.user_id);
+        if (owner) await notifyUser(owner.id, 'company', '企业认证未通过', '原因：' + reason + '。请修正资料后重新提交。');
+        return send(res, 200, get('SELECT * FROM companies WHERE id = ?', co.id));
+      }
+      return fail(res, 400, 'INVALID_ACTION', 'action 必须是 approve 或 reject');
+    }
   }
 
   /* 产品 */
@@ -242,6 +406,12 @@ async function route(m, segs, q, req, res) {
     if (m === 'POST' && !b) {
       const u = requireAuth(res, req, ['seller', 'admin']);
       if (!u) return;
+      if (u.role === 'seller') {
+        const co = get('SELECT * FROM companies WHERE user_id = ?', u.id);
+        if (!co || co.status !== 'approved') {
+          return fail(res, 403, 'COMPANY_NOT_VERIFIED', '请先提交公司/工厂资料并通过平台审核后再发布产品');
+        }
+      }
       const body = await readBody(req);
       const trs = body.translations || {};
       if (!body.category || !body.country || !trs.en || !trs.zh) {
@@ -397,6 +567,112 @@ async function route(m, segs, q, req, res) {
     }
   }
 
+  /* 交易订单与小费打赏：买家确认签收视为交易达成，之后双方可互打赏（可见、可取消） */
+  if (a === 'orders') {
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req, ['buyer', 'admin']);
+      if (!u) return;
+      const body = await readBody(req);
+      const inq = get('SELECT * FROM inquiries WHERE id = ?', body.inquiryId);
+      if (!inq) return fail(res, 404, 'NOT_FOUND', '询盘不存在');
+      const product = get('SELECT * FROM products WHERE id = ?', inq.product_id);
+      if (!product) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && inq.buyer_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能基于自己的询盘创建订单');
+      const quote = get('SELECT * FROM quotes WHERE inquiry_id = ? ORDER BY created_at DESC', inq.id);
+      const total = body.total != null ? Number(body.total) : (quote ? Number(quote.price) : NaN);
+      if (!(total > 0)) return fail(res, 400, 'VALIDATION', '需要有效的成交金额（请先报价或传入 total）');
+      const id = randomUUID();
+      run(
+        'INSERT INTO orders (id, inquiry_id, quote_id, buyer_id, seller_id, status, total, currency, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        id, inq.id, quote ? quote.id : null, inq.buyer_id, product.seller_id, 'created', total, body.currency || 'USD', Date.now(), Date.now()
+      );
+      audit(u.id, 'order.create', 'order', id, String(total));
+      const seller = get('SELECT * FROM users WHERE id = ?', product.seller_id);
+      if (seller) await notifyUser(seller.id, 'order', '收到新订单', '订单金额 ' + (body.currency || 'USD') + ' ' + total);
+      return send(res, 201, orderView(get('SELECT * FROM orders WHERE id = ?', id)));
+    }
+    if (!b && m === 'GET') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      let rows;
+      if (u.role === 'admin') rows = all('SELECT * FROM orders ORDER BY created_at DESC');
+      else rows = all('SELECT * FROM orders WHERE buyer_id = ? OR seller_id = ? ORDER BY created_at DESC', u.id, u.id);
+      return send(res, 200, paginate(rows, q));
+    }
+    if (b && !c && m === 'GET') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权查看该订单');
+      return send(res, 200, orderView(o));
+    }
+    if (b && c === 'confirm-receipt' && m === 'POST') {
+      const u = requireAuth(res, req, ['buyer', 'admin']);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只有买家可以确认签收');
+      if (o.status !== 'created') return fail(res, 400, 'INVALID_STATUS', '订单当前状态不可确认签收');
+      run('UPDATE orders SET status = ?, receipt_confirmed_at = ?, updated_at = ? WHERE id = ?', 'complete', Date.now(), Date.now(), b);
+      audit(u.id, 'order.receipt', 'order', b, '交易达成');
+      const seller = get('SELECT * FROM users WHERE id = ?', o.seller_id);
+      if (seller) await notifyUser(seller.id, 'order', '买家已确认签收', '订单 ' + b + ' 交易达成，双方可互发小费。');
+      return send(res, 200, orderView(get('SELECT * FROM orders WHERE id = ?', b)));
+    }
+    if (b && c === 'cancel' && m === 'POST') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只有买家可以取消订单');
+      if (o.status !== 'created') return fail(res, 400, 'INVALID_STATUS', '订单当前状态不可取消');
+      run('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?', 'cancelled', Date.now(), b);
+      audit(u.id, 'order.cancel', 'order', b, '');
+      return send(res, 200, orderView(get('SELECT * FROM orders WHERE id = ?', b)));
+    }
+    if (b && c === 'tips' && !d && m === 'POST') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权操作该订单');
+      if (o.status !== 'complete') return fail(res, 400, 'ORDER_NOT_COMPLETE', '交易达成后才能打赏');
+      const body = await readBody(req);
+      const amount = Number(body.amount);
+      if (!(amount > 0) || amount > 10000) return fail(res, 400, 'VALIDATION', '打赏金额需在 0 到 10000 之间');
+      const to = u.id === o.buyer_id ? o.seller_id : o.buyer_id;
+      const id = randomUUID();
+      run(
+        'INSERT INTO tips (id, order_id, from_user_id, to_user_id, amount, currency, note, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        id, b, u.id, to, amount, o.currency || 'USD', String(body.note || '').slice(0, 200), 'active', Date.now()
+      );
+      audit(u.id, 'tip.create', 'tip', id, String(amount));
+      const recipient = get('SELECT * FROM users WHERE id = ?', to);
+      if (recipient) await notifyUser(recipient.id, 'tip', '收到小费打赏', '订单 ' + b + ' 收到打赏 ' + (o.currency || 'USD') + ' ' + amount);
+      return send(res, 201, get('SELECT * FROM tips WHERE id = ?', id));
+    }
+    if (b && c === 'tips' && !d && m === 'GET') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权查看该订单');
+      return send(res, 200, all('SELECT * FROM tips WHERE order_id = ? ORDER BY created_at DESC', b));
+    }
+    if (b && c === 'tips' && d && e === 'cancel' && m === 'POST') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const tip = get('SELECT * FROM tips WHERE id = ?', d);
+      if (!tip) return fail(res, 404, 'NOT_FOUND', '打赏记录不存在');
+      if (u.role !== 'admin' && tip.from_user_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只有打赏方可取消');
+      if (tip.status !== 'active') return fail(res, 400, 'INVALID_STATUS', '该打赏已不可取消');
+      run('UPDATE tips SET status = ?, cancelled_at = ? WHERE id = ?', 'cancelled', Date.now(), d);
+      audit(u.id, 'tip.cancel', 'tip', d, '');
+      return send(res, 200, get('SELECT * FROM tips WHERE id = ?', d));
+    }
+  }
+
   /* 会话消息 */
   if (a === 'conversations' && c === 'messages') {
     if (m === 'GET') {
@@ -449,18 +725,110 @@ async function route(m, segs, q, req, res) {
     return send(res, 200, { genuine: true, code: row.code, productId: row.product_id, verifiedAt: new Date().toISOString() });
   }
 
-  /* 资讯 */
+  /* 资讯：实时更新 + 权威来源（全球多区域） */
   if (a === 'news') {
     if (m === 'GET' && !b) {
       const cat = q.get('cat') || '';
       const region = q.get('region') || '';
-      let rows = all('SELECT * FROM news_items WHERE status = ?', 'published');
+      let rows = all(
+        'SELECT n.*, s.name AS source_name, s.url AS source_url FROM news_items n LEFT JOIN news_sources s ON s.id = n.source_id WHERE n.status = ?',
+        'published'
+      );
       if (cat) rows = rows.filter(n => n.category === cat);
       if (region) rows = rows.filter(n => n.region === region);
-      return send(res, 200, paginate(rows, q));
+      rows.sort((x, y) => String(y.published_at || '').localeCompare(String(x.published_at || '')));
+      const updatedAt = rows.reduce((mx, n) => {
+        const t = n.updated_at || Date.parse(n.published_at || '') || 0;
+        return Math.max(mx, t);
+      }, 0) || Date.now();
+      const page = paginate(rows, q);
+      return send(res, 200, { ...page, updatedAt });
     }
     if (b === 'sources' && m === 'GET') {
       return send(res, 200, all('SELECT * FROM news_sources WHERE enabled = 1'));
+    }
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const body = await readBody(req);
+      const title = String(body.title || '').trim();
+      const url = String(body.url || '').trim();
+      if (!title || !/^https?:\/\//.test(url)) return fail(res, 400, 'VALIDATION', 'title 与合法 url 为必填');
+      let parsedUrl;
+      try { parsedUrl = new URL(url); } catch (e) { return fail(res, 400, 'VALIDATION', 'url 格式不正确'); }
+      const sourceName = String(body.sourceName || '').trim() || parsedUrl.hostname;
+      let source = get('SELECT * FROM news_sources WHERE name = ?', sourceName);
+      if (!source) {
+        const sid = randomUUID();
+        run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)',
+          sid, sourceName, parsedUrl.origin, body.region || 'global', body.category || 'general', 1);
+        source = get('SELECT * FROM news_sources WHERE id = ?', sid);
+      }
+      const id = randomUUID();
+      run(
+        'INSERT INTO news_items (id, source_id, region, category, title_zh, title_en, summary_zh, summary_en, url, published_at, updated_at, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        id, source.id, body.region || 'global', body.category || 'general',
+        body.titleZh || title, body.titleEn || title, body.summaryZh || '', body.summaryEn || '',
+        url, body.publishedAt || new Date().toISOString(), Date.now(), 'published'
+      );
+      audit(u.id, 'news.create', 'news', id, title);
+      return send(res, 201, get('SELECT * FROM news_items WHERE id = ?', id));
+    }
+    if (b === 'refresh' && m === 'POST') {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const FEEDS = [
+        { url: 'https://www.wto.org/english/news_e/news_e.rss', name: 'WTO News', region: 'global', category: 'policy' },
+        { url: 'https://taxation-customs.ec.europa.eu/en/rss-feeds', name: 'EU Taxation & Customs', region: 'EU', category: 'compliance' },
+        { url: 'https://www.customs.gov.cn/customs/302249/302274/index.html', name: '中国海关总署', region: 'CN', category: 'logistics' }
+      ];
+      function parseRss(xml) {
+        const out = [];
+        const re = /<(?:item|entry)>([\s\S]*?)<\/(?:item|entry)>/g;
+        let m;
+        while ((m = re.exec(xml))) {
+          const blk = m[1];
+          const title = /<title[^>]*>([\s\S]*?)<\/title>/.exec(blk);
+          const link = /<link[^>]*href="([^"]+)"[^>]*>/.exec(blk) || /<link>([\s\S]*?)<\/link>/.exec(blk);
+          const pub = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(blk) || /<published>([\s\S]*?)<\/published>/.exec(blk) || /<updated>([\s\S]*?)<\/updated>/.exec(blk);
+          if (!title || !link) continue;
+          out.push({
+            title: title[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim(),
+            url: (link[1] || link[2] || '').trim(),
+            publishedAt: pub ? pub[1].trim() : new Date().toISOString()
+          });
+        }
+        return out;
+      }
+      let added = 0, failed = 0;
+      for (const feed of FEEDS) {
+        try {
+          const resp = await fetch(feed.url, { signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'BeanBeanMouse/1.0' } });
+          if (!resp.ok) { failed++; continue; }
+          const xml = await resp.text();
+          const items = parseRss(xml);
+          let src = get('SELECT * FROM news_sources WHERE name = ?', feed.name);
+          if (!src) {
+            const sid = randomUUID();
+            run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)',
+              sid, feed.name, feed.url, feed.region, feed.category, 1);
+            src = get('SELECT * FROM news_sources WHERE id = ?', sid);
+          }
+          for (const it of items.slice(0, 10)) {
+            if (!it.url || get('SELECT id FROM news_items WHERE url = ?', it.url)) continue;
+            run(
+              'INSERT INTO news_items (id, source_id, region, category, title_zh, title_en, summary_zh, summary_en, url, published_at, updated_at, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+              randomUUID(), src.id, feed.region, feed.category, it.title, it.title, '', '', it.url, it.publishedAt, Date.now(), 'published'
+            );
+            added++;
+          }
+        } catch (e) {
+          failed++;
+          console.error('[news.refresh] ' + feed.name + ': ' + e.message);
+        }
+      }
+      audit(u.id, 'news.refresh', 'news', '', 'added=' + added + ' failed=' + failed);
+      return send(res, 200, { added, failed, note: 'RSS 抓取为尽力而为，失败不影响现有资讯' });
     }
   }
 
@@ -469,6 +837,49 @@ async function route(m, segs, q, req, res) {
     const u = requireAuth(res, req);
     if (!u) return;
     return send(res, 200, all('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC', u.id));
+  }
+
+  /* 品类需求记录：用户没找到想要的品类时提交，平台据此邀请供应商入驻 */
+  if (a === 'category-requests') {
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const body = await readBody(req);
+      const name = String(body.name || '').trim();
+      if (!name || name.length > 120) return fail(res, 400, 'VALIDATION', '品类名称为必填且不超过 120 字符');
+      const markets = Array.isArray(body.targetMarkets) ? body.targetMarkets.map(String).slice(0, 20) : [];
+      const id = randomUUID();
+      run(
+        'INSERT INTO category_requests (id, user_id, name, description, target_markets, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+        id, u.id, name, String(body.description || '').slice(0, 1000), JSON.stringify(markets), 'new', Date.now(), Date.now()
+      );
+      audit(u.id, 'category.request', 'category_request', id, name);
+      return send(res, 201, get('SELECT * FROM category_requests WHERE id = ?', id));
+    }
+    if (!b && m === 'GET') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      let rows;
+      if (u.role === 'admin') rows = all('SELECT * FROM category_requests ORDER BY created_at DESC');
+      else rows = all('SELECT * FROM category_requests WHERE user_id = ? ORDER BY created_at DESC', u.id);
+      return send(res, 200, paginate(rows, q));
+    }
+    if (b && c === 'status' && m === 'POST') {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const body = await readBody(req);
+      const r = get('SELECT * FROM category_requests WHERE id = ?', b);
+      if (!r) return fail(res, 404, 'NOT_FOUND', '品类需求不存在');
+      if (!['invited', 'done'].includes(body.status)) return fail(res, 400, 'INVALID_STATUS', 'status 必须是 invited 或 done');
+      run('UPDATE category_requests SET status = ?, note = ?, updated_at = ? WHERE id = ?', body.status, String(body.note || '').slice(0, 300), Date.now(), b);
+      audit(u.id, 'category.' + body.status, 'category_request', b, String(body.note || ''));
+      const owner = r.user_id ? get('SELECT * FROM users WHERE id = ?', r.user_id) : null;
+      if (owner) {
+        await notifyUser(owner.id, 'category', '品类需求有进展',
+          body.status === 'invited' ? '平台正在为您邀请该品类的供应商入驻。' : '您的品类需求已完成处理。');
+      }
+      return send(res, 200, get('SELECT * FROM category_requests WHERE id = ?', b));
+    }
   }
 
   /* 文件上传与下载（存储抽象：本地磁盘，可换 S3/OSS） */
@@ -525,7 +936,12 @@ async function route(m, segs, q, req, res) {
         products: get('SELECT COUNT(*) AS c FROM products').c,
         pendingReviews: get('SELECT COUNT(*) AS c FROM products WHERE status = ?', 'pending').c,
         inquiries: get('SELECT COUNT(*) AS c FROM inquiries').c,
-        users: get('SELECT COUNT(*) AS c FROM users').c
+        users: get('SELECT COUNT(*) AS c FROM users').c,
+        companies: get('SELECT COUNT(*) AS c FROM companies').c,
+        pendingCompanies: get('SELECT COUNT(*) AS c FROM companies WHERE status = ?', 'pending').c,
+        orders: get('SELECT COUNT(*) AS c FROM orders').c,
+        tips: get('SELECT COUNT(*) AS c FROM tips WHERE status = ?', 'active').c,
+        categoryRequests: get('SELECT COUNT(*) AS c FROM category_requests').c
       });
     }
     if (b === 'logs' && m === 'GET') {

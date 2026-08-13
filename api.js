@@ -73,6 +73,50 @@ function mockSave(st) { apiStorage.setState(st); apiStorage.notifyChanged(); }
  * 服务：账号与认证
  * ============================================================ */
 api.auth = {
+  async register({ email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope } = {}) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/auth/register', {
+        method: 'POST',
+        body: { email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope }
+      });
+    }
+    await apiDelay();
+    if (String(homepage || '').trim() !== '') throw new Error('BOT_DETECTED');
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRe.test(String(email || ''))) throw new Error('VALIDATION');
+    if (String(password || '').length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) throw new Error('VALIDATION');
+    if (!['buyer', 'seller'].includes(role) || !name) throw new Error('VALIDATION');
+    const st = mockState();
+    const lower = String(email).trim().toLowerCase();
+    if ((st.users || []).some(u => String(u.email || '').toLowerCase() === lower)) throw new Error('EMAIL_EXISTS');
+    if (role === 'seller' && (!String(companyName || '').trim() || !String(country || '').trim())) throw new Error('VALIDATION');
+    const id = 'u-' + Date.now();
+    const user = { id, email: lower, name: String(name).trim(), role, status: 'active', emailVerified: true, sellerId: role === 'seller' ? 's-' + Date.now() : undefined, joinedAt: Date.now() };
+    st.users = st.users || [];
+    st.users.push(user);
+    if (role === 'seller') {
+      st.companies = st.companies || [];
+      st.companies.push({
+        sellerId: user.sellerId, userId: id, name: String(companyName).trim(), country: String(country).trim(),
+        city: String(city || '').trim(), registrationNo: String(registrationNo || '').trim(), licenseNo: String(licenseNo || '').trim(),
+        website: String(companyWebsite || '').trim(), contact: String(contact || '').trim(), businessScope: String(businessScope || '').trim(),
+        status: 'pending', rejectReason: '', createdAt: Date.now()
+      });
+    }
+    st.user = user;
+    mockSave(st);
+    return { user: apiClone(user), emailVerified: true, message: 'demo verified' };
+  },
+  async verifyEmail(token) {
+    if (api.config.mode === 'http') return apiRequest('/auth/verify-email', { method: 'POST', body: { token } });
+    await apiDelay();
+    return { ok: true, user: mockState().user ? apiClone(mockState().user) : null };
+  },
+  async resendVerification(email) {
+    if (api.config.mode === 'http') return apiRequest('/auth/resend-verification', { method: 'POST', body: { email } });
+    await apiDelay();
+    return { ok: true };
+  },
   async login({ email, password, role } = {}) {
     if (api.config.mode === 'http') return apiRequest('/auth/login', { method: 'POST', body: { email, password } });
     await apiDelay();
@@ -163,6 +207,37 @@ api.products = {
  * 服务：企业认证
  * ============================================================ */
 api.companies = {
+  async apply(payload) {
+    if (api.config.mode === 'http') return apiRequest('/companies', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const sid = st.user && st.user.sellerId ? st.user.sellerId : 's1';
+    st.companies = st.companies || [];
+    const exist = st.companies.find(x => x.sellerId === sid);
+    const rec = Object.assign({
+      sellerId: sid, userId: st.user ? st.user.id : null, name: '', country: '', city: '', registrationNo: '',
+      licenseNo: '', website: '', contact: '', businessScope: '', status: 'pending', rejectReason: '', createdAt: Date.now()
+    }, apiClone(payload || {}), { status: 'pending', rejectReason: '' });
+    if (exist) { Object.assign(exist, rec); }
+    else st.companies.push(rec);
+    mockSave(st);
+    return apiClone(exist || rec);
+  },
+  async mine() {
+    if (api.config.mode === 'http') return apiRequest('/companies/mine');
+    await apiDelay();
+    const st = mockState();
+    const sid = st.user && st.user.sellerId ? st.user.sellerId : null;
+    return apiClone((st.companies || []).find(x => x.sellerId === sid) || null);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/companies');
+      return r.items || [];
+    }
+    await apiDelay();
+    return apiClone(mockState().companies || []);
+  },
   async verify(sellerId) {
     if (api.config.mode === 'http') return apiRequest('/companies/' + encodeURIComponent(sellerId) + '/verify', { method: 'PUT' });
     await apiDelay();
@@ -172,6 +247,158 @@ api.companies = {
     c.status = 'approved';
     mockSave(st);
     return apiClone(c);
+  }
+};
+
+/* ============================================================
+ * 服务：交易订单与小费打赏（买家确认签收 = 交易达成）
+ * ============================================================ */
+api.orders = {
+  async create({ inquiryId, total, currency } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders', { method: 'POST', body: { inquiryId, total, currency } });
+    await apiDelay();
+    const st = mockState();
+    const i = (st.inquiries || []).find(x => x.id === inquiryId);
+    if (!i) throw new Error('NOT_FOUND');
+    const p = (st.products || []).find(x => x.id === i.productId);
+    const amount = total != null ? +total : (i.quote ? +i.quote.price : NaN);
+    if (!(amount > 0)) throw new Error('VALIDATION');
+    const o = {
+      id: 'o' + Date.now(), inquiryId, productId: i.productId, buyerId: st.user ? st.user.id : i.buyerId,
+      sellerId: p ? p.sellerId : i.sellerId, status: 'created', total: amount, currency: currency || 'USD',
+      createdAt: Date.now(), receiptConfirmedAt: null, tips: []
+    };
+    st.orders = st.orders || [];
+    st.orders.unshift(o);
+    mockSave(st);
+    return apiClone(o);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/orders');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    let rows = st.orders || [];
+    if (u) {
+      if (u.role === 'admin') rows = rows;
+      else rows = rows.filter(o => o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
+    }
+    return apiClone(rows);
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id));
+    await apiDelay();
+    const o = (mockState().orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    return apiClone(o);
+  },
+  async confirmReceipt(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/confirm-receipt', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.status !== 'created') throw new Error('INVALID_STATUS');
+    o.status = 'complete';
+    o.receiptConfirmedAt = Date.now();
+    mockSave(st);
+    return apiClone(o);
+  },
+  async cancel(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/cancel', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.status !== 'created') throw new Error('INVALID_STATUS');
+    o.status = 'cancelled';
+    mockSave(st);
+    return apiClone(o);
+  },
+  async tip(id, { amount, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/tips', { method: 'POST', body: { amount, note } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.status !== 'complete') throw new Error('ORDER_NOT_COMPLETE');
+    const amt = Number(amount);
+    if (!(amt > 0) || amt > 10000) throw new Error('VALIDATION');
+    o.tips = o.tips || [];
+    const tip = {
+      id: 't' + Date.now(), orderId: id, fromUserId: st.user.id,
+      toUserId: st.user.id === o.buyerId ? o.sellerId : o.buyerId,
+      amount: amt, currency: o.currency || 'USD', note: String(note || '').slice(0, 200), status: 'active', createdAt: Date.now(), cancelledAt: null
+    };
+    o.tips.push(tip);
+    mockSave(st);
+    return apiClone(tip);
+  },
+  async tips(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/tips');
+    await apiDelay();
+    const o = (mockState().orders || []).find(x => x.id === id);
+    return apiClone(o ? o.tips || [] : []);
+  },
+  async cancelTip(id, tipId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/tips/' + encodeURIComponent(tipId) + '/cancel', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    const tip = o && (o.tips || []).find(x => x.id === tipId);
+    if (!tip) throw new Error('NOT_FOUND');
+    if (tip.status !== 'active') throw new Error('INVALID_STATUS');
+    tip.status = 'cancelled';
+    tip.cancelledAt = Date.now();
+    mockSave(st);
+    return apiClone(tip);
+  }
+};
+
+/* ============================================================
+ * 服务：品类需求（没找到想要的品类 → 记录 → 平台邀请供应商）
+ * ============================================================ */
+api.categoryRequests = {
+  async create({ name, description, targetMarkets } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/category-requests', { method: 'POST', body: { name, description, targetMarkets } });
+    await apiDelay();
+    if (!String(name || '').trim()) throw new Error('VALIDATION');
+    const st = mockState();
+    const rec = {
+      id: 'cr' + Date.now(), userId: st.user ? st.user.id : null, name: String(name).trim(),
+      description: String(description || ''), targetMarkets: Array.isArray(targetMarkets) ? targetMarkets : [],
+      status: 'new', note: '', createdAt: Date.now(), updatedAt: Date.now()
+    };
+    st.categoryRequests = st.categoryRequests || [];
+    st.categoryRequests.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/category-requests');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    let rows = st.categoryRequests || [];
+    if (st.user && st.user.role !== 'admin') rows = rows.filter(x => x.userId === st.user.id);
+    return apiClone(rows);
+  },
+  async setStatus(id, { status, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/category-requests/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status, note } });
+    await apiDelay();
+    const st = mockState();
+    const r = (st.categoryRequests || []).find(x => x.id === id);
+    if (!r) throw new Error('NOT_FOUND');
+    r.status = status;
+    r.note = String(note || '');
+    r.updatedAt = Date.now();
+    mockSave(st);
+    return apiClone(r);
   }
 };
 

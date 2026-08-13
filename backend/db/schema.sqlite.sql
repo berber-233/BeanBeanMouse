@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','frozen')),
   email_verified INTEGER NOT NULL DEFAULT 0,
+  last_login_at INTEGER,
   created_at INTEGER NOT NULL
 );
 
@@ -20,6 +21,11 @@ CREATE TABLE IF NOT EXISTS companies (
   city TEXT,
   license_no TEXT,
   license_file_id TEXT,
+  registration_no TEXT,
+  website TEXT,
+  contact TEXT,
+  business_scope TEXT,
+  reject_reason TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   verified_at INTEGER,
   created_at INTEGER NOT NULL
@@ -130,6 +136,7 @@ CREATE TABLE IF NOT EXISTS news_items (
   summary_en TEXT,
   url TEXT,
   published_at TEXT,
+  updated_at INTEGER,
   status TEXT NOT NULL DEFAULT 'published'
 );
 
@@ -163,15 +170,57 @@ CREATE TABLE IF NOT EXISTS files (
   created_at INTEGER NOT NULL
 );
 
--- 第二阶段预留：订单与支付
+-- 交易订单：询盘报价后由买家创建，买家确认签收视为交易达成
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
-  inquiry_id TEXT,
+  inquiry_id TEXT REFERENCES inquiries(id),
+  quote_id TEXT REFERENCES quotes(id),
   buyer_id TEXT,
   seller_id TEXT,
-  status TEXT,
+  status TEXT NOT NULL DEFAULT 'created' CHECK (status IN ('created','cancelled','complete')),
   total REAL,
   currency TEXT DEFAULT 'USD',
+  confirmed_at INTEGER,
+  receipt_confirmed_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+-- 小费打赏：交易达成后任一方可打赏对方，双方可见，可取消（未结算前）
+CREATE TABLE IF NOT EXISTS tips (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  from_user_id TEXT NOT NULL,
+  to_user_id TEXT NOT NULL,
+  amount REAL NOT NULL,
+  currency TEXT DEFAULT 'USD',
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','cancelled')),
+  created_at INTEGER NOT NULL,
+  cancelled_at INTEGER
+);
+
+-- 品类需求记录：用户没找到想要的品类时提交，平台据此邀请供应商入驻
+CREATE TABLE IF NOT EXISTS category_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  target_markets TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','invited','done')),
+  note TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- 邮箱验证令牌（单次有效、带过期、只存哈希）
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  token_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'verify_email',
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER,
   created_at INTEGER NOT NULL
 );
 
