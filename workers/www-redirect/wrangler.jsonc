@@ -1,0 +1,12 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "beanbean-mouse-www-redirect",
+  "main": "src/redirect.js",
+  "compatibility_date": "2026-08-13",
+  "routes": [
+    {
+      "pattern": "www.beanbeanmouse.com/*",
+      "zone_name": "beanbeanmouse.com"
+    }
+  ]
+}

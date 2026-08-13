@@ -41,13 +41,25 @@ Cloudflare 控制台 → Workers & Pages → Create → Connect to Git →
 构建命令 `npm run build`、输出目录 `dist` → 部署。
 之后每次 push 到 main 自动发布，并自动产生预览链接。
 
+### 2.4 www → 主域名 301 跳转
+
+Cloudflare Pages 的 `_redirects` **不支持域名级跳转**（官方文档确认），
+因此用独立 Worker 实现：`workers/www-redirect`（路由 `www.beanbeanmouse.com/*`，
+301 到 `https://beanbeanmouse.com/`）。部署：
+
+```bash
+cd workers/www-redirect
+wrangler deploy
+```
+
 ## 3. 上线检查清单（本次已完成/待办）
 
 - [x] SEO：`robots.txt`、`sitemap.xml`、meta description、OG/Twitter 卡片、canonical
 - [x] 安全响应头：`_headers`（nosniff / frame / referrer / permissions-policy）
 - [x] 404 兜底页
 - [x] 品牌与防伪：站内官方域名显示为 `beanbeanmouse.com`
-- [ ] 验证 https://beanbeanmouse.com 打开与核心流程
+- [x] 验证 https://beanbeanmouse.com 打开与核心流程（15 项全通过）
+- [x] www → 主域名 301 跳转（Worker，实测生效）
 - [ ] Google Search Console / Bing Webmaster / 百度站长提交收录
 - [ ] 后端 API 与数据库（阶段 1）
 

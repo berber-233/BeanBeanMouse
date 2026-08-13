@@ -245,3 +245,11 @@
   meta description + OG/Twitter 卡片 + canonical、`wrangler.jsonc`、构建脚本。
 - **待办**：复核 www 301 边缘生效；提交搜索引擎收录；后端 API（阶段 1）与
   邮件/翻译正式通道；支付、商标、海外主体仍挂起。
+
+## D24：www→主域名 301 改用 Worker（2026-08-13）
+
+- **背景**：`_redirects` 的域名级跳转实测不生效，查官方文档确认 Cloudflare Pages
+  **不支持 Domain-level redirects**。
+- **决策**：新建 Worker `beanbean-mouse-www-redirect`（路由 `www.beanbeanmouse.com/*`，
+  `Response.redirect(..., 301)` 到 `https://beanbeanmouse.com/`），部署成功并实测生效
+  （www 请求最终落在主域名）。

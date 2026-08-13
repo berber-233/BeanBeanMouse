@@ -1,2 +1,0 @@
-# Canonical host: https://beanbeanmouse.com (301 redirect from www)
-www.beanbeanmouse.com/* https://beanbeanmouse.com/:splat 301
