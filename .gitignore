@@ -1,6 +1,8 @@
 # 临时/中间文件
 work/
 dist/
+.pnpm-store/
+pnpm-workspace.yaml
 
 # 依赖与构建产物
 node_modules/
