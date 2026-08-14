@@ -428,7 +428,14 @@ document.addEventListener('submit', e => {
   const f = e.target;
   const btn = f.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.classList.add('busy'); }
-  const release = () => { if (btn) { btn.disabled = false; btn.classList.remove('busy'); } };
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(safety);
+    if (btn) { btn.disabled = false; btn.classList.remove('busy'); }
+  };
+  const safety = setTimeout(release, 20000);
   let p = null;
   if (f.dataset.form === 'inquiry-form') p = submitInquiry(f);
   else if (f.dataset.form === 'product-form') p = submitProduct(f);
@@ -443,6 +450,23 @@ document.addEventListener('submit', e => {
   else release();
 });
 
+/* 动作按钮防连点：禁用→执行→恢复，20 秒兜底防止卡死 */
+function runBusy(btn, fn) {
+  if (!btn) return Promise.resolve(fn && fn());
+  btn.disabled = true;
+  btn.classList.add('busy');
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(safety);
+    btn.disabled = false;
+    btn.classList.remove('busy');
+  };
+  const safety = setTimeout(release, 20000);
+  return Promise.resolve(fn && fn()).finally(release);
+}
+
 function handleAction(el) {
   const a = el.dataset.action;
   const id = el.dataset.id;
@@ -456,10 +480,15 @@ function handleAction(el) {
     case 'company-form': showModal(companyFormHtml()); break;
     case 'catreq-open': showModal(catReqFormHtml()); break;
     case 'order-create': createOrderFromInquiry(id); break;
-    case 'order-confirm': confirmOrderReceipt(id); break;
-    case 'order-cancel': cancelOrder(id); break;
+    case 'order-confirm': runBusy(el, () => confirmOrderReceipt(id)); break;
+    case 'order-cancel': runBusy(el, () => cancelOrder(id)); break;
     case 'tip-open': openTipModal(id); break;
-    case 'tip-send': sendTip(el.dataset.order); break;
+    case 'tip-send': runBusy(el, () => sendTip(el.dataset.order)); break;
+    case 'tip-quick': {
+      const inp = $('#tipAmountInput');
+      if (inp) inp.value = el.dataset.amount;
+      break;
+    }
     case 'tip-cancel': cancelTip(el.dataset.order, el.dataset.tip); break;
     case 'tip-skip': closeModal(); toast(t('tipSkipped')); break;
     case 'tip-dismiss': {
@@ -468,8 +497,8 @@ function handleAction(el) {
       render();
       break;
     }
-    case 'evidence-save': saveEvidenceSnapshot(id); break;
-    case 'evidence-verify': verifyOrderEvidence(id); break;
+    case 'evidence-save': runBusy(el, () => saveEvidenceSnapshot(id)); break;
+    case 'evidence-verify': runBusy(el, () => verifyOrderEvidence(id)); break;
     case 'evidence-print': openEvidencePrint(id); break;
     case 'shipment-create': openShipmentCreateModal(id); break;
     case 'shipment-event': openShipmentEventModal(id, el.dataset.shipment); break;
@@ -617,22 +646,43 @@ function handleAction(el) {
 
 /* ---------- 弹窗 / 提示 ---------- */
 let lastFocusedEl = null;
+function modalFocusables() {
+  const m = document.querySelector('#modalRoot .modal');
+  if (!m) return [];
+  return Array.from(m.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+    .filter(el => el.offsetParent !== null || el === document.activeElement);
+}
 function showModal(html) {
   lastFocusedEl = document.activeElement;
+  document.body.classList.add('modal-open');
   $('#modalRoot').innerHTML = '<div class="modal-mask" role="dialog" aria-modal="true"><div class="modal" data-stop="1" tabindex="-1">' + html + '</div></div>';
   const m = document.querySelector('#modalRoot .modal');
   if (m) {
-    const focusable = m.querySelector('input, select, textarea, button, [tabindex]:not([tabindex="-1"])');
+    const title = m.querySelector('.modal-head h3');
+    if (title) {
+      title.id = title.id || ('modalTitle' + Date.now());
+      m.setAttribute('aria-labelledby', title.id);
+    }
+    const focusable = modalFocusables()[0];
     if (focusable) focusable.focus();
     else m.focus();
   }
 }
 function closeModal() {
   $('#modalRoot').innerHTML = '';
+  document.body.classList.remove('modal-open');
   if (lastFocusedEl && lastFocusedEl.focus) lastFocusedEl.focus();
 }
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && $('#modalRoot').innerHTML) closeModal();
+  if (!$('#modalRoot').innerHTML) return;
+  if (e.key === 'Escape') { closeModal(); return; }
+  if (e.key === 'Tab') {
+    const f = modalFocusables();
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 });
 
 function toast(msg) {
@@ -649,9 +699,9 @@ function renderHeader() {
   document.documentElement.lang = uiLocale();
   document.documentElement.dir = (['ar', 'fa'].includes(state.lang) ? 'rtl' : 'ltr');
   $('#langSwitch').innerHTML = '<div class="lang-switch" role="group" aria-label="Language / 语言">'
-    + '<button type="button" class="lang-btn ' + (state.lang === 'zh' ? 'on' : '') + '" data-action="set-lang" data-lang="zh">中文</button>'
-    + '<button type="button" class="lang-btn ' + (state.lang === 'en' ? 'on' : '') + '" data-action="set-lang" data-lang="en">EN</button>'
-    + '<button type="button" class="lang-btn lang-btn--more' + (LANG_META.some(m => m.code !== 'zh' && m.code !== 'en' && m.code === state.lang) ? ' on' : '') + '" data-action="lang-more" title="' + t('otherLang') + '">' + t('otherLang') + ' <span class="lang-caret">▾</span></button>'
+    + '<button type="button" class="lang-btn ' + (state.lang === 'zh' ? 'on' : '') + '" data-action="set-lang" data-lang="zh" aria-pressed="' + (state.lang === 'zh') + '">中文</button>'
+    + '<button type="button" class="lang-btn ' + (state.lang === 'en' ? 'on' : '') + '" data-action="set-lang" data-lang="en" aria-pressed="' + (state.lang === 'en') + '">EN</button>'
+    + '<button type="button" class="lang-btn lang-btn--more' + (LANG_META.some(m => m.code !== 'zh' && m.code !== 'en' && m.code === state.lang) ? ' on' : '') + '"  data-action="lang-more" title="' + t('otherLang') + '" aria-pressed="' + LANG_META.some(m => m.code !== 'zh' && m.code !== 'en' && m.code === state.lang) + '">' + t('otherLang') + ' <span class="lang-caret">▾</span></button>'
     + '</div>';
   applyStaticI18n();
   const { path } = parseHash();
@@ -958,10 +1008,16 @@ function renderHelpContent() {
 }
 function toggleHelp() {
   const panel = $('#helpPanel');
+  const btn = document.querySelector('.help-btn');
   if (panel.hidden) { renderHelpContent(); panel.hidden = false; }
   else panel.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', String(!panel.hidden));
 }
-function closeHelp() { $('#helpPanel').hidden = true; }
+function closeHelp() {
+  $('#helpPanel').hidden = true;
+  const btn = document.querySelector('.help-btn');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
 
 function renderHome() {
   document.title = 'BeanBeanMouse · ' + t('heroTitle');
@@ -1568,7 +1624,7 @@ function orderCard(o) {
   const showTipCallout = o.status === 'complete' && !state.tipDismissed[o.id] && !tippedByMe;
   const activeTips = tips.filter(x => x.status === 'active');
   return '<div class="card panel">'
-    + '<div class="panel-head"><h2>' + esc(p ? langObj(p).title : o.productId) + '</h2><span class="status-pill ' + (o.status === 'complete' ? 'done' : o.status === 'cancelled' ? 'new' : '') + '">' + orderStatusLabel(o.status) + '</span></div>'
+    + '<div class="panel-head"><div class="order-head-main">' + (p ? '<img class="order-thumb" src="' + productImg(p, 80, 80) + '" alt="" loading="lazy">' : '') + '<h2>' + esc(p ? langObj(p).title : o.productId) + '</h2></div><span class="status-pill ' + (o.status === 'complete' ? 'done' : o.status === 'cancelled' ? 'new' : '') + '">' + orderStatusLabel(o.status) + '</span></div>'
     + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
     + '<p class="small muted">' + t('party') + '：' + t('partyBuyer') + ' ' + esc(partyNameOf(o, 'buyer')) + ' · ' + t('partySeller') + ' ' + esc(partyNameOf(o, 'seller')) + '</p>'
     + (showTipCallout ? tipCalloutHtml(o) : '')
@@ -1606,6 +1662,7 @@ function tipModalHtml(o) {
     + (tippedByMe ? '<span class="tip-coins">🪙🪙🪙</span>' : '')
     + '</div>'
     + '<p class="muted" style="text-align:center">' + (tippedByMe ? t('tipAgain') : t('tipHint')) + '</p>'
+    + '<div class="tip-chips" role="group" aria-label="' + esc(t('tipAmount')) + '">' + [5, 10, 25, 50, 100].map(v => '<button type="button" class="chip" data-action="tip-quick" data-amount="' + v + '">$' + v + '</button>').join('') + '</div>'
     + '<div class="field"><label>' + t('tipAmount') + ' *</label><input class="input" id="tipAmountInput" type="number" min="0.01" max="10000" step="0.01" placeholder="5"></div>'
     + '<div class="field"><label>' + t('tipNote') + '</label><input class="input" id="tipNoteInput" maxlength="200"></div>'
     + '<button type="button" class="btn btn-primary btn-block" data-action="tip-send" data-order="' + o.id + '">' + t('tipSend') + '</button>'
@@ -1725,6 +1782,7 @@ async function verifyOrderEvidence(orderId) {
 }
 function buildEvidenceReport(o, evs, verified) {
   const no = 'BBM-EV-' + String(o.id).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12) + '-' + new Date().getTime().toString(36).toUpperCase().slice(-4);
+  const p = productById(o.productId);
   const dateFmt = ts => new Date(ts).toLocaleString(uiLocale());
   return '<div class="doc" id="docSheet">'
     + '<div class="doc-head">'
@@ -1735,7 +1793,11 @@ function buildEvidenceReport(o, evs, verified) {
     + '<span><b>' + t('docNo') + '：</b>' + esc(no) + '</span>'
     + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span>'
     + '<span><b>' + t('orderTotal') + '：</b>' + (o.currency || 'USD') + ' ' + Number(o.total || 0).toLocaleString() + '</span>'
-    + '<span><b>' + t('party') + '：</b>' + esc(partyNameOf(o, 'buyer')) + ' ↔ ' + esc(partyNameOf(o, 'seller')) + '</span>'
+    + '<span><b>' + t('evidenceVerifiedAt') + '：</b>' + dateFmt(Date.now()) + '</span>'
+    + '</div>'
+    + '<div class="doc-parties">'
+    + '<div><div class="doc-party-label">' + t('orderTotal') + ' / ' + t('orderStatusCreated') + '</div><b>' + (o.currency || 'USD') + ' ' + Number(o.total || 0).toLocaleString() + '</b><div>' + orderStatusLabel(o.status) + '</div></div>'
+    + '<div><div class="doc-party-label">' + t('party') + '</div><b>' + esc(partyNameOf(o, 'buyer')) + ' ↔ ' + esc(partyNameOf(o, 'seller')) + '</b><div>' + esc(p ? langObj(p).title : o.id) + '</div></div>'
     + '</div>'
     + '<table class="doc-table">'
     + '<thead><tr><th>#</th><th>' + esc(t('evidenceTitle')) + '</th><th>' + esc(t('evidenceVerifiedAt')) + '</th><th>' + esc(t('evidenceHash')) + '</th></tr></thead>'
@@ -1744,6 +1806,8 @@ function buildEvidenceReport(o, evs, verified) {
     ).join('') + '</tbody>'
     + '</table>'
     + '<div class="ev-report-verdict ' + (verified ? 'ok' : 'bad') + '">' + (verified ? '✓ ' + t('evReportSealed') : '✗ ' + t('evReportBroken')) + '</div>'
+    + '<div class="ev-seal"><div class="ev-qr">' + fakeQrSvg(no + '|' + evs.length + '|' + (verified ? 'OK' : 'BAD')) + '</div>'
+    + '<div class="ev-seal-txt"><b>BeanBeanMouse</b><div>' + esc(t('evReportSub')) + '</div><div class="muted small">' + esc(t('evidenceVerifiedAt')) + '：' + dateFmt(Date.now()) + '</div></div></div>'
     + '<div class="doc-sign"><div>' + t('docSellerSign') + '</div><div>' + t('docBuyerSign') + '</div></div>'
     + '<div class="doc-disclaimer">' + t('evReportNote') + '</div>'
     + '</div>';
