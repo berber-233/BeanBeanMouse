@@ -599,6 +599,23 @@ const I18N = {
     orderStatusComplete: '交易达成', orderStatusCancelled: '已取消', confirmReceipt: '确认签收（交易达成）', dealDone: '🎉 交易达成！感谢双方信任',
     tipTitle: '给小费表达感谢', tipHint: '自愿打赏，双方可见，不强制；未结算前可取消', tipAmount: '金额（USD）', tipNote: '留言（选填）',
     tipSend: '发送小费', tipCancel: '取消打赏', tipList: '小费记录', tipCancelled: '（已取消）', tipReceived: '收到打赏',
+    tipSkip: '跳过，不用了', tipLater: '以后再说', tipSkipped: '好的，之后仍可在订单中打赏',
+    tipCallout: '交易达成，感谢双方信任！如愿意，可以给另一方发个小费表示感谢（完全自愿，不强制）。',
+    tipViewBtn: '查看 / 发送小费', tipDismissBtn: '跳过，不再提示', tipDismissed: '已跳过，之后仍可在订单中打赏',
+    shipmentTitle: '货物实时跟进', shipmentNoShipment: '暂无物流信息', shipmentCreate: '创建物流单', shipmentCarrier: '承运商',
+    shipmentTrackingNo: '运单号', shipmentOrigin: '发货地', shipmentDestination: '目的地', shipmentEta: '预计到达', shipmentRemark: '备注（选填）',
+    shipmentCreateBtn: '创建并通知买家', shipmentAddEvent: '更新物流状态', shipmentCurrent: '当前位置', shipmentEvent: '物流事件',
+    shipmentNotePh: '例如：已装船，提单已出具', shipmentLocPh: '例如：宁波港', shipmentEventAdded: '物流状态已更新',
+    shpProcessing: '处理中', shpPacked: '已打包', shpShipped: '已发货', shpInTransit: '运输中', shpCustoms: '清关中',
+    shpOutForDelivery: '派送中', shpDelivered: '已签收', shpException: '异常',
+    evidenceTitle: '流程存证（第三方保存）', evidenceHint: '关键节点自动保存，哈希链防篡改，双方可验证',
+    evidenceChainValid: '存证链完整 · 未篡改', evidenceChainBroken: '存证链异常，请警惕！', evidenceSave: '保存当前快照',
+    evidenceVerify: '验证链完整性', evidenceEmpty: '暂无存证记录', evidenceHash: '哈希', evidenceVerifiedAt: '存证时间',
+    evOrderCreate: '订单创建', evReceiptConfirmed: '买家确认签收', evTipCreate: '小费打赏', evTipCancel: '打赏取消',
+    evShipmentCreate: '物流单创建', evShipmentEvent: '物流更新', evManual: '手动快照',
+    navGuide: '贸易流程参考', guideTitle: '国际贸易流程规范参考', guideSub: '从询盘到售后的一站式流程、术语与风险提示',
+    guideDisclaimer: '本指南为通用参考，不构成法律意见；正式交易请以双方签署的合同及当地最新法规为准。',
+    reviewChecklist: '审核依据', resubmitHint: '被驳回的产品可编辑后重新提交审核。',
     categoryRequestBtn: '没找到想要的品类？告诉我们', categoryRequestTitle: '提交品类需求', catName: '想要的品类', catDesc: '详细需求（选填）',
     catMarkets: '目标市场（逗号分隔，选填）', catSubmit: '提交需求', catSubmitted: '需求已记录，平台会视情况邀请相应供应商入驻',
     catStatusNew: '待处理', catStatusInvited: '已邀请供应商', catStatusDone: '已完成', catRequests: '品类需求', catNote: '处理备注',
@@ -795,6 +812,24 @@ const I18N = {
     allCategories: 'All categories', allCountries: 'All origins', anyMoq: 'Any', allCerts: 'All',
     quickActions: 'Quick actions', publishedProducts: 'Live products', totalInquiries: 'Total inquiries', thisMonthInquiries: 'Inquiries this month',
     copy: 'Copied', languageName: '中文', brand: 'BeanBeanMouse'
+    ,tipSkip: 'Skip', tipLater: 'Maybe later', tipSkipped: 'No problem - you can send a tip anytime from the order.',
+    tipCallout: 'Deal complete - thank you for trusting BeanBeanMouse! If you wish, you can send a small voluntary tip to the other party. No obligation at all.',
+    tipViewBtn: 'View / send tip', tipDismissBtn: 'Skip', tipDismissed: 'Noted. You can still send a tip from the order anytime.',
+    shipmentTitle: 'Live cargo tracking', shipmentNoShipment: 'No shipment yet', shipmentCreate: 'Create shipment',
+    shipmentCarrier: 'Carrier', shipmentTrackingNo: 'Tracking no.', shipmentOrigin: 'Origin', shipmentDestination: 'Destination',
+    shipmentEta: 'ETA', shipmentRemark: 'Remark (optional)', shipmentCreateBtn: 'Create & notify buyer',
+    shipmentAddEvent: 'Update tracking', shipmentCurrent: 'Current location', shipmentEvent: 'Tracking events',
+    shipmentNotePh: 'e.g. Loaded on vessel, B/L issued', shipmentLocPh: 'e.g. Ningbo Port', shipmentEventAdded: 'Tracking updated',
+    shpProcessing: 'Processing', shpPacked: 'Packed', shpShipped: 'Shipped', shpInTransit: 'In transit', shpCustoms: 'Customs',
+    shpOutForDelivery: 'Out for delivery', shpDelivered: 'Delivered', shpException: 'Exception',
+    evidenceTitle: 'Process evidence (third-party custody)', evidenceHint: 'Key events are sealed automatically; hash chain protects against tampering and is verifiable by both parties',
+    evidenceChainValid: 'Evidence chain intact · not tampered', evidenceChainBroken: 'Evidence chain anomaly - be alert!', evidenceSave: 'Save snapshot',
+    evidenceVerify: 'Verify chain', evidenceEmpty: 'No evidence records yet', evidenceHash: 'Hash', evidenceVerifiedAt: 'Sealed at',
+    evOrderCreate: 'Order created', evReceiptConfirmed: 'Buyer confirmed receipt', evTipCreate: 'Tip sent', evTipCancel: 'Tip cancelled',
+    evShipmentCreate: 'Shipment created', evShipmentEvent: 'Tracking update', evManual: 'Manual snapshot',
+    navGuide: 'Trade process guide', guideTitle: 'International trade process reference', guideSub: 'A step-by-step guide from inquiry to after-sales, with terms and risk alerts',
+    guideDisclaimer: 'This guide is general reference only and not legal advice. Formal transactions are governed by the signed contract and the latest local regulations.',
+    reviewChecklist: 'Review checklist', resubmitHint: 'Rejected products can be edited and resubmitted for review.'
   }
 };
 
@@ -940,6 +975,20 @@ const DEFAULT_STATE = {
 
 function seedDemoData() {
   const now = Date.now();
+  function seedHash(str) {
+    let h = 0;
+    for (const ch of String(str || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h.toString(16).padStart(8, '0');
+  }
+  function seedEvidence(orderId, kind, refId, snapshot, prevHash, chainIndex, createdAt) {
+    const contentHash = seedHash(prevHash + '|' + chainIndex + '|' + kind + '|' + JSON.stringify(snapshot));
+    return { id: 'ev' + orderId + '-' + chainIndex, orderId, actorId: 'u-buyer', kind, refId, snapshot, prevHash, contentHash, chainIndex, createdAt };
+  }
+  const ev1 = seedEvidence('o1', 'order_create', 'o1', { total: 13500, currency: 'USD', inquiryId: 'i1' }, 'GENESIS', 0, now - 26 * 864e5);
+  const ev2 = seedEvidence('o1', 'receipt_confirmed', 'o1', { status: 'complete' }, ev1.contentHash, 1, now - 4 * 864e5);
+  const ev3 = seedEvidence('o1', 'tip_create', 't1', { amount: 25, currency: 'USD', note: 'Great service!' }, ev2.contentHash, 2, now - 3 * 864e5);
+  const ev4 = seedEvidence('o1', 'shipment_create', 'sh1', { carrier: 'COSCO', trackingNo: 'COSU8823167' }, ev3.contentHash, 3, now - 20 * 864e5);
+  const ev5 = seedEvidence('o1', 'shipment_event', 'sh1', { status: 'in_transit', location: 'Singapore Port', note: 'Vessel transiting Singapore' }, ev4.contentHash, 4, now - 2 * 864e5);
   return {
     products: PRODUCTS.map(p => ({ ...p, hsCode: p.hsCode || HS_BY_CAT[p.cat] || '', markets: p.markets || MARKETS_BY_PRODUCT[p.id] || [] })),
     inquiries: [
@@ -959,13 +1008,38 @@ function seedDemoData() {
         qty: 1000, unit: 'kg', message: 'Hi, we are sourcing GOTS organic cotton jersey for our kids line. Do you have light blue in stock? Please quote CIF New York for 1,000 kg.', createdAt: now - 1000 * 60 * 60 * 52, status: 'new', reply: ''
       }
     ],
-    orders: [],
+    orders: [
+      {
+        id: 'o1', inquiryId: 'i1', productId: 'p1', buyerId: 'u-buyer', sellerId: 's1',
+        status: 'complete', total: 13500, currency: 'USD',
+        createdAt: now - 26 * 864e5, receiptConfirmedAt: now - 4 * 864e5,
+        tips: [
+          { id: 't1', orderId: 'o1', fromUserId: 'u-buyer', toUserId: 's1', amount: 25, currency: 'USD', note: 'Great service!', status: 'active', createdAt: now - 3 * 864e5, cancelledAt: null }
+        ]
+      }
+    ],
     tips: [],
+    shipments: [
+      {
+        id: 'sh1', orderId: 'o1', carrier: 'COSCO', trackingNo: 'COSU8823167',
+        status: 'in_transit', origin: 'Ningbo, CN', destination: 'Hamburg, DE',
+        currentLocation: 'Singapore Port', eta: now + 22 * 864e5, remark: '',
+        createdAt: now - 20 * 864e5, updatedAt: now - 2 * 864e5,
+        events: [
+          { id: 'se1', status: 'processing', location: 'Ningbo, CN', note: 'Shipment created', eventTime: now - 20 * 864e5 },
+          { id: 'se2', status: 'packed', location: 'Ningbo, CN', note: 'Goods packed & container loaded', eventTime: now - 19 * 864e5 },
+          { id: 'se3', status: 'shipped', location: 'Ningbo Port', note: 'Loaded on vessel, B/L issued', eventTime: now - 18 * 864e5 },
+          { id: 'se4', status: 'in_transit', location: 'Singapore Port', note: 'Vessel transiting Singapore', eventTime: now - 2 * 864e5 }
+        ]
+      }
+    ],
+    evidence: [ev1, ev2, ev3, ev4, ev5],
     categoryRequests: [],
     favorites: ['p3', 'p7'],
     user: null,
     lang: 'en',
     firstVisit: true,
+    tipDismissed: {},
     users: buildUsers(now),
     companies: buildCompanies(),
     logs: buildLogs(now),

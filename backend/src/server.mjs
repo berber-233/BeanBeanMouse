@@ -203,12 +203,53 @@ function productView(row) {
 
 function orderView(o) {
   const tips = all('SELECT * FROM tips WHERE order_id = ? ORDER BY created_at DESC', o.id);
+  const shipments = all('SELECT * FROM shipments WHERE order_id = ? ORDER BY created_at ASC', o.id).map(shipmentView);
+  const evidence = all('SELECT * FROM evidence_records WHERE order_id = ? ORDER BY chain_index ASC', o.id);
   const buyer = o.buyer_id ? get('SELECT id, name, email FROM users WHERE id = ?', o.buyer_id) : null;
   const seller = o.seller_id ? get('SELECT id, name, email FROM users WHERE id = ?', o.seller_id) : null;
-  return { ...o, buyer, seller, tips };
+  return { ...o, buyer, seller, tips, shipments, evidence, evidenceVerified: verifyEvidenceChain(o.id).valid };
 }
 
-/* ---------- 路由 ---------- */
+function shipmentView(s) {
+  const events = all('SELECT * FROM shipment_events WHERE shipment_id = ? ORDER BY event_time ASC, created_at ASC', s.id);
+  return { ...s, events };
+}
+
+/* ---------- 第三方存证：按订单哈希链记录关键流程 ---------- */
+function evidencePayload(kind, refId, snapshot, actorId, at) {
+  return { kind: String(kind || '').slice(0, 32), refId: refId || null, snapshot: snapshot || {}, actorId: actorId || null, at };
+}
+function lastEvidence(orderId) {
+  return get('SELECT * FROM evidence_records WHERE order_id = ? ORDER BY chain_index DESC LIMIT 1', orderId);
+}
+function addEvidence(orderId, actorId, kind, refId, snapshot) {
+  const prev = lastEvidence(orderId);
+  const prevHash = prev ? prev.content_hash : 'GENESIS';
+  const chainIndex = prev ? prev.chain_index + 1 : 0;
+  const at = Date.now();
+  const payload = evidencePayload(kind, refId, snapshot, actorId, at);
+  const contentHash = sha256(prevHash + '|' + chainIndex + '|' + JSON.stringify(payload));
+  run(
+    'INSERT INTO evidence_records (id, order_id, actor_id, kind, ref_id, snapshot, content_hash, prev_hash, chain_index, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    randomUUID(), orderId, actorId || null, payload.kind, payload.refId, JSON.stringify(payload.snapshot), contentHash, prevHash, chainIndex, at
+  );
+  return get('SELECT * FROM evidence_records WHERE order_id = ? ORDER BY chain_index DESC LIMIT 1', orderId);
+}
+function verifyEvidenceChain(orderId) {
+  const rows = all('SELECT * FROM evidence_records WHERE order_id = ? ORDER BY chain_index ASC', orderId);
+  let prevHash = 'GENESIS';
+  const broken = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const payload = evidencePayload(r.kind, r.ref_id, safeJson(r.snapshot, {}), r.actor_id, r.created_at);
+    const expect = sha256(prevHash + '|' + i + '|' + JSON.stringify(payload));
+    if (expect !== r.content_hash) broken.push(r.id);
+    prevHash = r.content_hash;
+  }
+  return { total: rows.length, valid: broken.length === 0, broken };
+}
+
+/* ---------- Routes ---------- */
 async function route(m, segs, q, req, res) {
   const [a, b, c, d, e] = segs;
 
@@ -589,6 +630,7 @@ async function route(m, segs, q, req, res) {
       audit(u.id, 'order.create', 'order', id, String(total));
       const seller = get('SELECT * FROM users WHERE id = ?', product.seller_id);
       if (seller) await notifyUser(seller.id, 'order', '收到新订单', '订单金额 ' + (body.currency || 'USD') + ' ' + total);
+      addEvidence(id, u.id, 'order_create', id, { total, currency: body.currency || 'USD', inquiryId: inq.id });
       return send(res, 201, orderView(get('SELECT * FROM orders WHERE id = ?', id)));
     }
     if (!b && m === 'GET') {
@@ -616,8 +658,9 @@ async function route(m, segs, q, req, res) {
       if (o.status !== 'created') return fail(res, 400, 'INVALID_STATUS', '订单当前状态不可确认签收');
       run('UPDATE orders SET status = ?, receipt_confirmed_at = ?, updated_at = ? WHERE id = ?', 'complete', Date.now(), Date.now(), b);
       audit(u.id, 'order.receipt', 'order', b, '交易达成');
+      addEvidence(b, u.id, 'receipt_confirmed', b, { status: 'complete' });
       const seller = get('SELECT * FROM users WHERE id = ?', o.seller_id);
-      if (seller) await notifyUser(seller.id, 'order', '买家已确认签收', '订单 ' + b + ' 交易达成，双方可互发小费。');
+      if (seller) await notifyUser(seller.id, 'order', '买家已确认签收', '订单 ' + b + ' 交易达成。');
       return send(res, 200, orderView(get('SELECT * FROM orders WHERE id = ?', b)));
     }
     if (b && c === 'cancel' && m === 'POST') {
@@ -648,6 +691,7 @@ async function route(m, segs, q, req, res) {
         id, b, u.id, to, amount, o.currency || 'USD', String(body.note || '').slice(0, 200), 'active', Date.now()
       );
       audit(u.id, 'tip.create', 'tip', id, String(amount));
+      addEvidence(b, u.id, 'tip_create', id, { amount, currency: o.currency || 'USD', note: String(body.note || '').slice(0, 200) });
       const recipient = get('SELECT * FROM users WHERE id = ?', to);
       if (recipient) await notifyUser(recipient.id, 'tip', '收到小费打赏', '订单 ' + b + ' 收到打赏 ' + (o.currency || 'USD') + ' ' + amount);
       return send(res, 201, get('SELECT * FROM tips WHERE id = ?', id));
@@ -669,7 +713,68 @@ async function route(m, segs, q, req, res) {
       if (tip.status !== 'active') return fail(res, 400, 'INVALID_STATUS', '该打赏已不可取消');
       run('UPDATE tips SET status = ?, cancelled_at = ? WHERE id = ?', 'cancelled', Date.now(), d);
       audit(u.id, 'tip.cancel', 'tip', d, '');
+      addEvidence(b, u.id, 'tip_cancel', d, {});
       return send(res, 200, get('SELECT * FROM tips WHERE id = ?', d));
+    }
+    /* 货物物流：卖家创建物流单，买卖双方实时可见 */
+    if (b && c === 'shipments' && !d && m === 'POST') {
+      const u = requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只有卖家可以创建物流单');
+      if (o.status !== 'created' && o.status !== 'complete') return fail(res, 400, 'INVALID_STATUS', '订单当前状态不可创建物流单');
+      const body = await readBody(req);
+      const sid = randomUUID();
+      const now = Date.now();
+      const origin = String(body.origin || '').slice(0, 120);
+      const destination = String(body.destination || '').slice(0, 120);
+      run(
+        'INSERT INTO shipments (id, order_id, carrier, tracking_no, status, origin, destination, current_location, etd, eta, remark, created_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        sid, b, String(body.carrier || '').slice(0, 80), String(body.trackingNo || '').slice(0, 80),
+        'processing', origin, destination, origin, body.etd || null, body.eta || null,
+        String(body.remark || '').slice(0, 500), u.id, now, now
+      );
+      run(
+        'INSERT INTO shipment_events (id, shipment_id, status, location, note, event_time, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        randomUUID(), sid, 'processing', origin, '物流单已创建，等待卖家发货', now, u.id, now
+      );
+      audit(u.id, 'shipment.create', 'shipment', sid, 'order=' + b);
+      addEvidence(b, u.id, 'shipment_create', sid, { carrier: String(body.carrier || ''), trackingNo: String(body.trackingNo || '') });
+      const buyer = o.buyer_id ? get('SELECT * FROM users WHERE id = ?', o.buyer_id) : null;
+      if (buyer) await notifyUser(buyer.id, 'shipment', '物流信息已创建', '订单 ' + b + ' 已创建物流单，可查看实时跟进');
+      return send(res, 201, shipmentView(get('SELECT * FROM shipments WHERE id = ?', sid)));
+    }
+    if (b && c === 'shipments' && !d && m === 'GET') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const o = get('SELECT * FROM orders WHERE id = ?', b);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权查看该订单');
+      return send(res, 200, all('SELECT * FROM shipments WHERE order_id = ? ORDER BY created_at ASC', b).map(shipmentView));
+    }
+    /* 物流事件：卖家/管理员更新，自动触发存证 */
+    if (b && c === 'shipments' && d && e === 'events' && m === 'POST') {
+      const u = requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const s = get('SELECT * FROM shipments WHERE id = ?', d);
+      if (!s) return fail(res, 404, 'NOT_FOUND', '物流单不存在');
+      const o = get('SELECT * FROM orders WHERE id = ?', s.order_id);
+      if (u.role !== 'admin' && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只有卖家可以更新物流');
+      const body = await readBody(req);
+      const allowed = ['processing', 'packed', 'shipped', 'in_transit', 'customs', 'out_for_delivery', 'delivered', 'exception'];
+      const status = String(body.status || '').toLowerCase();
+      if (!allowed.includes(status)) return fail(res, 400, 'INVALID_STATUS', 'status 不合法');
+      const now = Date.now();
+      const location = String(body.location || s.current_location || '').slice(0, 120);
+      run(
+        'INSERT INTO shipment_events (id, shipment_id, status, location, note, event_time, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        randomUUID(), d, status, location, String(body.note || '').slice(0, 500), body.eventTime || now, u.id, now
+      );
+      run('UPDATE shipments SET status = ?, current_location = ?, updated_at = ? WHERE id = ?', status, location, now, d);
+      audit(u.id, 'shipment.event', 'shipment', d, status + ' @ ' + location);
+      addEvidence(s.order_id, u.id, 'shipment_event', d, { status, location, note: String(body.note || '').slice(0, 500) });
+      return send(res, 200, shipmentView(get('SELECT * FROM shipments WHERE id = ?', d)));
     }
   }
 
@@ -927,6 +1032,44 @@ async function route(m, segs, q, req, res) {
     }
   }
 
+  /* 第三方存证：保存流程证据快照 + 哈希链验证 */
+  if (a === 'evidence') {
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const body = await readBody(req);
+      const o = get('SELECT * FROM orders WHERE id = ?', body.orderId);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权操作该订单');
+      const kind = String(body.kind || 'manual').slice(0, 32);
+      const snapshot = (typeof body.snapshot === 'object' && body.snapshot !== null) ? body.snapshot : {};
+      const rec = addEvidence(o.id, u.id, kind, body.refId ? String(body.refId).slice(0, 64) : null, snapshot);
+      audit(u.id, 'evidence.create', 'evidence', rec.id, kind);
+      return send(res, 201, rec);
+    }
+    if (m === 'GET' && !b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const orderId = String(q.get('orderId') || '');
+      const o = get('SELECT * FROM orders WHERE id = ?', orderId);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权查看该订单');
+      const items = all('SELECT * FROM evidence_records WHERE order_id = ? ORDER BY chain_index ASC', orderId);
+      const v = verifyEvidenceChain(orderId);
+      return send(res, 200, { orderId, total: items.length, verified: v.valid, broken: v.broken, items });
+    }
+    if (b && c === 'verify' && m === 'POST') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const rec = get('SELECT * FROM evidence_records WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '存证记录不存在');
+      const o = get('SELECT * FROM orders WHERE id = ?', rec.order_id);
+      if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权查看该订单');
+      const v = verifyEvidenceChain(rec.order_id);
+      return send(res, 200, { id: rec.id, orderId: rec.order_id, chainValid: v.valid, total: v.total, broken: v.broken });
+    }
+  }
+
   /* 管理后台 */
   if (a === 'admin') {
     if (b === 'overview' && m === 'GET') {
@@ -941,6 +1084,8 @@ async function route(m, segs, q, req, res) {
         pendingCompanies: get('SELECT COUNT(*) AS c FROM companies WHERE status = ?', 'pending').c,
         orders: get('SELECT COUNT(*) AS c FROM orders').c,
         tips: get('SELECT COUNT(*) AS c FROM tips WHERE status = ?', 'active').c,
+        evidence: get('SELECT COUNT(*) AS c FROM evidence_records').c,
+        shipments: get('SELECT COUNT(*) AS c FROM shipments').c,
         categoryRequests: get('SELECT COUNT(*) AS c FROM category_requests').c
       });
     }

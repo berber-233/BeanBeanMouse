@@ -130,6 +130,9 @@ function migrateState() {
   if (!Array.isArray(state.orders)) { state.orders = []; changed = true; }
   if (!Array.isArray(state.tips)) { state.tips = []; changed = true; }
   if (!Array.isArray(state.categoryRequests)) { state.categoryRequests = []; changed = true; }
+  if (!Array.isArray(state.shipments)) { state.shipments = []; changed = true; }
+  if (!Array.isArray(state.evidence)) { state.evidence = []; changed = true; }
+  if (!state.tipDismissed || typeof state.tipDismissed !== 'object') { state.tipDismissed = {}; changed = true; }
   state.products.forEach(p => {
     if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
     if (!Array.isArray(p.markets)) { p.markets = MARKETS_BY_PRODUCT[p.id] || []; changed = true; }
@@ -430,6 +433,8 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'register-form') submitRegister(f);
   else if (f.dataset.form === 'company-form') submitCompanyForm(f);
   else if (f.dataset.form === 'catreq-form') submitCatReqForm(f);
+  else if (f.dataset.form === 'shipment-create-form') submitShipmentCreate(f);
+  else if (f.dataset.form === 'shipment-event-form') submitShipmentEvent(f);
 });
 
 function handleAction(el) {
@@ -450,6 +455,17 @@ function handleAction(el) {
     case 'tip-open': openTipModal(id); break;
     case 'tip-send': sendTip(el.dataset.order); break;
     case 'tip-cancel': cancelTip(el.dataset.order, el.dataset.tip); break;
+    case 'tip-skip': closeModal(); toast(t('tipSkipped')); break;
+    case 'tip-dismiss': {
+      state.tipDismissed[id] = true;
+      saveState();
+      render();
+      break;
+    }
+    case 'evidence-save': saveEvidenceSnapshot(id); break;
+    case 'evidence-verify': verifyOrderEvidence(id); break;
+    case 'shipment-create': openShipmentCreateModal(id); break;
+    case 'shipment-event': openShipmentEventModal(id, el.dataset.shipment); break;
     case 'catreq-status': setCatReqStatus(id, el.dataset.status, el.dataset.note); break;
     case 'logout': logout(false); break;
     case 'switch-role': logout(false, true); break;
@@ -624,7 +640,8 @@ function renderHeader() {
       (path === href) ||
       (href === '/products' && (path === '/product' || path.indexOf('/product/') === 0)) ||
       (href === '/dashboard' && (path === '/dashboard' || path.indexOf('/dashboard/') === 0)) ||
-      (href === '/news' && path.indexOf('/news') === 0);
+      (href === '/news' && path.indexOf('/news') === 0) ||
+      (href === '/guide' && path.indexOf('/guide') === 0);
     a.classList.toggle('active', active);
   });
   const fc = $('#favCount');
@@ -826,6 +843,7 @@ function render() {
   if (path === '' || path === '/') app.innerHTML = renderHome();
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
+  else if (path === '/guide') { app.innerHTML = renderGuide(); }
   else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
@@ -841,6 +859,7 @@ function renderPage() {
   if (path === '' || path === '/') app.innerHTML = renderHome();
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
+  else if (path === '/guide') { app.innerHTML = renderGuide(); }
   else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
@@ -889,22 +908,24 @@ const HELP_ITEMS = {
   zh: [
     ['浏览产品', '进入「产品市场」，按行业、价格、产地、认证筛选，点击卡片查看详情。'],
     ['发送询盘', '在详情页填写数量和需求发送询盘，供应商会通过站内消息和邮件回复。'],
-    ['卖家发布', '进入「工作台」→ 发布产品，填写规格与价格，平台审核通过后上架。'],
+    ['卖家发布', '进入「工作台」发布产品，填写规格与价格，平台审核通过后上架。'],
     ['平台管理', '管理员可在产品审核、企业认证、用户管理、审计日志中完成日常管理。'],
     ['语言与翻译', '右上角可切换语言；对话和详情页支持实时翻译（仅供参考）。'],
     ['防伪查询', '页脚「防伪查询」输入防伪码验真；「验证本站真伪」可识别钓鱼网站。'],
-    ['单证打印', '报价单与形式发票按国际通行格式生成，支持打印或另存为 PDF。'],
-    ['贸易资讯', '按你关注的地域聚合权威政策，每条资讯附可查询的官方来源。']
+    ['文档打印', '报价单与形式发票按国际通行格式生成，支持打印或另存为 PDF。'],
+    ['贸易资讯', '按你关注的区域聚合权威政策，每条资讯附可查询的官方来源。'],
+    ['贸易流程参考', '从询盘到售后的规范流程、贸易术语与风险提示，帮助新手安全完成跨国交易。']
   ],
   en: [
     ['Browse products', 'Go to Products, filter by category, price, origin and certification, then click a card for details.'],
     ['Send an inquiry', 'Fill in quantity and needs on the detail page; suppliers reply via in-app messages and email.'],
-    ['Seller publishing', 'Dashboard → Publish product, add specs and price; it goes live after platform review.'],
+    ['Seller publishing', 'Dashboard -> Publish product, add specs and price; it goes live after platform review.'],
     ['Platform admin', 'Admins manage product review, company verification, users and audit logs.'],
     ['Language & translation', 'Switch language at the top-right; live translation is available in chats and details (for reference only).'],
     ['Anti-counterfeit', 'Use Anti-counterfeit Query in the footer to verify codes; Verify This Site detects phishing.'],
     ['Documents', 'Quotations and proforma invoices follow international formats and support print / save as PDF.'],
-    ['Trade news', 'Aggregated by your followed regions; every item links to an official source.']
+    ['Trade news', 'Aggregated by your followed regions; every item links to an official source.'],
+    ['Trade process guide', 'Standard flow from inquiry to after-sales, Incoterms and risk alerts to help you trade safely.']
   ]
 };
 function helpLocale() { return state.lang === 'zh' ? 'zh' : 'en'; }
@@ -1432,21 +1453,97 @@ function companyBannerHtml() {
 function orderStatusLabel(s) {
   return s === 'complete' ? t('orderStatusComplete') : s === 'cancelled' ? t('orderStatusCancelled') : t('orderStatusCreated');
 }
+function shipmentStages() {
+  return ['processing', 'packed', 'shipped', 'in_transit', 'customs', 'out_for_delivery', 'delivered'];
+}
+function shipmentStatusLabel(s) {
+  const key = 'shp' + String(s || '').replace(/(^|_)([a-z])/g, (m, p, c) => c.toUpperCase());
+  const v = t(key);
+  return v === key ? String(s || '') : v;
+}
+function shipmentTimelineHtml(shipment) {
+  const stages = shipmentStages();
+  const idx = Math.max(0, stages.indexOf(shipment.status));
+  const pct = Math.round(idx / (stages.length - 1) * 100);
+  const evs = (shipment.events || []).slice().sort((a, b) => (a.event_time || a.createdAt || 0) - (b.event_time || b.createdAt || 0));
+  return '<div class="shipment-box">'
+    + '<div class="ship-head"><b>' + icon('box') + ' ' + t('shipmentTitle') + '</b>'
+    + '<span class="status-pill ' + (shipment.status === 'delivered' ? 'done' : shipment.status === 'exception' ? 'rej' : 'pend') + '">' + esc(shipmentStatusLabel(shipment.status)) + '</span></div>'
+    + ((shipment.carrier || shipment.tracking_no || shipment.trackingNo)
+      ? '<div class="ship-meta muted">' + esc(shipment.carrier || '') + (shipment.tracking_no || shipment.trackingNo ? ' · ' + esc(shipment.tracking_no || shipment.trackingNo) : '') + '</div>' : '')
+    + '<div class="track-wrap">'
+    + '<div class="track-bar"><div class="track-fill" style="width:' + pct + '%"></div><div class="track-pkg" style="left:calc(' + pct + '% - 18px)">' + (shipment.status === 'delivered' ? '🎁' : '🚚') + '</div></div>'
+    + '<div class="track-stages">' + stages.map((s, i) => '<span class="track-dot' + (i <= idx ? ' on' : '') + '" title="' + esc(shipmentStatusLabel(s)) + '"></span>').join('') + '</div>'
+    + '</div>'
+    + '<div class="ship-loc"><span>' + t('shipmentCurrent') + '</span><b>' + esc(shipment.current_location || shipment.currentLocation || shipment.origin || '—') + '</b></div>'
+    + (shipment.eta ? '<div class="ship-meta muted">' + t('shipmentEta') + '：' + fmtDate(shipment.eta) + '</div>' : '')
+    + (evs.length ? '<ul class="ship-events">' + evs.slice(-4).reverse().map(ev =>
+      '<li><span class="ev-dot"></span><div><b>' + esc(shipmentStatusLabel(ev.status)) + '</b>' + (ev.location ? ' · ' + esc(ev.location) : '')
+      + '<div class="muted small">' + fmtDate(ev.event_time || ev.createdAt) + (ev.note ? ' · ' + esc(ev.note) : '') + '</div></div></li>'
+    ).join('') + '</ul>' : '')
+    + '</div>';
+}
+function evidenceKindLabel(kind) {
+  const map = {
+    order_create: t('evOrderCreate'), receipt_confirmed: t('evReceiptConfirmed'), tip_create: t('evTipCreate'),
+    tip_cancel: t('evTipCancel'), shipment_create: t('evShipmentCreate'), shipment_event: t('evShipmentEvent'),
+    manual: t('evManual')
+  };
+  return map[kind] || String(kind || '');
+}
+function evidencePanelHtml(o) {
+  const evs = (o.evidence && o.evidence.length ? o.evidence : (state.evidence || []).filter(e => e.orderId === o.id))
+    .slice().sort((a, b) => (a.chain_index || a.chainIndex || 0) - (b.chain_index || b.chainIndex || 0));
+  const verified = o.evidenceVerified !== false;
+  return '<div class="evidence-box">'
+    + '<div class="ev-head"><b>' + icon('shield') + ' ' + t('evidenceTitle') + '</b>'
+    + '<span class="small muted">' + esc(t('evidenceHint')) + '</span></div>'
+    + (evs.length ? '<div class="ev-badge ' + (verified ? 'ok' : 'bad') + '">' + (verified ? '✓ ' + t('evidenceChainValid') : '✗ ' + t('evidenceChainBroken')) + '</div>' : '')
+    + (evs.length
+      ? '<ul class="ev-list">' + evs.map(e =>
+        '<li><b>' + esc(evidenceKindLabel(e.kind)) + '</b><span class="muted small">' + fmtDate(e.created_at || e.createdAt) + '</span>'
+        + '<code class="ev-hash">' + esc(String(e.content_hash || e.contentHash || '').slice(0, 16)) + '…</code></li>'
+      ).join('') + '</ul>'
+      : '<p class="small muted ev-empty">' + t('evidenceEmpty') + '</p>')
+    + '<div class="flex gap-10 ev-actions">'
+    + '<button type="button" class="btn btn-sm" data-action="evidence-save" data-id="' + o.id + '">' + t('evidenceSave') + '</button>'
+    + (evs.length ? '<button type="button" class="btn btn-sm" data-action="evidence-verify" data-id="' + o.id + '">' + t('evidenceVerify') + '</button>' : '')
+    + '</div></div>';
+}
+function tipCalloutHtml(o) {
+  return '<div class="tip-callout">'
+    + '<img src="assets/tip-mascot-256.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
+    + '<div class="tip-callout-txt"><b>' + t('dealDone') + '</b><p>' + t('tipCallout') + '</p></div>'
+    + '<div class="tip-callout-actions">'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="tip-open" data-id="' + o.id + '">' + t('tipViewBtn') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="tip-dismiss" data-id="' + o.id + '">' + t('tipDismissBtn') + '</button>'
+    + '</div></div>';
+}
 function orderCard(o) {
   const p = productById(o.productId);
   const isBuyer = state.user && o.buyerId === state.user.id;
+  const isSeller = state.user && o.sellerId === (state.user.sellerId || state.user.id);
   const tips = o.tips || [];
+  const shipments = (o.shipments && o.shipments.length ? o.shipments : (state.shipments || []).filter(s => s.orderId === o.id));
+  const showTipCallout = o.status === 'complete' && !state.tipDismissed[o.id];
   return '<div class="card panel">'
     + '<div class="panel-head"><h2>' + esc(p ? langObj(p).title : o.productId) + '</h2><span class="status-pill ' + (o.status === 'complete' ? 'done' : o.status === 'cancelled' ? 'new' : '') + '">' + orderStatusLabel(o.status) + '</span></div>'
     + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
+    + (showTipCallout ? tipCalloutHtml(o) : '')
     + (tips.length ? '<div class="reply-box"><b>' + t('tipList') + '：</b><ul style="margin:6px 0 0;padding-left:18px">'
       + tips.map(x => '<li>' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
         + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')
         + '</li>').join('')
       + '</ul></div>' : '')
-    + '<div class="flex gap-10" style="margin-top:10px">'
+    + (shipments.length ? shipmentTimelineHtml(shipments[0]) : '')
+    + evidencePanelHtml(o)
+    + '<div class="flex gap-10" style="margin-top:10px;flex-wrap:wrap">'
     + (o.status === 'created' && isBuyer ? '<button type="button" class="btn btn-primary" data-action="order-confirm" data-id="' + o.id + '">' + t('confirmReceipt') + '</button><button type="button" class="btn" data-action="order-cancel" data-id="' + o.id + '">' + t('orderStatusCancelled') + '</button>' : '')
     + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '">💛 ' + t('tipTitle') + '</button>' : '')
+    + (isSeller && !shipments.length && (o.status === 'created' || o.status === 'complete')
+      ? '<button type="button" class="btn btn-primary" data-action="shipment-create" data-id="' + o.id + '">🚚 ' + t('shipmentCreate') + '</button>' : '')
+    + (isSeller && shipments.length
+      ? '<button type="button" class="btn" data-action="shipment-event" data-id="' + o.id + '" data-shipment="' + shipments[0].id + '">' + t('shipmentAddEvent') + '</button>' : '')
     + '</div>'
     + '</div>';
 }
@@ -1461,11 +1558,12 @@ function ordersBody() {
 function tipModalHtml(o) {
   return '<div class="modal-head"><h3>💛 ' + t('tipTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body">'
-    + '<div style="text-align:center;margin-bottom:8px"><img src="assets/tip-mascot.svg" alt="' + t('tipTitle') + '" width="110" height="110" style="border-radius:14px;background:var(--bg)"></div>'
+    + '<div style="text-align:center;margin-bottom:8px"><img src="assets/tip-mascot-256.png" alt="' + t('tipTitle') + '" width="110" height="110" style="border-radius:16px;background:var(--bg);object-fit:cover"></div>'
     + '<p class="muted" style="text-align:center">' + t('tipHint') + '</p>'
     + '<div class="field"><label>' + t('tipAmount') + ' *</label><input class="input" id="tipAmountInput" type="number" min="0.01" max="10000" step="0.01" placeholder="5"></div>'
     + '<div class="field"><label>' + t('tipNote') + '</label><input class="input" id="tipNoteInput" maxlength="200"></div>'
     + '<button type="button" class="btn btn-primary btn-block" data-action="tip-send" data-order="' + o.id + '">' + t('tipSend') + '</button>'
+    + '<button type="button" class="btn btn-block tip-skip" data-action="tip-skip" data-order="' + o.id + '">' + t('tipSkip') + '</button>'
     + '</div>';
 }
 async function submitRegister(form) {
@@ -1526,8 +1624,9 @@ async function confirmOrderReceipt(id) {
   try {
     await api.orders.confirmReceipt(id);
     toast(t('dealDone'));
+    state.tipDismissed[id] = false;
+    saveState();
     render();
-    openTipModal(id);
   } catch (e) { toast(e.message || String(e)); }
 }
 async function cancelOrder(id) {
@@ -1548,6 +1647,95 @@ async function cancelTip(orderId, tipId) {
   try { await api.orders.cancelTip(orderId, tipId); toast(t('tipCancel') + ' ✓'); render(); }
   catch (e) { toast(e.message || String(e)); }
 }
+async function saveEvidenceSnapshot(orderId) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  if (!o) { toast(t('evidenceEmpty')); return; }
+  const snapshot = {
+    orderId, status: o.status, total: o.total, currency: o.currency,
+    productId: o.productId, buyerId: o.buyerId, sellerId: o.sellerId,
+    note: 'manual snapshot @ ' + new Date().toISOString()
+  };
+  try {
+    await api.evidence.create(orderId, { kind: 'manual', refId: orderId, snapshot });
+    toast('✓ ' + t('evidenceSave'));
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function verifyOrderEvidence(orderId) {
+  const rows = (state.evidence || []).filter(e => e.orderId === orderId);
+  const last = rows[rows.length - 1];
+  if (!last) { toast(t('evidenceEmpty')); return; }
+  try {
+    const r = await api.evidence.verify(last.id);
+    toast(r.chainValid ? '✓ ' + t('evidenceChainValid') : '✗ ' + t('evidenceChainBroken'));
+  } catch (e) { toast(e.message || String(e)); }
+}
+function shipmentStatusOptions() {
+  return shipmentStages().concat(['exception']).map(s =>
+    '<option value="' + s + '">' + esc(shipmentStatusLabel(s)) + '</option>'
+  ).join('');
+}
+function openShipmentCreateModal(orderId) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  if (!o) return;
+  const p = productById(o.productId);
+  showModal(
+    '<div class="modal-head"><h3>🚚 ' + t('shipmentCreate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="shipment-create-form" data-order="' + orderId + '">'
+    + (p ? '<p class="small muted">' + esc(langObj(p).title) + '</p>' : '')
+    + '<div class="field"><label>' + t('shipmentCarrier') + '</label><input class="input" name="carrier" maxlength="80" placeholder="COSCO / DHL / FedEx…"></div>'
+    + '<div class="field"><label>' + t('shipmentTrackingNo') + '</label><input class="input" name="trackingNo" maxlength="80"></div>'
+    + '<div class="grid-2"><div class="field"><label>' + t('shipmentOrigin') + '</label><input class="input" name="origin" maxlength="120" placeholder="Ningbo, CN"></div>'
+    + '<div class="field"><label>' + t('shipmentDestination') + '</label><input class="input" name="destination" maxlength="120" placeholder="Hamburg, DE"></div></div>'
+    + '<div class="field"><label>' + t('shipmentEta') + '</label><input class="input" name="eta" type="date"></div>'
+    + '<div class="field"><label>' + t('shipmentRemark') + '</label><input class="input" name="remark" maxlength="500"></div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('shipmentCreateBtn') + '</button>'
+    + '</form></div>'
+  );
+}
+async function submitShipmentCreate(form) {
+  const eta = form.eta && form.eta.value ? new Date(form.eta.value + 'T23:59:59').getTime() : null;
+  const payload = {
+    carrier: form.carrier.value.trim(),
+    trackingNo: form.trackingNo.value.trim(),
+    origin: form.origin.value.trim(),
+    destination: form.destination.value.trim(),
+    eta,
+    remark: form.remark.value.trim()
+  };
+  try {
+    await api.shipments.create(form.dataset.order, payload);
+    closeModal();
+    toast('✓ ' + t('shipmentCreate'));
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+function openShipmentEventModal(orderId, shipmentId) {
+  const shipment = (state.shipments || []).find(s => s.id === shipmentId && s.orderId === orderId);
+  if (!shipment) return;
+  showModal(
+    '<div class="modal-head"><h3>🚚 ' + t('shipmentAddEvent') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="shipment-event-form" data-order="' + orderId + '" data-shipment="' + shipmentId + '">'
+    + '<div class="field"><label>' + t('shipmentEvent') + ' *</label><select class="input" name="status">' + shipmentStatusOptions() + '</select></div>'
+    + '<div class="field"><label>' + t('shipmentCurrent') + '</label><input class="input" name="location" maxlength="120" placeholder="' + t('shipmentLocPh') + '"></div>'
+    + '<div class="field"><label>' + t('shipmentNotePh') + '</label><input class="input" name="note" maxlength="500"></div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('shipmentAddEvent') + '</button>'
+    + '</form></div>'
+  );
+}
+async function submitShipmentEvent(form) {
+  const payload = {
+    status: form.status.value,
+    location: form.location.value.trim(),
+    note: form.note.value.trim()
+  };
+  try {
+    await api.shipments.addEvent(form.dataset.order, form.dataset.shipment, payload);
+    closeModal();
+    toast('✓ ' + t('shipmentEventAdded'));
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
 async function setCatReqStatus(id, status, note) {
   const reason = note || (status === 'done' ? '' : prompt(t('catNote')) || '');
   try { await api.categoryRequests.setStatus(id, { status, note: reason }); toast('✓'); render(); }
@@ -1555,6 +1743,104 @@ async function setCatReqStatus(id, status, note) {
 }
 
 /* ---------- 登录页 ---------- */
+/* ---------- 贸易流程规范参考 ---------- */
+const TRADE_GUIDE_FLOW = [
+  { zh: '询盘与需求确认', en: 'Inquiry & requirements' },
+  { zh: '报价 / 形式发票', en: 'Quote / Proforma Invoice' },
+  { zh: '签订销售合同', en: 'Signed sales contract' },
+  { zh: '支付定金', en: 'Deposit payment' },
+  { zh: '生产 / 备货', en: 'Production / packing' },
+  { zh: '验货', en: 'Inspection' },
+  { zh: '订舱 / 出口报关', en: 'Booking & export customs' },
+  { zh: '装船 / 发运', en: 'Loading / shipment' },
+  { zh: '单据流转', en: 'Document flow' },
+  { zh: '清关 / 提货', en: 'Import customs & pickup' },
+  { zh: '支付尾款', en: 'Balance payment' },
+  { zh: '售后与评价', en: 'After-sales & review' }
+];
+const TRADE_GUIDE_INCOTERMS = [
+  { code: 'EXW', zh: '工厂交货（风险在工厂转移）', en: 'Ex Works - risk transfers at your factory' },
+  { code: 'FCA', zh: '货交承运人（指定地点）', en: 'Free Carrier (named place)' },
+  { code: 'FAS', zh: '船边交货', en: 'Free Alongside Ship' },
+  { code: 'FOB', zh: '船上交货（装运港）', en: 'Free On Board (port of shipment)' },
+  { code: 'CFR', zh: '成本加运费（风险在装运港转移）', en: 'Cost and Freight (risk transfers at loading port)' },
+  { code: 'CIF', zh: '成本、保险费加运费（卖方购保险）', en: 'Cost, Insurance and Freight (seller buys insurance)' },
+  { code: 'CPT', zh: '运费付至', en: 'Carriage Paid To' },
+  { code: 'CIP', zh: '运费和保险费付至（含保险）', en: 'Carriage and Insurance Paid To' },
+  { code: 'DAP', zh: '目的地交货（不含卸货）', en: 'Delivered at Place (unloaded)' },
+  { code: 'DPU', zh: '目的地卸货后交货', en: 'Delivered at Place Unloaded' },
+  { code: 'DDP', zh: '完税后交货（卖方责任最大）', en: 'Delivered Duty Paid (max seller duty)' }
+];
+const TRADE_GUIDE_PAYMENTS = [
+  { code: 'T/T', zh: '电汇。常见 30% 定金 + 70% 见提单副本付清；小额可全款预付（风险较高）。', en: 'Telegraphic transfer. Common: 30% deposit + 70% against B/L copy; full prepayment is riskier.' },
+  { code: 'L/C', zh: '信用证。银行信用，适合大额订单；注意软条款与单据不符点。', en: 'Letter of credit. Bank credit, good for large orders; watch soft clauses and discrepancies.' },
+  { code: 'D/P', zh: '付款交单。买方付款后才能拿单据提货。', en: 'Documents against Payment. Buyer pays before receiving documents.' },
+  { code: 'D/A', zh: '承兑交单。买方承兑后即可提货、到期付款（卖方风险较高）。', en: 'Documents against Acceptance. Buyer takes goods after acceptance; higher seller risk.' },
+  { code: 'O/A', zh: '赊销。先发货后付款，仅建议用于长期信任客户。', en: 'Open account. Ship first, pay later; only for trusted long-term customers.' }
+];
+const TRADE_GUIDE_RISKS = [
+  { zh: '付款到个人账户或非合同公司账户', en: 'Paying to a personal account or an account not named in the contract' },
+  { zh: '贸易术语写错或模糊（如仅写 "FOB China" 未指定港口）', en: 'Vague Incoterms (e.g. only "FOB China" without a named port)' },
+  { zh: '没有书面合同 / 形式发票就支付大额全款', en: 'Paying a large amount upfront without a contract or proforma invoice' },
+  { zh: '大额订单不做第三方验货、不约定质量标准', en: 'No third-party inspection or agreed quality standard for large orders' },
+  { zh: '单证不符（品名、HS 编码、唛头与实物不一致）', en: 'Documents inconsistent with the goods (name, HS code, shipping marks)' },
+  { zh: '仿牌 / 侵权产品被目的国海关扣押', en: 'Counterfeit or infringing goods seized by destination customs' },
+  { zh: '汇率波动未锁定，导致利润缩水', en: 'Unhedged exchange-rate exposure eroding margins' },
+  { zh: '危险品 / 违禁品未如实申报', en: 'Dangerous or prohibited goods not declared truthfully' }
+];
+function renderGuide() {
+  document.title = t('navGuide') + ' · BeanBeanMouse';
+  const zh = state.lang === 'zh';
+  const L = zh
+    ? {
+        intro: '从询盘到售后的完整规范流程，帮助你了解每一步该做什么、该签什么、该防范什么。本指南适用于一般货物贸易（B2B）。',
+        flowTitle: '标准贸易流程', paymentTitle: '常见付款方式与风险', incotermTitle: 'Incoterms® 2020 贸易术语速查',
+        riskTitle: '常见风险与不规范操作提示', riskSub: '以下情形一旦出现，请立即提高警惕、要求书面确认，必要时联系平台客服：',
+        flowNote: '流程因产品、国家与付款方式而异，请以合同约定为准。', evidenceNote: '平台为关键节点自动保存存证，双方可随时核对，减少争议。',
+        complianceTitle: '合规要点', compliance: [
+          'HS 编码务必准确，并在报关前与货代/报关行复核；',
+          '目的国进口认证（CE、FDA、SASO 等）由谁提供、何时提供要写入合同；',
+          '唛头、箱单、发票信息必须与实物完全一致；',
+          '涉税、涉证产品（如化学品、食品、医疗器械）需提前确认出口许可；',
+          '建议大额订单购买货运保险并约定索赔流程。'
+        ],
+        disclaimer: t('guideDisclaimer')
+      }
+    : {
+        intro: 'A complete standard flow from inquiry to after-sales: what to do, what to sign and what to watch out for at every step. Suitable for general B2B merchandise trade.',
+        flowTitle: 'Standard trade flow', paymentTitle: 'Common payment terms & risk', incotermTitle: 'Incoterms® 2020 quick reference',
+        riskTitle: 'Common risks & non-standard practices', riskSub: 'If you see any of the following, stay alert, ask for written confirmation and contact platform support if needed:',
+        flowNote: 'The flow varies by product, country and payment terms; the signed contract prevails.', evidenceNote: 'Key milestones are automatically sealed as evidence; both parties can verify them anytime to reduce disputes.',
+        complianceTitle: 'Compliance checklist', compliance: [
+          'Make sure the HS code is accurate and double-check it with your forwarder before declaration.',
+          'Put in the contract who provides destination import certifications (CE, FDA, SASO, etc.) and when.',
+          'Shipping marks, packing list and invoice must match the goods exactly.',
+          'Dutiable or licensed goods (chemicals, food, medical devices) need export permits confirmed in advance.',
+          'For large orders, buy cargo insurance and agree on the claims process.'
+        ],
+        disclaimer: t('guideDisclaimer')
+      };
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>' + t('guideTitle') + '</h1><p>' + esc(L.intro) + '</p></div>'
+    + '<section class="card panel guide-section"><div class="panel-head"><h2>' + esc(L.flowTitle) + '</h2><span class="small muted">' + esc(L.evidenceNote) + '</span></div>'
+    + '<ol class="guide-flow">' + TRADE_GUIDE_FLOW.map((s, i) => '<li><span class="step-no">' + (i + 1) + '</span><span class="step-name">' + esc(zh ? s.zh : s.en) + '</span></li>').join('') + '</ol>'
+    + '<p class="small muted">' + esc(L.flowNote) + '</p></section>'
+    + '<section class="card panel guide-section"><div class="panel-head"><h2>' + esc(L.incotermTitle) + '</h2></div>'
+    + '<div class="table-responsive"><table class="table guide-table"><thead><tr><th>Code</th><th>' + (zh ? '说明' : 'Meaning') + '</th></tr></thead><tbody>'
+    + TRADE_GUIDE_INCOTERMS.map(x => '<tr><td><b>' + x.code + '</b></td><td>' + esc(zh ? x.zh : x.en) + '</td></tr>').join('')
+    + '</tbody></table></div></section>'
+    + '<section class="card panel guide-section"><div class="panel-head"><h2>' + esc(L.paymentTitle) + '</h2></div>'
+    + TRADE_GUIDE_PAYMENTS.map(x => '<div class="guide-payment"><b>' + x.code + '</b><span>' + esc(zh ? x.zh : x.en) + '</span></div>').join('')
+    + '</section>'
+    + '<section class="card panel guide-section"><div class="panel-head"><h2>' + esc(L.complianceTitle) + '</h2></div>'
+    + '<ul class="guide-list">' + L.compliance.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></section>'
+    + '<section class="card panel guide-section guide-risk"><div class="panel-head"><h2>' + esc(L.riskTitle) + '</h2></div>'
+    + '<p class="small muted">' + esc(L.riskSub) + '</p>'
+    + '<ul class="risk-list">' + TRADE_GUIDE_RISKS.map(x => '<li><span class="risk-ico">⚠</span><span>' + esc(zh ? x.zh : x.en) + '</span></li>').join('') + '</ul></section>'
+    + '<p class="small muted guide-disclaimer">' + esc(L.disclaimer) + '</p>'
+    + '</div>';
+}
+
 function renderLogin() {
   document.title = t('login') + ' · BeanBeanMouse';
   return '<div class="container"><div class="login-wrap">'
@@ -1650,7 +1936,9 @@ function renderSellerDash(path) {
           const pillCls = st === 'on' ? 'live' : st === 'pending' ? 'pend' : st === 'rejected' ? 'rej' : 'off';
           const pillTxt = st === 'on' ? t('onShelfLabel') : st === 'pending' ? t('pendingLabel') : st === 'rejected' ? t('rejectedLabel') : t('offShelfLabel');
           return '<tr>'
-            + '<td><div class="prod-cell"><img src="' + productImg(p, 120, 90) + '" alt=""><span class="t">' + esc(langObj(p).title) + '</span></div></td>'
+            + '<td><div class="prod-cell"><img src="' + productImg(p, 120, 90) + '" alt=""><span class="t">' + esc(langObj(p).title) + '</span></div>'
+            + (st === 'rejected' ? '<p class="small reject-reason" style="margin:4px 0 0">' + t('rejectedLabel') + '：' + esc(p.rejectReason || p.reject_reason || '') + '</p><p class="small muted" style="margin:0">' + t('resubmitHint') + '</p>' : '')
+            + '</td>'
             + '<td>' + esc(langObj(catById(p.cat))) + '</td>'
             + '<td>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</td>'
             + '<td>' + p.moq + ' ' + p.unit + '</td>'

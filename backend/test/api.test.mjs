@@ -283,6 +283,72 @@ let tipId;
   check('已达成订单不可取消 -> 400', r.status === 400);
 }
 
+/* ---- 货物物流：卖家创建、更新事件，买卖双方可见 ---- */
+let shipmentId;
+{
+  const r = await req('/orders/' + orderId + '/shipments', {
+    method: 'POST', token: sellerToken,
+    body: { carrier: 'COSCO', trackingNo: 'COSU1234567', origin: 'Ningbo, CN', destination: 'Hamburg, DE', eta: Date.now() + 30 * 864e5 }
+  });
+  check('卖家创建物流单 -> 201 processing', r.status === 201 && r.data.status === 'processing' && r.data.events.length === 1);
+  shipmentId = r.data.id;
+}
+{
+  const r = await req('/orders/' + orderId + '/shipments', { method: 'POST', token: buyerToken, body: { carrier: 'X' } });
+  check('买家创建物流单 -> 403', r.status === 403 && r.data.error === 'FORBIDDEN');
+}
+{
+  const r = await req('/orders/' + orderId + '/shipments', { token: buyerToken });
+  check('买家可见物流单（买卖双方可见）', r.status === 200 && Array.isArray(r.data) && r.data.some(s => s.id === shipmentId));
+}
+{
+  const r = await req('/orders/' + orderId + '/shipments/' + shipmentId + '/events', {
+    method: 'POST', token: sellerToken,
+    body: { status: 'shipped', location: 'Ningbo Port', note: 'Loaded on vessel, B/L issued' }
+  });
+  check('卖家更新物流事件 -> shipped', r.status === 200 && r.data.status === 'shipped' && r.data.current_location === 'Ningbo Port' && r.data.events.length === 2);
+}
+{
+  const r = await req('/orders/' + orderId + '/shipments/' + shipmentId + '/events', {
+    method: 'POST', token: sellerToken, body: { status: 'teleport', location: 'X' }
+  });
+  check('非法物流状态 -> 400', r.status === 400 && r.data.error === 'INVALID_STATUS');
+}
+{
+  const r = await req('/orders/' + orderId + '/shipments/' + shipmentId + '/events', {
+    method: 'POST', token: buyerToken, body: { status: 'delivered', location: 'Hamburg' }
+  });
+  check('买家更新物流事件 -> 403', r.status === 403);
+}
+
+/* ---- 第三方存证：自动记录 + 手动快照 + 哈希链验证 ---- */
+let evidenceCount, evidenceId;
+{
+  const r = await req('/evidence?orderId=' + orderId, { token: sellerToken });
+  check('订单自动生成存证链', r.status === 200 && r.data.total >= 4 && r.data.verified === true);
+  evidenceCount = r.data.total;
+}
+{
+  const r = await req('/evidence', {
+    method: 'POST', token: buyerToken,
+    body: { orderId, kind: 'manual_snapshot', refId: orderId, snapshot: { note: '双方确认最终条款', amount: 13500 } }
+  });
+  check('手动保存存证快照 -> 201', r.status === 201 && r.data.kind === 'manual_snapshot');
+  evidenceId = r.data.id;
+}
+{
+  const r = await req('/evidence?orderId=' + orderId, { token: sellerToken });
+  check('新增后存证链仍有效', r.status === 200 && r.data.total === evidenceCount + 1 && r.data.verified === true);
+}
+{
+  const r = await req('/evidence/' + evidenceId + '/verify', { method: 'POST', token: sellerToken });
+  check('单条存证验证 -> 链有效', r.status === 200 && r.data.chainValid === true && r.data.total >= 5);
+}
+{
+  const r = await req('/evidence?orderId=no-such-order', { token: sellerToken });
+  check('不存在订单的存证 -> 404', r.status === 404);
+}
+
 /* ---- 品类需求 ---- */
 let catReqId;
 {

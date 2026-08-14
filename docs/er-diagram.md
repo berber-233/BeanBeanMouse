@@ -194,3 +194,72 @@ erDiagram
   产品主表只保留结构化字段（价格、MOQ、HS 编码等）；
 - 审核状态机：`draft → pending → on / rejected`，管理员操作写入 `AUDIT_LOGS`；
 - 防伪码由服务端签发（唯一、可作废、记录查询次数与时间）。
+
+## 增补：订单闭环 / 存证 / 物流（2026-08-14）
+
+```mermaid
+erDiagram
+  ORDERS ||--o{ TIPS : "打赏"
+  ORDERS ||--o{ EVIDENCE_RECORDS : "存证链"
+  ORDERS ||--o{ SHIPMENTS : "物流单"
+  SHIPMENTS ||--o{ SHIPMENT_EVENTS : "轨迹事件"
+  ORDERS ||--o{ PAYMENTS : "支付流水"
+  USERS ||--o{ TIPS : "打赏/被打赏"
+
+  TIPS {
+    uuid id PK
+    uuid order_id FK
+    uuid from_user_id FK
+    uuid to_user_id FK
+    numeric amount
+    string currency
+    text note
+    string status "active / cancelled"
+    timestamp created_at
+    timestamp cancelled_at
+  }
+  EVIDENCE_RECORDS {
+    uuid id PK
+    uuid order_id FK
+    uuid actor_id FK
+    string kind "order_create / receipt_confirmed / tip_create / tip_cancel / shipment_create / shipment_event / manual"
+    string ref_id
+    json snapshot
+    string content_hash
+    string prev_hash
+    int chain_index
+    timestamp created_at
+  }
+  SHIPMENTS {
+    uuid id PK
+    uuid order_id FK
+    string carrier
+    string tracking_no
+    string status "processing / packed / shipped / in_transit / customs / out_for_delivery / delivered / exception"
+    string origin
+    string destination
+    string current_location
+    timestamp etd
+    timestamp eta
+    text remark
+    uuid created_by FK
+    timestamp created_at
+    timestamp updated_at
+  }
+  SHIPMENT_EVENTS {
+    uuid id PK
+    uuid shipment_id FK
+    string status
+    string location
+    text note
+    timestamp event_time
+    uuid created_by FK
+    timestamp created_at
+  }
+```
+
+要点：
+
+- `EVIDENCE_RECORDS` 按 `(order_id, chain_index)` 形成哈希链，`prev_hash` 指向前一条，可整体重放验证；
+- `SHIPMENTS` 与 `SHIPMENT_EVENTS` 支撑买卖双方共享的实时物流时间线；
+- `TIPS` 仅交易达成后可打赏，双方可见、未结算前可取消，并自动存证。

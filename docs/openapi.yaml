@@ -569,6 +569,113 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: 小费已取消 }
+  /orders/{id}/shipments:
+    post:
+      tags: [orders]
+      summary: Seller creates a shipment (seller/admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                carrier: { type: string }
+                trackingNo: { type: string }
+                origin: { type: string }
+                destination: { type: string }
+                eta: { type: integer }
+                remark: { type: string }
+      responses:
+        '201': { description: Shipment created with initial event }
+    get:
+      tags: [orders]
+      summary: List shipments of an order (visible to both parties)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Shipment list with events }
+  /orders/{id}/shipments/{shipmentId}/events:
+    post:
+      tags: [orders]
+      summary: Seller updates shipment status (auto evidence + notify buyer)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: shipmentId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [processing, packed, shipped, in_transit, customs, out_for_delivery, delivered, exception]
+                location: { type: string }
+                note: { type: string }
+      responses:
+        '200': { description: Shipment updated }
+  /evidence:
+    post:
+      tags: [evidence]
+      summary: Save a manual evidence snapshot for an order (both parties/admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId: { type: string }
+                kind: { type: string }
+                refId: { type: string }
+                snapshot: { type: object }
+      responses:
+        '201': { description: Evidence record created }
+    get:
+      tags: [evidence]
+      summary: List evidence hash chain of an order with integrity check
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: orderId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Evidence chain + verified flag }
+  /evidence/{id}/verify:
+    post:
+      tags: [evidence]
+      summary: Verify the evidence hash chain of an order
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Verification result }
   /category-requests:
     post:
       tags: [category-requests]

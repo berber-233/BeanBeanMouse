@@ -252,8 +252,54 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   created_at INTEGER NOT NULL
 );
 
+-- 第三方存证：按订单哈希链保存关键流程证据，防篡改、可验证
+CREATE TABLE IF NOT EXISTS evidence_records (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  actor_id TEXT,
+  kind TEXT NOT NULL,
+  ref_id TEXT,
+  snapshot TEXT NOT NULL DEFAULT '{}',
+  content_hash TEXT NOT NULL,
+  prev_hash TEXT NOT NULL,
+  chain_index INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+-- 货物物流单：卖家创建，买卖双方可见实时跟进
+CREATE TABLE IF NOT EXISTS shipments (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  carrier TEXT,
+  tracking_no TEXT,
+  status TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing','packed','shipped','in_transit','customs','out_for_delivery','delivered','exception')),
+  origin TEXT,
+  destination TEXT,
+  current_location TEXT,
+  etd INTEGER,
+  eta INTEGER,
+  remark TEXT,
+  created_by TEXT,
+  updated_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shipment_events (
+  id TEXT PRIMARY KEY,
+  shipment_id TEXT NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  location TEXT,
+  note TEXT,
+  event_time INTEGER NOT NULL,
+  created_by TEXT,
+  created_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_antifake_code ON anti_fake_codes(code);
 CREATE INDEX IF NOT EXISTS idx_translation_usage ON translation_usage(user_id, day);
+CREATE INDEX IF NOT EXISTS idx_evidence_order ON evidence_records(order_id, chain_index);
+CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_events_shipment ON shipment_events(shipment_id);

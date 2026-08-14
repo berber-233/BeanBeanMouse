@@ -41,7 +41,7 @@ let page;
   check('help: widget button visible', await page.locator('.help-btn').count() === 1);
   await page.click('[data-action="toggle-help"]');
   await page.waitForTimeout(150);
-  check('help: panel opens with 8 items', await page.locator('#helpPanel:visible .help-item').count() === 8);
+  check('help: panel opens with 9 items', await page.locator('#helpPanel:visible .help-item').count() === 9);
   await page.click('[data-action="close-help"]');
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
@@ -84,6 +84,16 @@ let page;
   await page.waitForTimeout(300);
   check('news: refresh works', await page.locator('.news-sync').isVisible());
   check('news: no horizontal overflow', await noOverflow());
+
+  await page.evaluate(() => { location.hash = '#/guide'; });
+  await page.waitForTimeout(300);
+  check('guide: title visible', await page.locator('.guide-head h1').isVisible());
+  check('guide: flow steps 12', await page.locator('.guide-flow li').count() === 12);
+  check('guide: incoterms table 11 rows', await page.locator('.guide-table tbody tr').count() === 11);
+  check('guide: payment terms 5', await page.locator('.guide-payment').count() === 5);
+  check('guide: risk list >= 8', await page.locator('.risk-list li').count() >= 8);
+  check('guide: disclaimer visible', await page.locator('.guide-disclaimer').isVisible());
+  check('guide: no horizontal overflow', await noOverflow());
 
   await page.evaluate(() => { location.hash = '#/news?cat=tariff'; });
   await page.waitForTimeout(300);
@@ -260,11 +270,60 @@ let page;
   check('buyer: order appears in orders tab', await page.locator('.card.panel').filter({ has: page.locator('[data-action="order-confirm"]') }).count() >= 1);
   await page.click('[data-action="order-confirm"]');
   await page.waitForTimeout(500);
-  check('buyer: tip modal opens after receipt confirm', await page.locator('#tipAmountInput').count() === 1);
+  check('buyer: receipt confirm does NOT force tip modal', await page.locator('#tipAmountInput').count() === 0);
+  check('buyer: optional tip callout shown', await page.locator('.tip-callout').count() >= 1);
+  check('buyer: evidence panel auto-sealed', await page.locator('.evidence-box').count() >= 1);
+  check('buyer: evidence chain valid badge', await page.locator('.ev-badge.ok').count() >= 1);
+  await page.click('.tip-callout [data-action="tip-open"]');
+  await page.waitForTimeout(300);
+  check('buyer: tip opens as separate window', await page.locator('#tipAmountInput').count() === 1);
+  check('buyer: tip modal has skip button', await page.locator('[data-action="tip-skip"]').count() === 1);
   await page.fill('#tipAmountInput', '25');
   await page.click('[data-action="tip-send"]');
   await page.waitForTimeout(400);
   check('buyer: tip saved on order (both sides visible)', await page.locator('[data-action="tip-cancel"]').count() >= 1);
+  check('buyer: shipment timeline visible on completed order', await page.locator('.shipment-box').count() >= 1);
+  check('buyer: tracking animation bar present', await page.locator('.track-bar').count() >= 1);
+
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 's1' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard/orders'; });
+  await page.waitForTimeout(400);
+  const shipCreateBtn = page.locator('[data-action="shipment-create"]').first();
+  check('seller: create-shipment button on new order', await shipCreateBtn.count() === 1);
+  await shipCreateBtn.click();
+  await page.waitForTimeout(300);
+  check('seller: shipment form modal opens', await page.locator('form[data-form="shipment-create-form"]').isVisible());
+  await page.fill('form[data-form="shipment-create-form"] input[name="carrier"]', 'COSCO');
+  await page.fill('form[data-form="shipment-create-form"] input[name="trackingNo"]', 'COSU9988776');
+  await page.fill('form[data-form="shipment-create-form"] input[name="origin"]', 'Ningbo, CN');
+  await page.fill('form[data-form="shipment-create-form"] input[name="destination"]', 'Rotterdam, NL');
+  await page.click('form[data-form="shipment-create-form"] button[type="submit"]');
+  await page.waitForTimeout(400);
+  check('seller: shipment created & timeline shown', await page.locator('.shipment-box').count() >= 1);
+  await page.locator('[data-action="shipment-event"]').first().click();
+  await page.waitForTimeout(300);
+  await page.selectOption('form[data-form="shipment-event-form"] select[name="status"]', 'shipped');
+  await page.fill('form[data-form="shipment-event-form"] input[name="location"]', 'Ningbo Port');
+  await page.fill('form[data-form="shipment-event-form"] input[name="note"]', 'Loaded on vessel');
+  await page.click('form[data-form="shipment-event-form"] button[type="submit"]');
+  await page.waitForTimeout(400);
+  check('seller: tracking event updated', (await page.locator('.ship-loc b').first().textContent()).includes('Ningbo Port'));
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-buyer', role: 'buyer', name: 'Thomas', email: 'buyer@demo.com', buyerCompany: 'Muller GmbH', buyerCountry: 'DE' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard/orders'; });
+  await page.waitForTimeout(400);
+  check('buyer: sees seller shipment updates', await page.locator('.shipment-box').count() >= 2);
 
   // ---- 平台管理员后台 ----
   await page.evaluate(() => {

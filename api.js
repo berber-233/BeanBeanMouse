@@ -270,6 +270,7 @@ api.orders = {
     };
     st.orders = st.orders || [];
     st.orders.unshift(o);
+    mockPushEvidence(st, o.id, 'order_create', o.id, { total: amount, currency: currency || 'USD', inquiryId });
     mockSave(st);
     return apiClone(o);
   },
@@ -304,6 +305,7 @@ api.orders = {
     if (o.status !== 'created') throw new Error('INVALID_STATUS');
     o.status = 'complete';
     o.receiptConfirmedAt = Date.now();
+    mockPushEvidence(st, id, 'receipt_confirmed', id, { status: 'complete' });
     mockSave(st);
     return apiClone(o);
   },
@@ -334,6 +336,7 @@ api.orders = {
       amount: amt, currency: o.currency || 'USD', note: String(note || '').slice(0, 200), status: 'active', createdAt: Date.now(), cancelledAt: null
     };
     o.tips.push(tip);
+    mockPushEvidence(st, id, 'tip_create', tip.id, { amount: amt, currency: o.currency || 'USD', note: String(note || '').slice(0, 200) });
     mockSave(st);
     return apiClone(tip);
   },
@@ -353,8 +356,120 @@ api.orders = {
     if (tip.status !== 'active') throw new Error('INVALID_STATUS');
     tip.status = 'cancelled';
     tip.cancelledAt = Date.now();
+    mockPushEvidence(st, id, 'tip_cancel', tipId, {});
     mockSave(st);
     return apiClone(tip);
+  }
+};
+
+/* ============================================================
+ * 服务：第三方存证（流程证据哈希链）
+ * ============================================================ */
+function mockEvidenceHash(str) {
+  let h = 0;
+  for (const ch of String(str || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h.toString(16).padStart(8, '0');
+}
+function mockPushEvidence(st, orderId, kind, refId, snapshot) {
+  st.evidence = st.evidence || [];
+  const chain = st.evidence.filter(x => x.orderId === orderId);
+  const prev = chain[chain.length - 1];
+  const rec = {
+    id: 'ev' + Date.now() + Math.random().toString(36).slice(2, 6), orderId, actorId: st.user ? st.user.id : null,
+    kind: String(kind || 'manual').slice(0, 32), refId: refId || null,
+    snapshot: snapshot || {}, prevHash: prev ? prev.contentHash : 'GENESIS',
+    chainIndex: prev ? prev.chainIndex + 1 : 0, createdAt: Date.now()
+  };
+  rec.contentHash = mockEvidenceHash(rec.prevHash + '|' + rec.chainIndex + '|' + rec.kind + '|' + JSON.stringify(rec.snapshot));
+  st.evidence.push(rec);
+  return rec;
+}
+api.evidence = {
+  async list(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/evidence?orderId=' + encodeURIComponent(orderId));
+    await apiDelay();
+    const st = mockState();
+    const items = (st.evidence || []).filter(x => x.orderId === orderId).sort((a, b) => a.chainIndex - b.chainIndex);
+    return { orderId, total: items.length, verified: true, broken: [], items: apiClone(items) };
+  },
+  async create(orderId, { kind, refId, snapshot } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/evidence', { method: 'POST', body: { orderId, kind, refId, snapshot } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    const rec = mockPushEvidence(st, orderId, kind, refId, snapshot);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async verify(id) {
+    if (api.config.mode === 'http') return apiRequest('/evidence/' + encodeURIComponent(id) + '/verify', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.evidence || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    const chain = (st.evidence || []).filter(x => x.orderId === rec.orderId).sort((a, b) => a.chainIndex - b.chainIndex);
+    let prev = 'GENESIS', broken = [];
+    for (let i = 0; i < chain.length; i++) {
+      const r = chain[i];
+      const expect = mockEvidenceHash(prev + '|' + i + '|' + r.kind + '|' + JSON.stringify(r.snapshot));
+      if (expect !== r.contentHash) broken.push(r.id);
+      prev = r.contentHash;
+    }
+    return { id, orderId: rec.orderId, chainValid: broken.length === 0, total: chain.length, broken };
+  }
+};
+
+/* ============================================================
+ * 服务：货物物流（买卖双方实时可见）
+ * ============================================================ */
+api.shipments = {
+  async list(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/shipments');
+    await apiDelay();
+    return apiClone((mockState().shipments || []).filter(s => s.orderId === orderId));
+  },
+  async create(orderId, payload = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/shipments', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    const now = Date.now();
+    const s = {
+      id: 'sh' + now, orderId, carrier: payload.carrier || '', trackingNo: payload.trackingNo || '',
+      status: 'processing', origin: payload.origin || '', destination: payload.destination || '',
+      currentLocation: payload.origin || '', etd: payload.etd || null, eta: payload.eta || null,
+      remark: payload.remark || '', createdAt: now, updatedAt: now,
+      events: [{ id: 'se' + now, status: 'processing', location: payload.origin || '', note: '物流单已创建', eventTime: now }]
+    };
+    st.shipments = st.shipments || [];
+    st.shipments.push(s);
+    mockPushEvidence(st, orderId, 'shipment_create', s.id, { carrier: payload.carrier || '', trackingNo: payload.trackingNo || '' });
+    mockSave(st);
+    return apiClone(s);
+  },
+  async addEvent(orderId, shipmentId, payload = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/shipments/' + encodeURIComponent(shipmentId) + '/events', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const s = (st.shipments || []).find(x => x.id === shipmentId && x.orderId === orderId);
+    if (!s) throw new Error('NOT_FOUND');
+    const allowed = ['processing', 'packed', 'shipped', 'in_transit', 'customs', 'out_for_delivery', 'delivered', 'exception'];
+    const status = String(payload.status || '').toLowerCase();
+    if (!allowed.includes(status)) throw new Error('INVALID_STATUS');
+    const ev = {
+      id: 'se' + Date.now(), status, location: payload.location || s.currentLocation || '',
+      note: payload.note || '', eventTime: payload.eventTime || Date.now()
+    };
+    s.events = s.events || [];
+    s.events.push(ev);
+    s.status = status;
+    s.currentLocation = ev.location;
+    s.updatedAt = Date.now();
+    mockPushEvidence(st, orderId, 'shipment_event', shipmentId, { status, location: ev.location, note: ev.note });
+    mockSave(st);
+    return apiClone(s);
   }
 };
 
