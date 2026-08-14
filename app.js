@@ -426,15 +426,21 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target;
-  if (f.dataset.form === 'inquiry-form') submitInquiry(f);
-  else if (f.dataset.form === 'product-form') submitProduct(f);
-  else if (f.dataset.form === 'reply-form') submitReply(f);
-  else if (f.dataset.form === 'quote-form') submitQuote(f);
-  else if (f.dataset.form === 'register-form') submitRegister(f);
-  else if (f.dataset.form === 'company-form') submitCompanyForm(f);
-  else if (f.dataset.form === 'catreq-form') submitCatReqForm(f);
-  else if (f.dataset.form === 'shipment-create-form') submitShipmentCreate(f);
-  else if (f.dataset.form === 'shipment-event-form') submitShipmentEvent(f);
+  const btn = f.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.classList.add('busy'); }
+  const release = () => { if (btn) { btn.disabled = false; btn.classList.remove('busy'); } };
+  let p = null;
+  if (f.dataset.form === 'inquiry-form') p = submitInquiry(f);
+  else if (f.dataset.form === 'product-form') p = submitProduct(f);
+  else if (f.dataset.form === 'reply-form') p = submitReply(f);
+  else if (f.dataset.form === 'quote-form') p = submitQuote(f);
+  else if (f.dataset.form === 'register-form') p = submitRegister(f);
+  else if (f.dataset.form === 'company-form') p = submitCompanyForm(f);
+  else if (f.dataset.form === 'catreq-form') p = submitCatReqForm(f);
+  else if (f.dataset.form === 'shipment-create-form') p = submitShipmentCreate(f);
+  else if (f.dataset.form === 'shipment-event-form') p = submitShipmentEvent(f);
+  if (p && typeof p.finally === 'function') p.finally(release);
+  else release();
 });
 
 function handleAction(el) {
@@ -464,6 +470,7 @@ function handleAction(el) {
     }
     case 'evidence-save': saveEvidenceSnapshot(id); break;
     case 'evidence-verify': verifyOrderEvidence(id); break;
+    case 'evidence-print': openEvidencePrint(id); break;
     case 'shipment-create': openShipmentCreateModal(id); break;
     case 'shipment-event': openShipmentEventModal(id, el.dataset.shipment); break;
     case 'catreq-status': setCatReqStatus(id, el.dataset.status, el.dataset.note); break;
@@ -609,10 +616,24 @@ function handleAction(el) {
 }
 
 /* ---------- 弹窗 / 提示 ---------- */
+let lastFocusedEl = null;
 function showModal(html) {
-  $('#modalRoot').innerHTML = '<div class="modal-mask"><div class="modal" data-stop="1">' + html + '</div></div>';
+  lastFocusedEl = document.activeElement;
+  $('#modalRoot').innerHTML = '<div class="modal-mask" role="dialog" aria-modal="true"><div class="modal" data-stop="1" tabindex="-1">' + html + '</div></div>';
+  const m = document.querySelector('#modalRoot .modal');
+  if (m) {
+    const focusable = m.querySelector('input, select, textarea, button, [tabindex]:not([tabindex="-1"])');
+    if (focusable) focusable.focus();
+    else m.focus();
+  }
 }
-function closeModal() { $('#modalRoot').innerHTML = ''; }
+function closeModal() {
+  $('#modalRoot').innerHTML = '';
+  if (lastFocusedEl && lastFocusedEl.focus) lastFocusedEl.focus();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#modalRoot').innerHTML) closeModal();
+});
 
 function toast(msg) {
   const root = $('#toastRoot');
@@ -1461,6 +1482,23 @@ function shipmentStatusLabel(s) {
   const v = t(key);
   return v === key ? String(s || '') : v;
 }
+function hasActiveTipFromMe(o) {
+  if (!state.user || !o) return false;
+  return (o.tips || []).some(x => x.status === 'active' && x.fromUserId === state.user.id);
+}
+function tipMascotImg(orderId) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-mascot-256.png' : 'assets/tip-mascot-empty.png';
+}
+function partyNameOf(o, side) {
+  if (!o) return '';
+  const row = side === 'buyer' ? o.buyer : o.seller;
+  if (row && row.name) return row.name;
+  const uid = side === 'buyer' ? o.buyerId : o.sellerId;
+  const u = (state.users || []).find(x => x.id === uid);
+  if (u) return u.name;
+  return side === 'buyer' ? t('partyBuyer') : t('partySeller');
+}
 function shipmentTimelineHtml(shipment) {
   const stages = shipmentStages();
   const idx = Math.max(0, stages.indexOf(shipment.status));
@@ -1492,7 +1530,7 @@ function evidenceKindLabel(kind) {
   return map[kind] || String(kind || '');
 }
 function evidencePanelHtml(o) {
-  const evs = (o.evidence && o.evidence.length ? o.evidence : (state.evidence || []).filter(e => e.orderId === o.id))
+  const evs = (o.evidence && o.evidence.length ? o.evidence : (state.evidence || []).filter(x => x.orderId === o.id))
     .slice().sort((a, b) => (a.chain_index || a.chainIndex || 0) - (b.chain_index || b.chainIndex || 0));
   const verified = o.evidenceVerified !== false;
   return '<div class="evidence-box">'
@@ -1500,19 +1538,20 @@ function evidencePanelHtml(o) {
     + '<span class="small muted">' + esc(t('evidenceHint')) + '</span></div>'
     + (evs.length ? '<div class="ev-badge ' + (verified ? 'ok' : 'bad') + '">' + (verified ? '✓ ' + t('evidenceChainValid') : '✗ ' + t('evidenceChainBroken')) + '</div>' : '')
     + (evs.length
-      ? '<ul class="ev-list">' + evs.map(e =>
-        '<li><b>' + esc(evidenceKindLabel(e.kind)) + '</b><span class="muted small">' + fmtDate(e.created_at || e.createdAt) + '</span>'
-        + '<code class="ev-hash">' + esc(String(e.content_hash || e.contentHash || '').slice(0, 16)) + '…</code></li>'
+      ? '<ul class="ev-list">' + evs.map(x =>
+        '<li><b>' + esc(evidenceKindLabel(x.kind)) + '</b><span class="muted small">' + fmtDate(x.created_at || x.createdAt) + '</span>'
+        + '<code class="ev-hash">' + esc(String(x.content_hash || x.contentHash || '').slice(0, 16)) + '…</code></li>'
       ).join('') + '</ul>'
       : '<p class="small muted ev-empty">' + t('evidenceEmpty') + '</p>')
     + '<div class="flex gap-10 ev-actions">'
     + '<button type="button" class="btn btn-sm" data-action="evidence-save" data-id="' + o.id + '">' + t('evidenceSave') + '</button>'
     + (evs.length ? '<button type="button" class="btn btn-sm" data-action="evidence-verify" data-id="' + o.id + '">' + t('evidenceVerify') + '</button>' : '')
+    + (evs.length ? '<button type="button" class="btn btn-sm" data-action="evidence-print" data-id="' + o.id + '">🖨 ' + t('evidencePrint') + '</button>' : '')
     + '</div></div>';
 }
 function tipCalloutHtml(o) {
   return '<div class="tip-callout">'
-    + '<img src="assets/tip-mascot-256.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
+    + '<img src="assets/tip-mascot-empty.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
     + '<div class="tip-callout-txt"><b>' + t('dealDone') + '</b><p>' + t('tipCallout') + '</p></div>'
     + '<div class="tip-callout-actions">'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="tip-open" data-id="' + o.id + '">' + t('tipViewBtn') + '</button>'
@@ -1525,13 +1564,17 @@ function orderCard(o) {
   const isSeller = state.user && o.sellerId === (state.user.sellerId || state.user.id);
   const tips = o.tips || [];
   const shipments = (o.shipments && o.shipments.length ? o.shipments : (state.shipments || []).filter(s => s.orderId === o.id));
-  const showTipCallout = o.status === 'complete' && !state.tipDismissed[o.id];
+  const tippedByMe = hasActiveTipFromMe(o);
+  const showTipCallout = o.status === 'complete' && !state.tipDismissed[o.id] && !tippedByMe;
+  const activeTips = tips.filter(x => x.status === 'active');
   return '<div class="card panel">'
     + '<div class="panel-head"><h2>' + esc(p ? langObj(p).title : o.productId) + '</h2><span class="status-pill ' + (o.status === 'complete' ? 'done' : o.status === 'cancelled' ? 'new' : '') + '">' + orderStatusLabel(o.status) + '</span></div>'
     + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
+    + '<p class="small muted">' + t('party') + '：' + t('partyBuyer') + ' ' + esc(partyNameOf(o, 'buyer')) + ' · ' + t('partySeller') + ' ' + esc(partyNameOf(o, 'seller')) + '</p>'
     + (showTipCallout ? tipCalloutHtml(o) : '')
-    + (tips.length ? '<div class="reply-box"><b>' + t('tipList') + '：</b><ul style="margin:6px 0 0;padding-left:18px">'
-      + tips.map(x => '<li>' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
+    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-mascot-256.png" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
+    + (tips.length ? '<div class="reply-box"><ul style="margin:6px 0 0;padding-left:18px">'
+      + tips.map(x => '<li>💛 ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
         + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')
         + '</li>').join('')
       + '</ul></div>' : '')
@@ -1539,7 +1582,7 @@ function orderCard(o) {
     + evidencePanelHtml(o)
     + '<div class="flex gap-10" style="margin-top:10px;flex-wrap:wrap">'
     + (o.status === 'created' && isBuyer ? '<button type="button" class="btn btn-primary" data-action="order-confirm" data-id="' + o.id + '">' + t('confirmReceipt') + '</button><button type="button" class="btn" data-action="order-cancel" data-id="' + o.id + '">' + t('orderStatusCancelled') + '</button>' : '')
-    + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '">💛 ' + t('tipTitle') + '</button>' : '')
+    + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '">💛 ' + (tippedByMe ? t('tipBtnAgain') : t('tipTitle')) + '</button>' : '')
     + (isSeller && !shipments.length && (o.status === 'created' || o.status === 'complete')
       ? '<button type="button" class="btn btn-primary" data-action="shipment-create" data-id="' + o.id + '">🚚 ' + t('shipmentCreate') + '</button>' : '')
     + (isSeller && shipments.length
@@ -1556,10 +1599,13 @@ function ordersBody() {
     + '</div>';
 }
 function tipModalHtml(o) {
+  const tippedByMe = hasActiveTipFromMe(o);
   return '<div class="modal-head"><h3>💛 ' + t('tipTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body">'
-    + '<div style="text-align:center;margin-bottom:8px"><img src="assets/tip-mascot-256.png" alt="' + t('tipTitle') + '" width="110" height="110" style="border-radius:16px;background:var(--bg);object-fit:cover"></div>'
-    + '<p class="muted" style="text-align:center">' + t('tipHint') + '</p>'
+    + '<div class="tip-img-wrap"><img src="' + tipMascotImg(o.id) + '" alt="' + t('tipTitle') + '" width="110" height="110" loading="lazy">'
+    + (tippedByMe ? '<span class="tip-coins">🪙🪙🪙</span>' : '')
+    + '</div>'
+    + '<p class="muted" style="text-align:center">' + (tippedByMe ? t('tipAgain') : t('tipHint')) + '</p>'
     + '<div class="field"><label>' + t('tipAmount') + ' *</label><input class="input" id="tipAmountInput" type="number" min="0.01" max="10000" step="0.01" placeholder="5"></div>'
     + '<div class="field"><label>' + t('tipNote') + '</label><input class="input" id="tipNoteInput" maxlength="200"></div>'
     + '<button type="button" class="btn btn-primary btn-block" data-action="tip-send" data-order="' + o.id + '">' + t('tipSend') + '</button>'
@@ -1640,7 +1686,14 @@ function openTipModal(id) {
 async function sendTip(orderId) {
   const amount = parseFloat(($('#tipAmountInput') || {}).value || '');
   const note = ($('#tipNoteInput') || {}).value || '';
-  try { await api.orders.tip(orderId, { amount, note }); closeModal(); toast('💛 ' + t('tipReceived') + ' ✓'); render(); }
+  try {
+    await api.orders.tip(orderId, { amount, note });
+    closeModal();
+    state.tipDismissed[orderId] = true;
+    saveState();
+    toast('💛 ' + t('tipReceived') + ' ✓');
+    render();
+  }
   catch (e) { toast(e.message || String(e)); }
 }
 async function cancelTip(orderId, tipId) {
@@ -1670,9 +1723,54 @@ async function verifyOrderEvidence(orderId) {
     toast(r.chainValid ? '✓ ' + t('evidenceChainValid') : '✗ ' + t('evidenceChainBroken'));
   } catch (e) { toast(e.message || String(e)); }
 }
-function shipmentStatusOptions() {
-  return shipmentStages().concat(['exception']).map(s =>
-    '<option value="' + s + '">' + esc(shipmentStatusLabel(s)) + '</option>'
+function buildEvidenceReport(o, evs, verified) {
+  const no = 'BBM-EV-' + String(o.id).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12) + '-' + new Date().getTime().toString(36).toUpperCase().slice(-4);
+  const dateFmt = ts => new Date(ts).toLocaleString(uiLocale());
+  return '<div class="doc" id="docSheet">'
+    + '<div class="doc-head">'
+    + '<div class="doc-brand"><b>BeanBeanMouse</b><div>' + esc(t('evReportSub')) + '</div><div class="doc-web">beanbeanmouse.com</div></div>'
+    + '<div class="doc-title"><h2>' + esc(t('evReportTitle')) + '</h2><div>' + esc(t('evReportNo')) + ' · ' + esc(no) + '</div></div>'
+    + '</div>'
+    + '<div class="doc-meta">'
+    + '<span><b>' + t('docNo') + '：</b>' + esc(no) + '</span>'
+    + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span>'
+    + '<span><b>' + t('orderTotal') + '：</b>' + (o.currency || 'USD') + ' ' + Number(o.total || 0).toLocaleString() + '</span>'
+    + '<span><b>' + t('party') + '：</b>' + esc(partyNameOf(o, 'buyer')) + ' ↔ ' + esc(partyNameOf(o, 'seller')) + '</span>'
+    + '</div>'
+    + '<table class="doc-table">'
+    + '<thead><tr><th>#</th><th>' + esc(t('evidenceTitle')) + '</th><th>' + esc(t('evidenceVerifiedAt')) + '</th><th>' + esc(t('evidenceHash')) + '</th></tr></thead>'
+    + '<tbody>' + evs.map((x, i) =>
+      '<tr><td>' + (i + 1) + '</td><td>' + esc(evidenceKindLabel(x.kind)) + '</td><td>' + dateFmt(x.created_at || x.createdAt) + '</td><td><code>' + esc(String(x.content_hash || x.contentHash || '')) + '</code></td></tr>'
+    ).join('') + '</tbody>'
+    + '</table>'
+    + '<div class="ev-report-verdict ' + (verified ? 'ok' : 'bad') + '">' + (verified ? '✓ ' + t('evReportSealed') : '✗ ' + t('evReportBroken')) + '</div>'
+    + '<div class="doc-sign"><div>' + t('docSellerSign') + '</div><div>' + t('docBuyerSign') + '</div></div>'
+    + '<div class="doc-disclaimer">' + t('evReportNote') + '</div>'
+    + '</div>';
+}
+function openEvidencePrint(orderId) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  if (!o) return;
+  const evs = (o.evidence && o.evidence.length ? o.evidence : (state.evidence || []).filter(x => x.orderId === orderId))
+    .slice().sort((a, b) => (a.chain_index || a.chainIndex || 0) - (b.chain_index || b.chainIndex || 0));
+  if (!evs.length) { toast(t('evidenceEmpty')); return; }
+  const verified = o.evidenceVerified !== false;
+  const doc = buildEvidenceReport(o, evs, verified);
+  const printEl = document.getElementById('printDoc');
+  if (printEl) printEl.innerHTML = doc;
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('shield') + ' ' + t('evidencePrint') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">' + doc
+    + '<p class="small muted">' + icon('file') + ' ' + t('evidencePrintHint') + '</p>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
+    + '</div></div>');
+}
+function shipmentStatusOptions(current) {
+  const stages = shipmentStages();
+  const idx = stages.indexOf(current);
+  const suggested = idx >= 0 && idx < stages.length - 1 ? stages[idx + 1] : (current === 'delivered' ? 'delivered' : 'exception');
+  return stages.concat(['exception']).map(s =>
+    '<option value="' + s + '"' + (s === suggested ? ' selected' : '') + '>' + esc(shipmentStatusLabel(s)) + '</option>'
   ).join('');
 }
 function openShipmentCreateModal(orderId) {
@@ -1716,7 +1814,7 @@ function openShipmentEventModal(orderId, shipmentId) {
   showModal(
     '<div class="modal-head"><h3>🚚 ' + t('shipmentAddEvent') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body"><form data-form="shipment-event-form" data-order="' + orderId + '" data-shipment="' + shipmentId + '">'
-    + '<div class="field"><label>' + t('shipmentEvent') + ' *</label><select class="input" name="status">' + shipmentStatusOptions() + '</select></div>'
+    + '<div class="field"><label>' + t('shipmentEvent') + ' *</label><select class="input" name="status">' + shipmentStatusOptions(shipment.status) + '</select></div>'
     + '<div class="field"><label>' + t('shipmentCurrent') + '</label><input class="input" name="location" maxlength="120" placeholder="' + t('shipmentLocPh') + '"></div>'
     + '<div class="field"><label>' + t('shipmentNotePh') + '</label><input class="input" name="note" maxlength="500"></div>'
     + '<button type="submit" class="btn btn-primary btn-block">' + t('shipmentAddEvent') + '</button>'

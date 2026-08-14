@@ -473,6 +473,8 @@ button { font-family: inherit; }
 }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 22px; }
 .stat-card { padding: 18px; display: flex; align-items: center; gap: 14px; }
+.dash-layout > *, .stat-grid > *, .stat-grid--two > *, .products-layout > *, .detail-layout > *, .form-grid > * { min-width: 0; }
+.stat-card, .side-user .sub, .panel-head h2 { overflow-wrap: anywhere; }
 .stat-ico { width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex: none; }
 .stat-card .n { font-size: 24px; font-weight: 800; line-height: 1.15; }
 .stat-card .l { font-size: 12.5px; color: var(--muted); }
@@ -811,10 +813,11 @@ button { font-family: inherit; }
 @media (max-width: 820px) {
   .header-inner { gap: 12px; }
   .main-nav { order: 3; width: 100%; padding-bottom: 10px; }
+  .main-nav { flex-wrap: wrap; row-gap: 6px; }
   .site-header { position: static; }
   .header-inner { height: auto; padding-top: 12px; flex-wrap: wrap; }
   .hero h1 { font-size: 28px; }
-  .products-layout, .dash-layout, .detail-layout { grid-template-columns: 1fr; }
+  .products-layout, .dash-layout, .detail-layout { grid-template-columns: minmax(0, 1fr); }
   .filter-panel, .dash-side { position: static; }
   .steps, .trust-grid { grid-template-columns: 1fr; }
   .detail-layout .gallery { order: -1; }
@@ -936,3 +939,28 @@ button { font-family: inherit; }
 /* 通用两列 */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ---------- 打赏空碗 / 金币状态 ---------- */
+.tip-img-wrap { position: relative; text-align: center; margin-bottom: 8px; }
+.tip-img-wrap img { border-radius: 16px; background: var(--bg); object-fit: cover; }
+.tip-coins { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 22px; letter-spacing: 2px; animation: coinPop .6s ease-out; pointer-events: none; }
+@keyframes coinPop { 0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.6); } 70% { transform: translateX(-50%) translateY(-2px) scale(1.08); } 100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
+.tip-list-head { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.tip-list-head img { border-radius: 10px; object-fit: cover; box-shadow: 0 2px 8px rgba(180, 130, 20, .25); }
+.tip-list-head span { font-weight: 600; font-size: 13px; color: #8A5A00; }
+
+/* ---------- 存证报告 ---------- */
+.ev-report-verdict { margin: 12px 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; text-align: center; }
+.ev-report-verdict.ok { background: #E7F8F0; color: #0E7A4F; border: 1px solid #BFEAD7; }
+.ev-report-verdict.bad { background: #FDECEA; color: #C1342A; border: 1px solid #F6C9C3; }
+.doc-badge { font-size: 30px; }
+
+/* ---------- 按钮忙碌态 ---------- */
+.btn.busy { opacity: .65; pointer-events: none; position: relative; }
+.btn.busy::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); background-size: 200% 100%; animation: busyShine 1s linear infinite; }
+@keyframes busyShine { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ---------- 无障碍：减弱动效 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
