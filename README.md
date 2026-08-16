@@ -2,8 +2,10 @@
 
 一个可直接在浏览器中运行的外贸 B2B 平台第一版原型，覆盖完整业务闭环：
 
-**品牌吉祥物（定稿）**：豆豆鼠（BeanBeanMouse）——矢量手绘 Q 版金丝熊仓鼠送货员：
+**品牌吉祥物（临时占位，待替换）**：豆豆鼠（BeanBeanMouse）——矢量手绘 Q 版金丝熊仓鼠送货员：
 圆润身形、鼓鼓颊囊、红色围巾，暖黄白配色与网站主题一致。
+当前动画与吉祥物均为占位作品，用户审阅后待由更专业的模型重制；资产清单与替换要求见
+[docs/art-assets-status.md](docs/art-assets-status.md)。
 - 主吉祥物 `assets/mascot-vector.svg`（矢量：导航 Logo / 帮助按钮 / 镖局场景头像），
   `assets/mascot-vector.png`（OG 分享图与浏览器图标）；
 - 打赏吉祥物 `assets/tip-hamster-empty.svg`（空碗）/ `assets/tip-hamster-full.svg`（金币碗，含金币弹出动画）；
