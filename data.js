@@ -777,6 +777,8 @@ const I18N = {
     tipViewBtn: '查看 / 发送小费', tipDismissBtn: '跳过，不再提示', tipDismissed: '已跳过，之后仍可在订单中打赏',
     shipmentTitle: '货物实时跟进', shipmentNoShipment: '暂无物流信息', shipmentCreate: '创建物流单', shipmentCarrier: '承运商',
     shipmentTrackingNo: '运单号', shipmentOrigin: '发货地', shipmentDestination: '目的地', shipmentEta: '预计到达', shipmentRemark: '备注（选填）',
+    shipmentMode: '运输方式', modeLand: '陆运（马车镖局）', modeSea: '海运（三帆船）', modeAir: '空运（空艇）',
+    escortTitle: '豆豆鼠镖局 · 押运中', phaseStart: '开始', phaseTransit: '运输', phaseEnd: '结束',
     shipmentCreateBtn: '创建并通知买家', shipmentAddEvent: '更新物流状态', shipmentCurrent: '当前位置', shipmentEvent: '物流事件',
     shipmentNotePh: '例如：已装船，提单已出具', shipmentLocPh: '例如：宁波港', shipmentEventAdded: '物流状态已更新',
     shpProcessing: '处理中', shpPacked: '已打包', shpShipped: '已发货', shpInTransit: '运输中', shpCustoms: '清关中',
@@ -1008,6 +1010,8 @@ const I18N = {
     shipmentTitle: 'Live cargo tracking', shipmentNoShipment: 'No shipment yet', shipmentCreate: 'Create shipment',
     shipmentCarrier: 'Carrier', shipmentTrackingNo: 'Tracking no.', shipmentOrigin: 'Origin', shipmentDestination: 'Destination',
     shipmentEta: 'ETA', shipmentRemark: 'Remark (optional)', shipmentCreateBtn: 'Create & notify buyer',
+    shipmentMode: 'Transport mode', modeLand: 'Land (horse cart)', modeSea: 'Sea (sailing ship)', modeAir: 'Air (airship)',
+    escortTitle: 'BeanBeanMouse Courier · Escorting', phaseStart: 'Start', phaseTransit: 'In transit', phaseEnd: 'Done',
     shipmentAddEvent: 'Update tracking', shipmentCurrent: 'Current location', shipmentEvent: 'Tracking events',
     shipmentNotePh: 'e.g. Loaded on vessel, B/L issued', shipmentLocPh: 'e.g. Ningbo Port', shipmentEventAdded: 'Tracking updated',
     shpProcessing: 'Processing', shpPacked: 'Packed', shpShipped: 'Shipped', shpInTransit: 'In transit', shpCustoms: 'Customs',
@@ -1229,7 +1233,7 @@ function seedDemoData() {
     shipments: [
       {
         id: 'sh1', orderId: 'o1', carrier: 'COSCO', trackingNo: 'COSU8823167',
-        status: 'in_transit', origin: 'Ningbo, CN', destination: 'Hamburg, DE',
+        mode: 'sea', status: 'in_transit', origin: 'Ningbo, CN', destination: 'Hamburg, DE',
         currentLocation: 'Singapore Port', eta: now + 22 * 864e5, remark: '',
         createdAt: now - 20 * 864e5, updatedAt: now - 2 * 864e5,
         events: [

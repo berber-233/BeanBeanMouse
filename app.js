@@ -1612,13 +1612,32 @@ function shipmentStatusLabel(s) {
   const v = t(key);
   return v === key ? String(s || '') : v;
 }
+function transportMode(shipment) {
+  if (shipment && shipment.mode) return shipment.mode;
+  const c = String((shipment && shipment.carrier) || '').toLowerCase();
+  if (/cosco|maersk|msc|oocl|evergreen|hmm|yang|sealand|vessel|sea/.test(c)) return 'sea';
+  if (/dhl|fedex|ups|sf |ems|air|tnt/.test(c)) return 'air';
+  return 'land';
+}
+function transportArt(mode) {
+  const base = 'assets/transport-' + (mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land');
+  return mode === 'land' ? base + '.jpg' : base + '.png';
+}
+function transportName(mode) {
+  return mode === 'sea' ? t('modeSea') : mode === 'air' ? t('modeAir') : t('modeLand');
+}
+function phaseOf(status) {
+  const s = shipmentStages();
+  const i = Math.max(0, s.indexOf(status));
+  return i <= 1 ? 'start' : i <= 4 ? 'transit' : 'end';
+}
 function hasActiveTipFromMe(o) {
   if (!state.user || !o) return false;
   return (o.tips || []).some(x => x.status === 'active' && x.fromUserId === state.user.id);
 }
 function tipMascotImg(orderId) {
   const o = (state.orders || []).find(x => x.id === orderId);
-  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-mascot-256.png' : 'assets/tip-mascot-empty.png';
+  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-mascot-full-real.png' : 'assets/tip-mascot-empty-real.png';
 }
 function partyNameOf(o, side) {
   if (!o) return '';
@@ -1633,16 +1652,24 @@ function shipmentTimelineHtml(shipment) {
   const stages = shipmentStages();
   const idx = Math.max(0, stages.indexOf(shipment.status));
   const pct = Math.round(idx / (stages.length - 1) * 100);
+  const mode = transportMode(shipment);
+  const phase = phaseOf(shipment.status);
+  const phaseIdx = phase === 'start' ? 0 : phase === 'transit' ? 1 : 2;
+  const phasePct = Math.round(phaseIdx / 2 * 100);
   const evs = (shipment.events || []).slice().sort((a, b) => (a.event_time || a.createdAt || 0) - (b.event_time || b.createdAt || 0));
   return '<div class="shipment-box">'
     + '<div class="ship-head"><b>' + icon('box') + ' ' + t('shipmentTitle') + '</b>'
     + '<span class="status-pill ' + (shipment.status === 'delivered' ? 'done' : shipment.status === 'exception' ? 'rej' : 'pend') + '">' + esc(shipmentStatusLabel(shipment.status)) + '</span></div>'
-    + ((shipment.carrier || shipment.tracking_no || shipment.trackingNo)
-      ? '<div class="ship-meta muted">' + esc(shipment.carrier || '') + (shipment.tracking_no || shipment.trackingNo ? ' · ' + esc(shipment.tracking_no || shipment.trackingNo) : '') + '</div>' : '')
-    + '<div class="track-wrap">'
-    + '<div class="track-bar"><div class="track-fill" style="width:' + pct + '%"></div><div class="track-pkg" style="left:calc(' + pct + '% - 18px)">' + (shipment.status === 'delivered' ? '🎁' : '🚚') + '</div></div>'
-    + '<div class="track-stages">' + stages.map((s, i) => '<span class="track-dot' + (i <= idx ? ' on' : '') + '" title="' + esc(shipmentStatusLabel(s)) + '"></span>').join('') + '</div>'
-    + '</div>'
+    + '<div class="escort-head"><img src="assets/mascot-real-256.png" alt="" width="40" height="40" loading="lazy">'
+    + '<div class="escort-txt"><b>' + t('escortTitle') + '</b><span class="small muted">' + esc(transportName(mode)) + (shipment.carrier || shipment.tracking_no || shipment.trackingNo ? ' · ' + esc(shipment.carrier || shipment.tracking_no || shipment.trackingNo) : '') + '</span></div>'
+    + '<span class="chip sub-chip">' + esc(transportName(mode)) + '</span></div>'
+    + '<div class="transport-scene-wrap"><img class="transport-scene" src="' + transportArt(mode) + '" alt="' + esc(transportName(mode)) + '" loading="lazy">'
+    + '<div class="escort-pkg" style="left:calc(' + pct + '% - 22px)">📦</div>'
+    + '<div class="transport-scene-label">' + esc(transportName(mode)) + '</div></div>'
+    + '<div class="phase-bar"><span class="phase' + (phase === 'start' ? ' on' : '') + '">' + t('phaseStart') + '</span>'
+    + '<span class="phase' + (phase === 'transit' ? ' on' : '') + '">' + t('phaseTransit') + '</span>'
+    + '<span class="phase' + (phase === 'end' ? ' on' : '') + '">' + t('phaseEnd') + '</span>'
+    + '<div class="phase-fill" style="width:' + phasePct + '%"></div></div>'
     + '<div class="ship-loc"><span>' + t('shipmentCurrent') + '</span><b>' + esc(shipment.current_location || shipment.currentLocation || shipment.origin || '—') + '</b></div>'
     + (shipment.eta ? '<div class="ship-meta muted">' + t('shipmentEta') + '：' + fmtDate(shipment.eta) + '</div>' : '')
     + (evs.length ? '<ul class="ship-events">' + evs.slice(-4).reverse().map(ev =>
@@ -1681,7 +1708,7 @@ function evidencePanelHtml(o) {
 }
 function tipCalloutHtml(o) {
   return '<div class="tip-callout">'
-    + '<img src="assets/tip-mascot-empty.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
+    + '<img src="assets/tip-mascot-empty-real.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
     + '<div class="tip-callout-txt"><b>' + t('dealDone') + '</b><p>' + t('tipCallout') + '</p></div>'
     + '<div class="tip-callout-actions">'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="tip-open" data-id="' + o.id + '">' + t('tipViewBtn') + '</button>'
@@ -1702,7 +1729,7 @@ function orderCard(o) {
     + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
     + '<p class="small muted">' + t('party') + '：' + t('partyBuyer') + ' ' + esc(partyNameOf(o, 'buyer')) + ' · ' + t('partySeller') + ' ' + esc(partyNameOf(o, 'seller')) + '</p>'
     + (showTipCallout ? tipCalloutHtml(o) : '')
-    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-mascot-256.png" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
+    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-mascot-full-real.png" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
     + (tips.length ? '<div class="reply-box"><ul style="margin:6px 0 0;padding-left:18px">'
       + tips.map(x => '<li>💛 ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
         + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')
@@ -1938,6 +1965,7 @@ function openShipmentCreateModal(orderId) {
     + (p ? '<p class="small muted">' + esc(langObj(p).title) + '</p>' : '')
     + '<div class="field"><label>' + t('shipmentCarrier') + '</label><input class="input" name="carrier" maxlength="80" placeholder="COSCO / DHL / FedEx…"></div>'
     + '<div class="field"><label>' + t('shipmentTrackingNo') + '</label><input class="input" name="trackingNo" maxlength="80"></div>'
+    + '<div class="field"><label>' + t('shipmentMode') + '</label><select class="input" name="mode"><option value="land">' + t('modeLand') + '</option><option value="sea">' + t('modeSea') + '</option><option value="air">' + t('modeAir') + '</option></select></div>'
     + '<div class="grid-2"><div class="field"><label>' + t('shipmentOrigin') + '</label><input class="input" name="origin" maxlength="120" placeholder="Ningbo, CN"></div>'
     + '<div class="field"><label>' + t('shipmentDestination') + '</label><input class="input" name="destination" maxlength="120" placeholder="Hamburg, DE"></div></div>'
     + '<div class="field"><label>' + t('shipmentEta') + '</label><input class="input" name="eta" type="date"></div>'
@@ -1956,6 +1984,7 @@ async function submitShipmentCreate(form) {
   const payload = {
     carrier: form.carrier.value.trim(),
     trackingNo: form.trackingNo.value.trim(),
+    mode: form.mode ? form.mode.value : 'land',
     origin: form.origin.value.trim(),
     destination: form.destination.value.trim(),
     eta,

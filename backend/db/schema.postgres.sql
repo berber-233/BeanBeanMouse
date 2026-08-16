@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS shipments (
   order_id UUID NOT NULL REFERENCES orders(id),
   carrier TEXT,
   tracking_no TEXT,
+  mode TEXT NOT NULL DEFAULT 'land' CHECK (mode IN ('land','sea','air')),
   status TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing','packed','shipped','in_transit','customs','out_for_delivery','delivered','exception')),
   origin TEXT,
   destination TEXT,

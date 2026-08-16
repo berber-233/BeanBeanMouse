@@ -757,9 +757,10 @@ async function route(m, segs, q, req, res) {
       const now = Date.now();
       const origin = String(body.origin || '').slice(0, 120);
       const destination = String(body.destination || '').slice(0, 120);
+      const mode = ['land', 'sea', 'air'].includes(body.mode) ? body.mode : 'land';
       run(
-        'INSERT INTO shipments (id, order_id, carrier, tracking_no, status, origin, destination, current_location, etd, eta, remark, created_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        sid, b, String(body.carrier || '').slice(0, 80), String(body.trackingNo || '').slice(0, 80),
+        'INSERT INTO shipments (id, order_id, carrier, tracking_no, mode, status, origin, destination, current_location, etd, eta, remark, created_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        sid, b, String(body.carrier || '').slice(0, 80), String(body.trackingNo || '').slice(0, 80), mode,
         'processing', origin, destination, origin, body.etd || null, body.eta || null,
         String(body.remark || '').slice(0, 500), u.id, now, now
       );

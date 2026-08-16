@@ -901,6 +901,19 @@ button { font-family: inherit; }
 .ship-events li:first-child .ev-dot { animation: pulse 1.4s infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46,124,246,.4); } 70% { box-shadow: 0 0 0 7px rgba(46,124,246,0); } 100% { box-shadow: 0 0 0 0 rgba(46,124,246,0); } }
 
+/* ---------- 仓鼠镖局：运输场景动画 ---------- */
+.escort-head { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.escort-head img { border-radius: 50%; object-fit: cover; flex: none; box-shadow: 0 2px 8px rgba(120,84,20,.25); }
+.escort-txt { flex: 1; min-width: 0; }
+.escort-txt b { display: block; font-size: 13.5px; color: #8A4B08; }
+.transport-scene-wrap { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); margin: 4px 0 8px; }
+.transport-scene { width: 100%; height: 132px; object-fit: cover; display: block; }
+.escort-pkg { position: absolute; bottom: 10px; font-size: 26px; line-height: 1; animation: pkgBob 1.1s ease-in-out infinite; filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); transition: left .6s ease; }
+.transport-scene-label { position: absolute; top: 8px; left: 8px; background: rgba(74,46,8,.72); color: #FFE9BE; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; backdrop-filter: blur(4px); }
+.phase-bar { position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin: 8px 0 4px; }
+.phase { text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); background: #F5EFDD; border: 1px solid var(--border); border-radius: 99px; padding: 4px 0; transition: all .3s; }
+.phase.on { background: linear-gradient(135deg, var(--primary-600), var(--primary)); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(200,134,11,.35); }
+
 /* ---------- 第三方存证 ---------- */
 .evidence-box { border: 1px solid #E4EAF6; border-radius: 14px; padding: 12px 14px; margin-top: 12px; background: #FDFEFF; }
 .ev-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }

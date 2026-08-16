@@ -288,9 +288,9 @@ let shipmentId;
 {
   const r = await req('/orders/' + orderId + '/shipments', {
     method: 'POST', token: sellerToken,
-    body: { carrier: 'COSCO', trackingNo: 'COSU1234567', origin: 'Ningbo, CN', destination: 'Hamburg, DE', eta: Date.now() + 30 * 864e5 }
+    body: { carrier: 'COSCO', trackingNo: 'COSU1234567', mode: 'sea', origin: 'Ningbo, CN', destination: 'Hamburg, DE', eta: Date.now() + 30 * 864e5 }
   });
-  check('卖家创建物流单 -> 201 processing', r.status === 201 && r.data.status === 'processing' && r.data.events.length === 1);
+  check('卖家创建物流单 -> 201 processing (sea)', r.status === 201 && r.data.status === 'processing' && r.data.mode === 'sea' && r.data.events.length === 1);
   shipmentId = r.data.id;
 }
 {

@@ -41,6 +41,7 @@ ensureColumns('companies', {
   reject_reason: 'TEXT'
 });
 ensureColumns('products', { sub: 'TEXT' });
+ensureColumns('shipments', { mode: 'TEXT' });
 ensureColumns('orders', {
   quote_id: 'TEXT REFERENCES quotes(id)',
   confirmed_at: 'INTEGER',

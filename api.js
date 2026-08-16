@@ -438,6 +438,7 @@ api.shipments = {
     const now = Date.now();
     const s = {
       id: 'sh' + now, orderId, carrier: payload.carrier || '', trackingNo: payload.trackingNo || '',
+      mode: ['land', 'sea', 'air'].includes(payload.mode) ? payload.mode : 'land',
       status: 'processing', origin: payload.origin || '', destination: payload.destination || '',
       currentLocation: payload.origin || '', etd: payload.etd || null, eta: payload.eta || null,
       remark: payload.remark || '', createdAt: now, updatedAt: now,
