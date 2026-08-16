@@ -2,12 +2,12 @@
 
 一个可直接在浏览器中运行的外贸 B2B 平台第一版原型，覆盖完整业务闭环：
 
-**品牌吉祥物（定稿）**：豆豆鼠（BeanBeanMouse）——AI 绘制的 Q 版仓鼠送货员：
-圆润身形、鼓鼓颊囊，背着塞满货物的运货袋，暖米色背景与网站浅色基调融为一体。
-主视觉 `assets/mascot.jpg`（另有 `assets/mascot-source.jpg` 高清原图）、
-圆形图标 `assets/mascot-icon.png`（仓鼠头像）；用于导航 Logo、浏览器图标，
-并固定在网站右下角——
-点击吉祥物可打开"网站使用帮助"。
+**品牌吉祥物（定稿）**：豆豆鼠（BeanBeanMouse）——矢量手绘 Q 版金丝熊仓鼠送货员：
+圆润身形、鼓鼓颊囊、红色围巾，暖黄白配色与网站主题一致。
+- 主吉祥物 `assets/mascot-vector.svg`（矢量：导航 Logo / 帮助按钮 / 镖局场景头像），
+  `assets/mascot-vector.png`（OG 分享图与浏览器图标）；
+- 打赏吉祥物 `assets/tip-hamster-empty.svg`（空碗）/ `assets/tip-hamster-full.svg`（金币碗，含金币弹出动画）；
+- 点击网站右下角吉祥物可打开"网站使用帮助"。
 
 **买家链路**：搜索 / 筛选产品 → 查看详情 → 发送询盘 → 在我的询盘查看供应商回复
 **卖家链路**：发布产品（预发布）→ 等待平台审核 → 上架后接收询盘 → 回复买家 → 数据总览
@@ -94,7 +94,7 @@
 - 前端数据层 [api.js](api.js)：页面统一通过 `window.api` 访问数据，
   当前为 mock（localStorage 模拟），接真实后端时改 `API_CONFIG.mode='http'` 即可
 
-验证：`test/api-smoke.cjs`（16 项断言）+ `test/verify.cjs`（102 项页面回归）。
+验证：`test/api-smoke.cjs`（16 项断言）+ `test/verify.cjs`（158 项页面回归）。
 
 ## 说明
 
@@ -120,4 +120,16 @@
 - **货物实时跟进**：卖家创建物流单并按节点更新（处理中→已打包→已发货→运输中→清关中→派送中→已签收/异常），
   买卖双方共享动画进度条 + 事件时间线；物流更新自动通知对方并存证。
 - **货代功能预留**：分阶段路线图见 [docs/freight-forwarding-roadmap.md](docs/freight-forwarding-roadmap.md)。
-- 测试：后端 85 项、前端 130+ 项全部通过；API 文档已同步（[docs/openapi.yaml](docs/openapi.yaml)）。
+- 测试：后端 93 项、前端 158 项全部通过；API 文档已同步（[docs/openapi.yaml](docs/openapi.yaml)）。
+
+## 2026-08-16 吉祥物矢量定稿 + Flash 式运输动画
+
+- **吉祥物矢量重做**：弃用 AI 生成写实图，改为 SVG 手绘矢量（`assets/mascot-vector.svg`），
+  角色保持金丝熊仓鼠 + 红围巾定稿形象，仅装饰变化；打赏改用空碗/金币碗两张矢量图。
+- **Flash 式运输小动画**：货物实时跟进场景改为纯 SVG + SMIL 手绘动画（浏览器原生、无需插件），
+  每 12 秒循环"出发 → 运输中 → 到达"三幕：
+  - 陆运 `assets/transport-land-anim.svg`：仓鼠骑手驾马车，马腿奔跑、车轮旋转、道路标线滚动、旗帜飘动、到达彩带；
+  - 海运 `assets/transport-sea-anim.svg`：三桅帆船破浪前行，帆幕鼓风、海鸥拍翅、灯塔光束、水花星光；
+  - 空运 `assets/transport-air-anim.svg`：仓鼠空艇吊运货箱，螺旋桨旋转、货网摆动、云层分层漂移、降落平台。
+  画风统一为圆润描边 + 金黄/奶油/暖棕，与网站黄白暖色主题呼应。
+- 测试：后端 93 项、前端 158 项全部通过；设计可换色/换装，后续可继续扩展船型、季节与节日皮肤。

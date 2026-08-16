@@ -1620,8 +1620,7 @@ function transportMode(shipment) {
   return 'land';
 }
 function transportArt(mode) {
-  const base = 'assets/transport-' + (mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land');
-  return mode === 'land' ? base + '.jpg' : base + '.png';
+  return 'assets/transport-' + (mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land') + '-anim.svg';
 }
 function transportName(mode) {
   return mode === 'sea' ? t('modeSea') : mode === 'air' ? t('modeAir') : t('modeLand');
@@ -1637,7 +1636,7 @@ function hasActiveTipFromMe(o) {
 }
 function tipMascotImg(orderId) {
   const o = (state.orders || []).find(x => x.id === orderId);
-  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-mascot-full-real.png' : 'assets/tip-mascot-empty-real.png';
+  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-hamster-full.svg' : 'assets/tip-hamster-empty.svg';
 }
 function partyNameOf(o, side) {
   if (!o) return '';
@@ -1660,7 +1659,7 @@ function shipmentTimelineHtml(shipment) {
   return '<div class="shipment-box">'
     + '<div class="ship-head"><b>' + icon('box') + ' ' + t('shipmentTitle') + '</b>'
     + '<span class="status-pill ' + (shipment.status === 'delivered' ? 'done' : shipment.status === 'exception' ? 'rej' : 'pend') + '">' + esc(shipmentStatusLabel(shipment.status)) + '</span></div>'
-    + '<div class="escort-head"><img src="assets/mascot-real-256.png" alt="" width="40" height="40" loading="lazy">'
+    + '<div class="escort-head"><img src="assets/mascot-vector.svg" alt="" width="40" height="40" loading="lazy">'
     + '<div class="escort-txt"><b>' + t('escortTitle') + '</b><span class="small muted">' + esc(transportName(mode)) + (shipment.carrier || shipment.tracking_no || shipment.trackingNo ? ' · ' + esc(shipment.carrier || shipment.tracking_no || shipment.trackingNo) : '') + '</span></div>'
     + '<span class="chip sub-chip">' + esc(transportName(mode)) + '</span></div>'
     + '<div class="transport-scene-wrap"><img class="transport-scene" src="' + transportArt(mode) + '" alt="' + esc(transportName(mode)) + '" loading="lazy">'
@@ -1708,7 +1707,7 @@ function evidencePanelHtml(o) {
 }
 function tipCalloutHtml(o) {
   return '<div class="tip-callout">'
-    + '<img src="assets/tip-mascot-empty-real.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
+    + '<img src="assets/tip-hamster-empty.svg" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
     + '<div class="tip-callout-txt"><b>' + t('dealDone') + '</b><p>' + t('tipCallout') + '</p></div>'
     + '<div class="tip-callout-actions">'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="tip-open" data-id="' + o.id + '">' + t('tipViewBtn') + '</button>'
@@ -1729,7 +1728,7 @@ function orderCard(o) {
     + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
     + '<p class="small muted">' + t('party') + '：' + t('partyBuyer') + ' ' + esc(partyNameOf(o, 'buyer')) + ' · ' + t('partySeller') + ' ' + esc(partyNameOf(o, 'seller')) + '</p>'
     + (showTipCallout ? tipCalloutHtml(o) : '')
-    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-mascot-full-real.png" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
+    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-hamster-full.svg" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
     + (tips.length ? '<div class="reply-box"><ul style="margin:6px 0 0;padding-left:18px">'
       + tips.map(x => '<li>💛 ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
         + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')

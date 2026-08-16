@@ -1,0 +1,254 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 240" role="img" aria-label="BeanBeanMouse courier - sea transport: hamster on a three-masted sailing ship">
+  <title>BeanBeanMouse courier - sea transport</title>
+  <defs>
+    <linearGradient id="sSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#CFE8F7"/>
+      <stop offset="55%" stop-color="#FBE9CC"/>
+      <stop offset="100%" stop-color="#FDE2B2"/>
+    </linearGradient>
+    <radialGradient id="sSun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFF8DC"/>
+      <stop offset="60%" stop-color="#FFE38E"/>
+      <stop offset="100%" stop-color="#FFD34E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sHull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B97B3F"/>
+      <stop offset="100%" stop-color="#7E4E25"/>
+    </linearGradient>
+    <linearGradient id="sSail" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FFFDF4"/>
+      <stop offset="100%" stop-color="#F4E7C8"/>
+    </linearGradient>
+    <radialGradient id="sFur" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#F5BC62"/>
+      <stop offset="100%" stop-color="#E0912F"/>
+    </radialGradient>
+    <linearGradient id="sScarf" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#D94A3A"/>
+      <stop offset="100%" stop-color="#E5553D"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sky -->
+  <rect x="0" y="0" width="800" height="240" fill="url(#sSky)"/>
+
+  <!-- sun -->
+  <g transform="translate(120 50)">
+    <g>
+      <animateTransform attributeName="transform" type="scale" values="1;1.07;1" dur="4.2s" repeatCount="indefinite"/>
+      <circle r="48" fill="url(#sSun)"/>
+      <circle r="19" fill="#FFE38E"/>
+    </g>
+  </g>
+
+  <!-- clouds -->
+  <g fill="#FFFFFF" opacity=".92">
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="880 0;-180 0" dur="34s" repeatCount="indefinite"/>
+      <ellipse cx="0" cy="42" rx="46" ry="15"/>
+      <ellipse cx="36" cy="34" rx="30" ry="12"/>
+      <ellipse cx="-34" cy="35" rx="26" ry="10"/>
+      <ellipse cx="360" cy="52" rx="50" ry="15"/>
+      <ellipse cx="398" cy="44" rx="32" ry="12"/>
+      <ellipse cx="326" cy="45" rx="26" ry="10"/>
+      <ellipse cx="720" cy="38" rx="44" ry="13"/>
+      <ellipse cx="756" cy="31" rx="28" ry="11"/>
+      <ellipse cx="690" cy="32" rx="24" ry="9"/>
+    </g>
+  </g>
+
+  <!-- ocean back layer -->
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0;-160 0" dur="6s" repeatCount="indefinite"/>
+    <path d="M-320 150 Q-280 136 -240 150 T-160 150 T-80 150 T0 150 T80 150 T160 150 T240 150 T320 150 T400 150 T480 150 T560 150 T640 150 T720 150 T800 150 T880 150 T960 150 L960 176 L-320 176 Z" fill="#A8D7EA" opacity=".9"/>
+  </g>
+  <!-- ocean front layer -->
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0;-120 0" dur="3.6s" repeatCount="indefinite"/>
+    <path d="M-360 176 Q-330 166 -300 176 T-180 176 T-60 176 T60 176 T180 176 T300 176 T420 176 T540 176 T660 176 T780 176 T900 176 T1020 176 L1020 202 L-360 202 Z" fill="#8CCBE4"/>
+    <path d="M-360 176 Q-330 166 -300 176 T-180 176 T-60 176 T60 176 T180 176 T300 176 T420 176 T540 176 T660 176 T780 176 T900 176 T1020 176 L1020 178 L-360 178 Z" fill="#EAF6FB" opacity=".8"/>
+  </g>
+
+  <!-- destination island + lighthouse -->
+  <g>
+    <path d="M704 200 Q 720 184 746 186 Q 772 184 792 200 Z" fill="#E3C08E"/>
+    <path d="M726 186 L 726 132 L 746 132 L 746 186 Z" fill="#FFF6E3" stroke="#D8A96F" stroke-width="2"/>
+    <path d="M720 186 L 724 160 L 752 160 L 756 186 Z" fill="#E5553D"/>
+    <path d="M726 132 L 730 108 L 742 108 L 746 132 Z" fill="#E5553D"/>
+    <rect x="730" y="92" width="12" height="18" rx="4" fill="#FFF3D6" stroke="#D8A96F" stroke-width="2"/>
+    <path d="M742 101 L 776 92 L 742 84 Z" fill="#FFE9A8" opacity=".85">
+      <animateTransform attributeName="transform" type="rotate" values="0 742 101;3 742 101;0 742 101;-3 742 101;0 742 101" keyTimes="0;.25;.5;.75;1" dur="2.4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".85;.45;.85" dur="2.2s" repeatCount="indefinite"/>
+    </path>
+    <rect x="745" y="88" width="3" height="22" rx="1.5" fill="#8F5A27"/>
+    <path d="M748 90 L762 84 L748 78 Z" fill="#4F9E4F">
+      <animateTransform attributeName="transform" type="skewX" values="0;-8;0" dur=".9s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- arrival confetti -->
+  <g>
+    <rect x="730" y="34" width="7" height="7" rx="2" fill="#E5553D">
+      <animateTransform attributeName="transform" type="translate" values="0 0;0 44;0 44" keyTimes="0;.5;1" dur="2.3s" begin="8.7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.2;.3;.72;.92;1" dur="12s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="764" y="28" width="6" height="6" rx="2" fill="#F2B705">
+      <animateTransform attributeName="transform" type="translate" values="0 0;0 50;0 50" keyTimes="0;.5;1" dur="2.5s" begin="9s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.2;.3;.72;.92;1" dur="12s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="748" cy="24" r="3.2" fill="#4F9E4F">
+      <animateTransform attributeName="transform" type="translate" values="0 0;-7 48;-7 48" keyTimes="0;.5;1" dur="2s" begin="9.3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;.2;.3;.72;.92;1" dur="12s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- seagulls -->
+  <g stroke="#5A6B7A" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="-60 0;860 0" dur="9s" repeatCount="indefinite"/>
+      <g transform="translate(0 58)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1 .5;1 1" dur=".7s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 7 -11 16 -2 Q 10 -4 6 1 Q 3 -3 0 0 Z"/>
+        </g>
+      </g>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="-120 0;760 0" dur="12s" begin="2s" repeatCount="indefinite"/>
+      <g transform="translate(0 96)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1 .5;1 1" dur=".8s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 6 -9 14 -2 Q 9 -3 5 1 Q 3 -3 0 0 Z"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- water sparkles -->
+  <g fill="#FFFFFF">
+    <path d="M170 168 Q171.8 164 176 162.4 Q171.8 160.8 170 157 Q168.2 160.8 164 162.4 Q168.2 164 170 168 Z">
+      <animate attributeName="opacity" values="0;.9;0" dur="2.1s" begin="0s" repeatCount="indefinite"/>
+    </path>
+    <path d="M420 178 Q421.8 174 426 172.4 Q421.8 170.8 420 167 Q418.2 170.8 414 172.4 Q418.2 174 420 178 Z">
+      <animate attributeName="opacity" values="0;.85;0" dur="2.5s" begin="1s" repeatCount="indefinite"/>
+    </path>
+    <path d="M620 172 Q621.8 168 626 166.4 Q621.8 164.8 620 161 Q618.2 164.8 614 166.4 Q618.2 168 620 172 Z">
+      <animate attributeName="opacity" values="0;.9;0" dur="1.9s" begin=".5s" repeatCount="indefinite"/>
+    </path>
+    <path d="M300 196 Q301.8 192 306 190.4 Q301.8 188.8 300 185 Q298.2 188.8 294 190.4 Q298.2 192 300 196 Z">
+      <animate attributeName="opacity" values="0;.8;0" dur="2.3s" begin="1.5s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- ============ ship journey group ============ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="-80 0;-80 0;660 0;660 0;-80 0" keyTimes="0;.16;.72;.96;1" dur="12s" repeatCount="indefinite"/>
+    <!-- bob -->
+    <g>
+      <animateTransform attributeName="transform" type="rotate" values="0 0 150;2.2 0 150;0 0 150;-2.2 0 150;0 0 150" keyTimes="0;.25;.5;.75;1" dur="3s" repeatCount="indefinite"/>
+
+      <!-- wake -->
+      <g fill="#EAF6FB" opacity="0">
+        <animate attributeName="opacity" values="0;0;.7;.5;0" keyTimes="0;.2;.4;.62;1" dur="12s" repeatCount="indefinite"/>
+        <ellipse cx="-205" cy="176" rx="26" ry="5"/>
+        <ellipse cx="-232" cy="186" rx="18" ry="4"/>
+      </g>
+
+      <!-- hull -->
+      <path d="M-185 142 C -160 188 -60 192 0 192 C 60 192 160 188 185 142 L 150 140 C 70 158 -70 158 -150 140 Z" fill="url(#sHull)" stroke="#5F3A1B" stroke-width="3"/>
+      <path d="M-150 140 C -70 158 70 158 150 140 L 150 146 C 70 164 -70 164 -150 146 Z" fill="#E0B06A"/>
+      <ellipse cx="0" cy="141" rx="162" ry="9" fill="#B97B3F" stroke="#5F3A1B" stroke-width="2.5"/>
+      <line x1="182" y1="143" x2="216" y2="132" stroke="#5F3A1B" stroke-width="4" stroke-linecap="round"/>
+
+      <!-- cargo on deck -->
+      <rect x="-62" y="110" width="70" height="30" rx="6" fill="#D9A05F" stroke="#8F5A27" stroke-width="2.5"/>
+      <rect x="-62" y="110" width="70" height="9" rx="4" fill="#EBC07E"/>
+      <rect x="-34" y="110" width="7" height="30" fill="#8F5A27" opacity=".7"/>
+      <rect x="12" y="116" width="46" height="24" rx="6" fill="#C9894A" stroke="#8F5A27" stroke-width="2.5"/>
+      <rect x="26" y="116" width="6" height="24" fill="#8F5A27" opacity=".7"/>
+      <path d="M-14 110 L -14 92 L 38 92 L 38 110 Z" fill="none" stroke="#8F5A27" stroke-width="2" stroke-dasharray="4 3"/>
+
+      <!-- masts -->
+      <line x1="-105" y1="140" x2="-105" y2="38" stroke="#8F5A27" stroke-width="5" stroke-linecap="round"/>
+      <line x1="0" y1="140" x2="0" y2="28" stroke="#8F5A27" stroke-width="5" stroke-linecap="round"/>
+      <line x1="105" y1="140" x2="105" y2="38" stroke="#8F5A27" stroke-width="5" stroke-linecap="round"/>
+      <line x1="-105" y1="140" x2="105" y2="140" stroke="#8F5A27" stroke-width="2.5" stroke-dasharray="5 4" opacity=".6"/>
+
+      <!-- sails -->
+      <g transform="translate(-105 70)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1.12 .97;1 1" dur="2.4s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 32 8 44 46 Q 22 56 0 48 Z" fill="url(#sSail)" stroke="#D9C9A8" stroke-width="2"/>
+        </g>
+      </g>
+      <g transform="translate(-105 120)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1.1 .97;1 1" dur="2.8s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 38 10 52 40 Q 26 48 0 42 Z" fill="url(#sSail)" stroke="#D9C9A8" stroke-width="2"/>
+        </g>
+      </g>
+      <g transform="translate(0 62)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1.13 .97;1 1" dur="2.2s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 34 8 46 48 Q 23 58 0 50 Z" fill="url(#sSail)" stroke="#D9C9A8" stroke-width="2"/>
+        </g>
+      </g>
+      <g transform="translate(0 118)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1.11 .97;1 1" dur="2.6s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 40 10 54 42 Q 27 50 0 44 Z" fill="url(#sSail)" stroke="#D9C9A8" stroke-width="2"/>
+        </g>
+      </g>
+      <g transform="translate(105 70)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1.12 .97;1 1" dur="2.5s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 32 8 44 46 Q 22 56 0 48 Z" fill="url(#sSail)" stroke="#D9C9A8" stroke-width="2"/>
+        </g>
+      </g>
+      <g transform="translate(105 120)">
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="1 1;1.1 .97;1 1" dur="2.9s" repeatCount="indefinite"/>
+          <path d="M0 0 Q 38 10 52 40 Q 26 48 0 42 Z" fill="url(#sSail)" stroke="#D9C9A8" stroke-width="2"/>
+        </g>
+      </g>
+
+      <!-- mast flags -->
+      <path d="M-105 38 L-86 30 L-105 22 Z" fill="#E5553D">
+        <animateTransform attributeName="transform" type="skewX" values="0;-10;0" dur=".9s" repeatCount="indefinite"/>
+      </path>
+      <path d="M0 28 L19 20 L0 12 Z" fill="#4F9E4F">
+        <animateTransform attributeName="transform" type="skewX" values="0;-10;0" dur=".8s" repeatCount="indefinite"/>
+      </path>
+      <path d="M105 38 L124 30 L105 22 Z" fill="#F2B705">
+        <animateTransform attributeName="transform" type="skewX" values="0;-10;0" dur="1s" repeatCount="indefinite"/>
+      </path>
+
+      <!-- hamster at bow -->
+      <g transform="translate(164 112)">
+        <g>
+          <animateTransform attributeName="transform" type="translate" values="0 0;0 -2.5;0 0" dur="1.5s" repeatCount="indefinite"/>
+          <circle cx="-12" cy="-24" r="7.5" fill="url(#sFur)"/>
+          <circle cx="4" cy="-25" r="7.5" fill="url(#sFur)"/>
+          <ellipse cx="-11" cy="-22.5" r="3.6" fill="#F7C6A0"/>
+          <ellipse cx="5" cy="-23.5" r="3.6" fill="#F7C6A0"/>
+          <circle cx="-4" cy="-7" r="21" fill="url(#sFur)"/>
+          <ellipse cx="-11" cy="-2" rx="5" ry="3.8" fill="#F8A79B" opacity=".6"/>
+          <ellipse cx="4" cy="-2" rx="5" ry="3.8" fill="#F8A79B" opacity=".6"/>
+          <circle cx="-10" cy="-14" r="4.8" fill="#FFFFFF"/>
+          <circle cx="3" cy="-14" r="4.8" fill="#FFFFFF"/>
+          <circle cx="-9" cy="-13" r="2.3" fill="#2B1B0E"/>
+          <circle cx="2" cy="-13" r="2.3" fill="#2B1B0E"/>
+          <circle cx="-8.4" cy="-14.6" r=".9" fill="#FFFFFF"/>
+          <circle cx="2.8" cy="-14.6" r=".9" fill="#FFFFFF"/>
+          <ellipse cx="-3.5" cy="-9.5" rx="2.4" ry="1.9" fill="#6B4A16"/>
+          <path d="M-14 -4 Q-4 4 6 -4" stroke="#6B4A16" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M-20 4 Q-4 12 13 4 L11 12 Q-4 20 -18 12 Z" fill="url(#sScarf)"/>
+          <!-- waving paw -->
+          <ellipse cx="15" cy="-2" rx="6" ry="4.4" fill="#F5BC62" stroke="#E0912F" stroke-width="1.5">
+            <animateTransform attributeName="transform" type="rotate" values="0 15 -2;16 15 -2;0 15 -2" dur="1.3s" repeatCount="indefinite"/>
+          </ellipse>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

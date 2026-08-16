@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Hamster with bowl full of coins">
+  <defs>
+    <radialGradient id="fur" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#F5BC62"/>
+      <stop offset="100%" stop-color="#E0912F"/>
+    </radialGradient>
+    <linearGradient id="scarf" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#D94A3A"/>
+      <stop offset="100%" stop-color="#E5553D"/>
+    </linearGradient>
+    <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C98A4B"/>
+      <stop offset="100%" stop-color="#9A5F2A"/>
+    </linearGradient>
+    <radialGradient id="coin" cx="40%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#FFE9A8"/>
+      <stop offset="100%" stop-color="#F2B705"/>
+    </radialGradient>
+  </defs>
+  <circle cx="52" cy="60" r="21" fill="url(#fur)"/>
+  <circle cx="148" cy="60" r="21" fill="url(#fur)"/>
+  <circle cx="54" cy="64" r="11" fill="#F7C6A0"/>
+  <circle cx="146" cy="64" r="11" fill="#F7C6A0"/>
+  <circle cx="100" cy="112" r="62" fill="url(#fur)"/>
+  <ellipse cx="100" cy="132" rx="44" ry="30" fill="#FFF6E3"/>
+  <ellipse cx="66" cy="120" rx="11" ry="8" fill="#F8A79B" opacity=".55"/>
+  <ellipse cx="134" cy="120" rx="11" ry="8" fill="#F8A79B" opacity=".55"/>
+  <circle cx="79" cy="99" r="12" fill="#FFFFFF"/>
+  <circle cx="121" cy="99" r="12" fill="#FFFFFF"/>
+  <circle cx="82" cy="102" r="6" fill="#2B1B0E"/>
+  <circle cx="118" cy="102" r="6" fill="#2B1B0E"/>
+  <circle cx="84" cy="99" r="2.2" fill="#FFFFFF"/>
+  <circle cx="120" cy="99" r="2.2" fill="#FFFFFF"/>
+  <ellipse cx="100" cy="112" rx="5" ry="4" fill="#6B4A16"/>
+  <path d="M88 122 Q100 131 112 122" stroke="#6B4A16" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <ellipse cx="76" cy="146" rx="10" ry="7" fill="#F5BC62"/>
+  <ellipse cx="124" cy="146" rx="10" ry="7" fill="#F5BC62"/>
+  <path d="M60 150 Q100 172 140 150 L138 164 Q100 182 62 164 Z" fill="url(#scarf)"/>
+  <ellipse cx="100" cy="160" rx="34" ry="12" fill="url(#bowl)"/>
+  <path d="M66 158 Q64 178 100 180 Q136 178 134 158 Z" fill="url(#bowl)"/>
+  <!-- coins in bowl -->
+  <g>
+    <ellipse cx="82" cy="153" rx="9" ry="6" fill="url(#coin)" stroke="#C98A1E" stroke-width="1.5"/>
+    <ellipse cx="101" cy="149" rx="9" ry="6" fill="url(#coin)" stroke="#C98A1E" stroke-width="1.5"/>
+    <ellipse cx="119" cy="153" rx="9" ry="6" fill="url(#coin)" stroke="#C98A1E" stroke-width="1.5"/>
+    <ellipse cx="91" cy="142" rx="8" ry="5.5" fill="url(#coin)" stroke="#C98A1E" stroke-width="1.5"/>
+    <ellipse cx="109" cy="142" rx="8" ry="5.5" fill="url(#coin)" stroke="#C98A1E" stroke-width="1.5"/>
+    <ellipse cx="100" cy="160" rx="8" ry="5" fill="url(#coin)" stroke="#C98A1E" stroke-width="1.5">
+      <animate attributeName="opacity" values="0;1;1" keyTimes="0;.2;1" dur="1.8s" repeatCount="indefinite"/>
+      <animateTransform attributeName="transform" type="translate" values="0 8;0 0;0 0" keyTimes="0;.35;1" dur="1.8s" repeatCount="indefinite"/>
+    </ellipse>
+  </g>
+</svg>
