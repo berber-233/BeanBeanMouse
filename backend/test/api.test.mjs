@@ -456,6 +456,14 @@ let catReqId;
   check('news refresh 尽力而为 -> 200', r.status === 200 && typeof r.data.added === 'number' && typeof r.data.failed === 'number');
 }
 {
+  const r = await req('/news/auto', { token: adminToken });
+  check('admin 查看资讯自动刷新状态 -> 200', r.status === 200 && typeof r.data.enabled === 'boolean' && typeof r.data.intervalMs === 'number');
+}
+{
+  const r = await req('/news/auto', { token: buyerToken });
+  check('非管理员查看自动刷新状态 -> 403', r.status === 403);
+}
+{
   const r = await req('/notifications', { token: buyerToken });
   check('notifications -> 200', r.status === 200 && Array.isArray(r.data));
 }

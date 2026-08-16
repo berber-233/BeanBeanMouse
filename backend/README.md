@@ -9,7 +9,7 @@
 # 启动（默认 http://127.0.0.1:8787）
 node src/server.mjs
 
-# 运行接口测试（内存数据库，33 项断言）
+# 运行接口测试（内存数据库，93 项断言）
 node test/api.test.mjs
 ```
 
@@ -18,6 +18,8 @@ node test/api.test.mjs
 - `PORT` — 服务端口，默认 `8787`
 - `DB_PATH` — SQLite 文件路径，默认 `backend/db/data.db`；设为 `:memory:` 用内存库（测试用）
 - `JWT_SECRET` — 令牌签名密钥，生产环境务必设置
+- `NEWS_AUTO_REFRESH` — 资讯 RSS 自动刷新开关（`1` 开启 / `0` 关闭，默认开启，测试环境自动关闭）
+- `NEWS_AUTO_REFRESH_MS` — 自动刷新间隔毫秒（默认 6 小时，最短 60 秒；自动刷新带防重叠保护）
 
 ## 数据库
 
@@ -37,7 +39,7 @@ node test/api.test.mjs
 | 消息 | `GET/POST /conversations/{id}/messages`；实时推送：`WS /ws?token=...` |
 | 翻译 | `POST /translate`（服务端代理：DeepL→MyMemory→LibreTranslate→离线兜底，额度+缓存） |
 | 防伪 | `POST /anti-fake/verify` |
-| 资讯 | `GET /news`（分页）`GET /news/sources` |
+| 资讯 | `GET /news`（分页）`GET /news/sources` `POST /news/refresh`（管理员手动）`GET /news/auto`（管理员查看自动刷新状态） |
 | 通知 | `GET /notifications` |
 | 管理 | `GET /admin/overview` `GET /admin/logs` |
 | 文件 | `POST /files`（multipart 或 base64 JSON，本地磁盘存储）`GET /files/{id}` 下载 |

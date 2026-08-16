@@ -13,6 +13,91 @@ import { handleWsUpgrade } from './ws.mjs';
 const PORT = Number(process.env.PORT || 8787);
 seedIfEmpty();
 
+/* ---------- 资讯 RSS 源与刷新（手动/自动共用） ---------- */
+const NEWS_FEEDS = [
+  { url: 'https://www.wto.org/english/news_e/news_e.rss', name: 'WTO News', region: 'global', category: 'policy' },
+  { url: 'https://taxation-customs.ec.europa.eu/en/rss-feeds', name: 'EU Taxation & Customs', region: 'EU', category: 'compliance' },
+  { url: 'https://www.customs.gov.cn/customs/302249/302274/index.html', name: '中国海关总署', region: 'CN', category: 'logistics' }
+];
+function parseRss(xml) {
+  const out = [];
+  const re = /<(?:item|entry)>([\s\S]*?)<\/(?:item|entry)>/g;
+  let m;
+  while ((m = re.exec(xml))) {
+    const blk = m[1];
+    const title = /<title[^>]*>([\s\S]*?)<\/title>/.exec(blk);
+    const link = /<link[^>]*href="([^"]+)"[^>]*>/.exec(blk) || /<link>([\s\S]*?)<\/link>/.exec(blk);
+    const pub = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(blk) || /<published>([\s\S]*?)<\/published>/.exec(blk) || /<updated>([\s\S]*?)<\/updated>/.exec(blk);
+    if (!title || !link) continue;
+    out.push({
+      title: title[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim(),
+      url: (link[1] || link[2] || '').trim(),
+      publishedAt: pub ? pub[1].trim() : new Date().toISOString()
+    });
+  }
+  return out;
+}
+async function refreshNewsFeeds(actorId) {
+  let added = 0, failed = 0;
+  for (const feed of NEWS_FEEDS) {
+    try {
+      const resp = await fetch(feed.url, { signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'BeanBeanMouse/1.0' } });
+      if (!resp.ok) { failed++; continue; }
+      const xml = await resp.text();
+      const items = parseRss(xml);
+      let src = get('SELECT * FROM news_sources WHERE name = ?', feed.name);
+      if (!src) {
+        const sid = randomUUID();
+        run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)',
+          sid, feed.name, feed.url, feed.region, feed.category, 1);
+        src = get('SELECT * FROM news_sources WHERE id = ?', sid);
+      }
+      for (const it of items.slice(0, 10)) {
+        if (!it.url || get('SELECT id FROM news_items WHERE url = ?', it.url)) continue;
+        run(
+          'INSERT INTO news_items (id, source_id, region, category, title_zh, title_en, summary_zh, summary_en, url, published_at, updated_at, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+          randomUUID(), src.id, feed.region, feed.category, it.title, it.title, '', '', it.url, it.publishedAt, Date.now(), 'published'
+        );
+        added++;
+      }
+    } catch (e) {
+      failed++;
+      console.error('[news.refresh] ' + feed.name + ': ' + e.message);
+    }
+  }
+  audit(actorId, 'news.refresh', 'news', '', 'added=' + added + ' failed=' + failed + (actorId ? '' : ' (auto)'));
+  return { added, failed, note: 'RSS 抓取为尽力而为，失败不影响现有资讯' };
+}
+
+/* 资讯自动刷新：默认每 6 小时一次，可通过环境变量关闭/调整；避免并发重叠，unref 不阻塞进程退出 */
+const NEWS_AUTO_REFRESH = process.env.NODE_ENV !== 'test' && String(process.env.NEWS_AUTO_REFRESH || '1') !== '0';
+const NEWS_AUTO_REFRESH_MS = Math.max(60 * 1000, Number(process.env.NEWS_AUTO_REFRESH_MS) || 6 * 3600 * 1000);
+const newsAutoState = {
+  enabled: NEWS_AUTO_REFRESH,
+  intervalMs: NEWS_AUTO_REFRESH_MS,
+  lastRunAt: null,
+  nextRunAt: NEWS_AUTO_REFRESH ? Date.now() + NEWS_AUTO_REFRESH_MS : null,
+  running: false
+};
+function startNewsAutoRefresh() {
+  if (!NEWS_AUTO_REFRESH) return;
+  const t = setInterval(async () => {
+    if (newsAutoState.running) return;
+    newsAutoState.running = true;
+    try {
+      const r = await refreshNewsFeeds(null);
+      newsAutoState.lastRunAt = Date.now();
+      console.log('[news.auto] refresh done added=' + r.added + ' failed=' + r.failed);
+    } catch (e) {
+      console.error('[news.auto] refresh failed: ' + e.message);
+    } finally {
+      newsAutoState.running = false;
+      newsAutoState.nextRunAt = Date.now() + NEWS_AUTO_REFRESH_MS;
+    }
+  }, NEWS_AUTO_REFRESH_MS);
+  t.unref();
+}
+
 /* 简单登录限流：同 IP 每分钟最多 10 次（防暴力破解） */
 const loginAttempts = new Map();
 const LOGIN_LIMIT = Number(process.env.LOGIN_LIMIT || 10);
@@ -908,61 +993,15 @@ async function route(m, segs, q, req, res) {
       audit(u.id, 'news.create', 'news', id, title);
       return send(res, 201, get('SELECT * FROM news_items WHERE id = ?', id));
     }
+    if (b === 'auto' && m === 'GET') {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      return send(res, 200, newsAutoState);
+    }
     if (b === 'refresh' && m === 'POST') {
       const u = requireAuth(res, req, ['admin']);
       if (!u) return;
-      const FEEDS = [
-        { url: 'https://www.wto.org/english/news_e/news_e.rss', name: 'WTO News', region: 'global', category: 'policy' },
-        { url: 'https://taxation-customs.ec.europa.eu/en/rss-feeds', name: 'EU Taxation & Customs', region: 'EU', category: 'compliance' },
-        { url: 'https://www.customs.gov.cn/customs/302249/302274/index.html', name: '中国海关总署', region: 'CN', category: 'logistics' }
-      ];
-      function parseRss(xml) {
-        const out = [];
-        const re = /<(?:item|entry)>([\s\S]*?)<\/(?:item|entry)>/g;
-        let m;
-        while ((m = re.exec(xml))) {
-          const blk = m[1];
-          const title = /<title[^>]*>([\s\S]*?)<\/title>/.exec(blk);
-          const link = /<link[^>]*href="([^"]+)"[^>]*>/.exec(blk) || /<link>([\s\S]*?)<\/link>/.exec(blk);
-          const pub = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(blk) || /<published>([\s\S]*?)<\/published>/.exec(blk) || /<updated>([\s\S]*?)<\/updated>/.exec(blk);
-          if (!title || !link) continue;
-          out.push({
-            title: title[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim(),
-            url: (link[1] || link[2] || '').trim(),
-            publishedAt: pub ? pub[1].trim() : new Date().toISOString()
-          });
-        }
-        return out;
-      }
-      let added = 0, failed = 0;
-      for (const feed of FEEDS) {
-        try {
-          const resp = await fetch(feed.url, { signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'BeanBeanMouse/1.0' } });
-          if (!resp.ok) { failed++; continue; }
-          const xml = await resp.text();
-          const items = parseRss(xml);
-          let src = get('SELECT * FROM news_sources WHERE name = ?', feed.name);
-          if (!src) {
-            const sid = randomUUID();
-            run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)',
-              sid, feed.name, feed.url, feed.region, feed.category, 1);
-            src = get('SELECT * FROM news_sources WHERE id = ?', sid);
-          }
-          for (const it of items.slice(0, 10)) {
-            if (!it.url || get('SELECT id FROM news_items WHERE url = ?', it.url)) continue;
-            run(
-              'INSERT INTO news_items (id, source_id, region, category, title_zh, title_en, summary_zh, summary_en, url, published_at, updated_at, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-              randomUUID(), src.id, feed.region, feed.category, it.title, it.title, '', '', it.url, it.publishedAt, Date.now(), 'published'
-            );
-            added++;
-          }
-        } catch (e) {
-          failed++;
-          console.error('[news.refresh] ' + feed.name + ': ' + e.message);
-        }
-      }
-      audit(u.id, 'news.refresh', 'news', '', 'added=' + added + ' failed=' + failed);
-      return send(res, 200, { added, failed, note: 'RSS 抓取为尽力而为，失败不影响现有资讯' });
+      return send(res, 200, await refreshNewsFeeds(u.id));
     }
   }
 
@@ -1197,7 +1236,10 @@ export function startServer(port = PORT) {
     else socket.destroy();
   });
   return new Promise(resolve => {
-    server.listen(port, () => resolve(server));
+    server.listen(port, () => {
+      startNewsAutoRefresh();
+      resolve(server);
+    });
   });
 }
 
