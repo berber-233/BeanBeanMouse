@@ -132,10 +132,12 @@ function migrateState() {
   if (!Array.isArray(state.categoryRequests)) { state.categoryRequests = []; changed = true; }
   if (!Array.isArray(state.shipments)) { state.shipments = []; changed = true; }
   if (!Array.isArray(state.evidence)) { state.evidence = []; changed = true; }
+  if (!Array.isArray(state.promotions)) { state.promotions = []; changed = true; }
   if (!state.tipDismissed || typeof state.tipDismissed !== 'object') { state.tipDismissed = {}; changed = true; }
   state.products.forEach(p => {
     if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
     if (!Array.isArray(p.markets)) { p.markets = MARKETS_BY_PRODUCT[p.id] || []; changed = true; }
+    if (!p.sub) { const cat = CATEGORIES.find(c => c.id === p.cat); if (cat && cat.subs && cat.subs[0]) { p.sub = cat.subs[0].id; changed = true; } }
   });
   if (!state.products.some(p => p.id === 'p15')) {
     state.products = state.products.concat(pendingSeedProducts());
@@ -176,6 +178,14 @@ function countryName(code) {
 }
 
 function catById(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
+function subOf(p) {
+  const cat = catById(p.cat);
+  return (cat.subs || []).find(s => s.id === p.sub) || null;
+}
+function subLabel(p) {
+  const s = subOf(p);
+  return s ? langObj(s) : '';
+}
 function sellerById(id) { return SELLERS.find(s => s.id === id) || SELLERS[0]; }
 function productById(id) { return state.products.find(p => p.id === id); }
 function sellerOf(p) { return sellerById(p.sellerId); }
@@ -446,6 +456,7 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'catreq-form') p = submitCatReqForm(f);
   else if (f.dataset.form === 'shipment-create-form') p = submitShipmentCreate(f);
   else if (f.dataset.form === 'shipment-event-form') p = submitShipmentEvent(f);
+  else if (f.dataset.form === 'promo-form') p = submitPromo(f);
   if (p && typeof p.finally === 'function') p.finally(release);
   else release();
 });
@@ -465,6 +476,53 @@ function runBusy(btn, fn) {
   };
   const safety = setTimeout(release, 20000);
   return Promise.resolve(fn && fn()).finally(release);
+}
+
+/* ---------- 表单内联错误提示 ---------- */
+function setFieldError(input, msg) {
+  if (!input) return;
+  const wrap = input.closest('.field');
+  let err = wrap ? wrap.querySelector('.field-error') : null;
+  if (!err && wrap) {
+    err = document.createElement('span');
+    err.className = 'field-error';
+    err.setAttribute('role', 'alert');
+    wrap.appendChild(err);
+  }
+  input.classList.toggle('invalid', !!msg);
+  if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+  if (err) err.textContent = msg || '';
+}
+function clearFieldErrors(form) {
+  form.querySelectorAll('.field-error').forEach(e => { e.textContent = ''; });
+  form.querySelectorAll('.invalid').forEach(i => i.classList.remove('invalid'));
+  form.querySelectorAll('[aria-invalid]').forEach(i => i.removeAttribute('aria-invalid'));
+}
+function requireText(val) { return val ? '' : t('errRequired'); }
+function requireEmail(val) {
+  if (!val) return t('errRequired');
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val) ? '' : t('errEmail');
+}
+function requireNumber(val, min) {
+  const n = Number(val);
+  if (val === '' || val == null || !Number.isFinite(n)) return t('errNumber');
+  if (min != null && n < min) return t('errPositive');
+  return '';
+}
+function validateForm(form, rules) {
+  clearFieldErrors(form);
+  let firstBad = null;
+  for (const [name, checks] of Object.entries(rules)) {
+    const input = form.querySelector('[name="' + name + '"]');
+    const val = input ? String(input.value || '').trim() : '';
+    for (const c of checks) {
+      const msg = c(val, input, form);
+      setFieldError(input, msg);
+      if (msg) { if (!firstBad) firstBad = input; break; }
+    }
+  }
+  if (firstBad) { firstBad.focus(); return false; }
+  return true;
 }
 
 function handleAction(el) {
@@ -502,6 +560,8 @@ function handleAction(el) {
     case 'evidence-print': openEvidencePrint(id); break;
     case 'shipment-create': openShipmentCreateModal(id); break;
     case 'shipment-event': openShipmentEventModal(id, el.dataset.shipment); break;
+    case 'promo-open': openPromoModal(id); break;
+    case 'promo-review': reviewPromotion(id, el.dataset.action2); break;
     case 'catreq-status': setCatReqStatus(id, el.dataset.status, el.dataset.note); break;
     case 'logout': logout(false); break;
     case 'switch-role': logout(false, true); break;
@@ -712,7 +772,9 @@ function renderHeader() {
       (href === '/products' && (path === '/product' || path.indexOf('/product/') === 0)) ||
       (href === '/dashboard' && (path === '/dashboard' || path.indexOf('/dashboard/') === 0)) ||
       (href === '/news' && path.indexOf('/news') === 0) ||
-      (href === '/guide' && path.indexOf('/guide') === 0);
+      (href === '/guide' && path.indexOf('/guide') === 0) ||
+      (href === '/customs' && path.indexOf('/customs') === 0) ||
+      (href === '/recruit' && path.indexOf('/recruit') === 0);
     a.classList.toggle('active', active);
   });
   const fc = $('#favCount');
@@ -915,6 +977,8 @@ function render() {
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
   else if (path === '/guide') { app.innerHTML = renderGuide(); }
+  else if (path === '/customs') { app.innerHTML = renderCustoms(); }
+  else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
@@ -931,6 +995,8 @@ function renderPage() {
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
   else if (path === '/guide') { app.innerHTML = renderGuide(); }
+  else if (path === '/customs') { app.innerHTML = renderCustoms(); }
+  else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
@@ -947,6 +1013,7 @@ function productCard(p) {
   return '<article class="product-card" data-action="open-product" data-id="' + p.id + '">'
     + '<div class="thumb">'
     + (p.hot ? '<span class="badge">' + t('hot') + '</span>' : '')
+    + (p.promoted ? '<span class="badge promo">' + t('promoBadge') + '</span>' : '')
     + (p.featured && !p.hot ? '<span class="badge new">★</span>' : '')
     + '<img src="' + productImg(p) + '" alt="' + esc(langObj(p).title) + '" loading="lazy">'
     + '<button type="button" class="fav-btn ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" aria-label="' + t('favorite') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + '</button>'
@@ -963,6 +1030,7 @@ function productCard(p) {
     + '<span class="moq-tag">' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</span>'
     + '</div>'
     + '<div class="meta">'
+    + (subLabel(p) ? '<span class="chip sub-chip">' + esc(subLabel(p)) + '</span>' : '')
     + '<span class="flag">' + flagEmoji(p.country) + '</span><span>' + countryName(p.country) + '</span>'
     + certs.map(c => '<span class="chip cert">' + esc(c) + '</span>').join('')
     + '</div>'
@@ -1022,7 +1090,7 @@ function closeHelp() {
 function renderHome() {
   document.title = 'BeanBeanMouse · ' + t('heroTitle');
   const live = state.products.filter(isLive);
-  const featured = live.filter(p => p.featured).slice(0, 6);
+  const featured = live.filter(p => p.featured || p.promoted).sort((a, b) => (b.promoted ? 1 : 0) - (a.promoted ? 1 : 0)).slice(0, 6);
   const hotKw = state.lang === 'zh'
     ? ['激光切割机', '氮化镓充电器', '柚木家具', '柠檬酸', '充电枪']
     : ['laser cutter', 'GaN charger', 'teak furniture', 'citric acid', 'EV cable'];
@@ -1309,6 +1377,7 @@ function renderDetail(pid) {
     + fxStrip()
     + '<ul class="spec-list">'
     + '<li><span class="k">' + t('moqLabel') + '</span><span class="v">' + p.moq + ' ' + p.unit + '</span></li>'
+    + (subLabel(p) ? '<li><span class="k">' + t('categoryField') + '</span><span class="v">' + esc(subLabel(p)) + ' · HS ' + esc(subOf(p).hs) + '</span></li>' : '')
     + '<li><span class="k">' + t('leadTime') + '</span><span class="v">' + p.leadTime + ' ' + t('days') + '</span></li>'
     + '<li><span class="k">' + t('terms') + '</span><span class="v">' + (p.terms || []).join(' / ') + '</span></li>'
     + '<li><span class="k">' + t('hsCode') + '</span><span class="v">' + esc(p.hsCode || t('noHsCode')) + '</span></li>'
@@ -1402,7 +1471,7 @@ function openInquiryModal(pid) {
     '<div class="modal-head"><h3>' + icon('send') + ' ' + t('inquiryTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body">'
     + '<div class="inquiry-summary"><img src="' + productImg(p, 200, 150) + '" alt=""><div><div style="font-weight:600">' + esc(langObj(p).title) + '</div><div class="small muted">' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' USD · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div></div></div>'
-    + '<form data-form="inquiry-form" data-id="' + p.id + '">'
+    + '<form data-form="inquiry-form" data-id="' + p.id + '" novalidate>'
     + '<div class="field"><label>' + t('quantity') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="qty" value="' + p.moq + '" required><select class="select" name="unit" style="width:110px">' + UNITS.map(uu => '<option value="' + uu + '" ' + (uu === p.unit ? 'selected' : '') + '>' + uu + '</option>').join('') + '</select></div></div>'
     + '<div class="field"><label>' + t('message') + ' *</label><textarea class="textarea" name="message" required>' + esc(defaultMsg) + '</textarea></div>'
     + '<div class="trans-preview"><span class="trans-label">⚡ ' + t('translateLabel') + '</span><p data-trans-target="msg">' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
@@ -1423,10 +1492,15 @@ function submitInquiry(f) {
   const fd = new FormData(f);
   const name = (fd.get('name') || '').trim();
   const email = (fd.get('email') || '').trim();
-  const qty = +(fd.get('qty') || 0);
+  const rawQty = (fd.get('qty') || '').trim();
   const message = (fd.get('message') || '').trim();
-  if (!name || !email || !qty || !message) { toast(t('required')); return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast(t('invalidEmail')); return; }
+  if (!validateForm(f, {
+    name: [requireText],
+    email: [requireEmail],
+    qty: [v => requireNumber(v, 1)],
+    message: [requireText]
+  })) return;
+  const qty = Number(rawQty);
   const pid = f.dataset.id;
   const p = productById(pid);
   const inquiry = {
@@ -1461,7 +1535,7 @@ function companyOfSeller() {
 }
 function registerFormHtml() {
   return '<div class="modal-head"><h3>' + t('regTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
-    + '<div class="modal-body"><form data-form="register-form" class="full">'
+    + '<div class="modal-body"><form data-form="register-form" class="full" novalidate>'
     + '<input type="text" name="homepage" style="position:absolute;left:-9999px;opacity:0" tabindex="-1" autocomplete="off">'
     + '<div class="field"><label>' + t('regName') + ' *</label><input class="input" name="name" required maxlength="80"></div>'
     + '<div class="field"><label>' + t('regEmail') + ' *</label><input class="input" type="email" name="email" required></div>'
@@ -1671,10 +1745,21 @@ function tipModalHtml(o) {
 }
 async function submitRegister(form) {
   const fd = new FormData(form);
+  const role = fd.get('role') || 'buyer';
+  const rules = {
+    name: [requireText],
+    email: [requireEmail],
+    password: [v => (v.length >= 8 && /[A-Za-z]/.test(v) && /[0-9]/.test(v)) ? '' : t('errPassword')]
+  };
+  if (role === 'seller') {
+    rules.companyName = [requireText];
+    rules.country = [requireText];
+  }
+  if (!validateForm(form, rules)) return;
   const payload = {
     email: String(fd.get('email') || '').trim(),
     password: String(fd.get('password') || ''),
-    role: fd.get('role') || 'buyer',
+    role,
     name: String(fd.get('name') || '').trim(),
     homepage: String(fd.get('homepage') || ''),
     companyName: String(fd.get('companyName') || '').trim(),
@@ -1741,8 +1826,14 @@ function openTipModal(id) {
   if (o) showModal(tipModalHtml(o));
 }
 async function sendTip(orderId) {
+  const inp = $('#tipAmountInput');
   const amount = parseFloat(($('#tipAmountInput') || {}).value || '');
   const note = ($('#tipNoteInput') || {}).value || '';
+  if (inp) {
+    const msg = (!Number.isFinite(amount) || amount <= 0 || amount > 10000) ? (Number.isFinite(amount) && amount > 10000 ? t('errNumber') : t('errPositive')) : '';
+    setFieldError(inp, msg);
+    if (msg) { inp.focus(); return; }
+  }
   try {
     await api.orders.tip(orderId, { amount, note });
     closeModal();
@@ -1843,7 +1934,7 @@ function openShipmentCreateModal(orderId) {
   const p = productById(o.productId);
   showModal(
     '<div class="modal-head"><h3>🚚 ' + t('shipmentCreate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
-    + '<div class="modal-body"><form data-form="shipment-create-form" data-order="' + orderId + '">'
+    + '<div class="modal-body"><form data-form="shipment-create-form" data-order="' + orderId + '" novalidate>'
     + (p ? '<p class="small muted">' + esc(langObj(p).title) + '</p>' : '')
     + '<div class="field"><label>' + t('shipmentCarrier') + '</label><input class="input" name="carrier" maxlength="80" placeholder="COSCO / DHL / FedEx…"></div>'
     + '<div class="field"><label>' + t('shipmentTrackingNo') + '</label><input class="input" name="trackingNo" maxlength="80"></div>'
@@ -1856,6 +1947,11 @@ function openShipmentCreateModal(orderId) {
   );
 }
 async function submitShipmentCreate(form) {
+  if (!validateForm(form, {
+    carrier: [requireText],
+    origin: [requireText],
+    destination: [requireText]
+  })) return;
   const eta = form.eta && form.eta.value ? new Date(form.eta.value + 'T23:59:59').getTime() : null;
   const payload = {
     carrier: form.carrier.value.trim(),
@@ -1877,7 +1973,7 @@ function openShipmentEventModal(orderId, shipmentId) {
   if (!shipment) return;
   showModal(
     '<div class="modal-head"><h3>🚚 ' + t('shipmentAddEvent') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
-    + '<div class="modal-body"><form data-form="shipment-event-form" data-order="' + orderId + '" data-shipment="' + shipmentId + '">'
+    + '<div class="modal-body"><form data-form="shipment-event-form" data-order="' + orderId + '" data-shipment="' + shipmentId + '" novalidate>'
     + '<div class="field"><label>' + t('shipmentEvent') + ' *</label><select class="input" name="status">' + shipmentStatusOptions(shipment.status) + '</select></div>'
     + '<div class="field"><label>' + t('shipmentCurrent') + '</label><input class="input" name="location" maxlength="120" placeholder="' + t('shipmentLocPh') + '"></div>'
     + '<div class="field"><label>' + t('shipmentNotePh') + '</label><input class="input" name="note" maxlength="500"></div>'
@@ -2003,6 +2099,132 @@ function renderGuide() {
     + '</div>';
 }
 
+/* ---------- 清关/报关参考 ---------- */
+function renderCustoms() {
+  document.title = t('customsTitle') + ' · BeanBeanMouse';
+  const zh = state.lang === 'zh';
+  const { params } = parseHash();
+  const code = params.get('country') || 'US';
+  const row = CUSTOMS_REF.find(c => c.code === code) || CUSTOMS_REF[0];
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>' + t('customsTitle') + '</h1><p>' + t('customsSub') + '</p></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('customsPick') + '</h2></div>'
+    + '<div class="customs-grid">' + CUSTOMS_REF.map(c =>
+      '<a class="customs-card' + (c.code === row.code ? ' on' : '') + '" href="#/customs?country=' + c.code + '" data-nav="/customs?country=' + c.code + '">'
+      + '<span class="lang-flag">' + flagEmoji(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
+    ).join('') + '</div></section>'
+    + '<div class="dash-layout customs-layout">'
+    + '<aside class="card panel customs-side"><h3>' + flagEmoji(row.flag) + ' ' + esc(zh ? row.zh : row.en) + '</h3>'
+    + '<p class="small muted">' + esc(row.note) + '</p></aside>'
+    + '<div class="customs-main">'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('customsDocs') + '</h2></div>'
+    + '<ul class="guide-list">' + row.docs.map(d => '<li>📄 ' + esc(zh ? d.zh : d.en) + '</li>').join('') + '</ul></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('customsSources') + '</h2></div>'
+    + '<div class="source-grid">' + row.sources.map(s =>
+      '<a class="source-card" href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer"><b>' + esc(s.name) + '</b><span class="small muted">' + esc(s.region) + ' · ' + t('viewSource') + '</span></a>'
+    ).join('') + '</div></section>'
+    + '<section class="card panel guide-risk"><div class="panel-head"><h2>' + t('customsNote') + '</h2></div>'
+    + '<p class="small">' + esc(row.note) + '</p>'
+    + '<p class="small muted">' + t('customsDisclaimer') + '</p></section>'
+    + '</div></div>'
+    + '</div>';
+}
+
+/* ---------- 招商入驻 ---------- */
+function renderRecruit() {
+  document.title = t('navRecruit') + ' · BeanBeanMouse';
+  const zh = state.lang === 'zh';
+  const steps = zh
+    ? [['注册并提交企业资料', '填写公司/工厂真实资质，平台审核（可查证）'], ['按外贸品类发布产品', '选择细分品类与 HS 参考，等待上架审核'], ['获得询盘与推广', '买家询盘直达邮箱与站内信，可申请推广位']]
+    : [['Register & verify', 'Submit real company/factory credentials for platform review'], ['Publish by category', 'Pick a foreign-trade subcategory with HS reference and go live'], ['Get inquiries & growth', 'Buyer inquiries hit your inbox; apply for promotion slots']];
+  const benefits = [
+    ['🌍', zh ? '面向全球买家' : 'Global buyers', zh ? '多语言界面与实时翻译，跨时区询盘直达' : 'Multilingual UI with live translation'],
+    ['🔒', zh ? '企业实名审核' : 'Verified companies', zh ? '真实可查证公司/工厂才能发品，建立信任' : 'Only real, verifiable companies can list'],
+    ['📈', zh ? '细分品类与推广' : 'Subcategories & promotion', zh ? '外贸细分品类 + HS 参考，推广位放大曝光' : 'Foreign-trade subcategories with HS reference and promo slots']
+  ];
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>' + t('recruitTitle') + '</h1><p>' + t('recruitSub') + '</p></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + (zh ? '入驻流程' : 'How it works') + '</h2></div>'
+    + '<ol class="guide-flow">' + steps.map((s, i) => '<li><span class="step-no">' + (i + 1) + '</span><span class="step-name"><b>' + esc(s[0]) + '</b><div class="small muted">' + esc(s[1]) + '</div></span></li>').join('') + '</ol></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + (zh ? '为什么选择豆豆鼠' : 'Why BeanBeanMouse') + '</h2></div>'
+    + '<div class="benefit-grid">' + benefits.map(b => '<div class="benefit-card"><div class="benefit-ico">' + b[0] + '</div><b>' + esc(b[1]) + '</b><p>' + esc(b[2]) + '</p></div>').join('') + '</div></section>'
+    + '<div class="cta-band recruit-cta"><div><h2>' + t('recruitCta') + '</h2><p>' + (zh ? '免费入驻，按效果付费' : 'Free to join, pay by results') + '</p></div>'
+    + '<a class="btn btn-accent btn-lg" href="#/login" data-nav="/login">' + t('recruitCta') + '</a></div>'
+    + '</div>';
+}
+
+/* ---------- 卖家推广 / 管理员推广审核 ---------- */
+function promoStatusLabel(st) {
+  return st === 'approved' ? t('promoApproved') : st === 'rejected' ? t('promoRejected') : t('promoPending');
+}
+function sellerPromoBody(sid) {
+  const my = state.products.filter(p => p.sellerId === sid);
+  const reqs = (state.promotions || []).filter(r => r.sellerId === sid).sort((a, b) => b.createdAt - a.createdAt);
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('promoTitle') + '</h2><span class="small muted">' + t('promoSub') + '</span></div>'
+    + '<p class="small muted">' + t('promoNote') + '</p>'
+    + '<h3 class="section-divider">' + t('promoApply') + '</h3>'
+    + '<div class="promo-prod-grid">' + (my.filter(isLive).map(p =>
+      '<div class="promo-prod"><img src="' + productImg(p, 80, 80) + '" alt=""><div class="promo-prod-info"><b>' + esc(langObj(p).title) + '</b><span class="small muted">$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</span></div>'
+      + '<button type="button" class="btn btn-sm btn-primary" data-action="promo-open" data-id="' + p.id + '">' + t('promoApply') + '</button></div>'
+    ).join('') || '<p class="small muted">' + t('noProducts') + '</p>') + '</div>'
+    + (reqs.length ? '<h3 class="section-divider">' + t('myOrders') + '</h3><div class="promo-req-list">' + reqs.map(r => {
+      const p = productById(r.productId);
+      return '<div class="promo-req"><b>' + esc(p ? langObj(p).title : r.productId) + '</b>'
+        + '<span class="small muted">' + r.days + ' ' + t('promoDays') + ' · ' + esc(r.budget) + '</span>'
+        + '<span class="status-pill ' + (r.status === 'approved' ? 'done' : r.status === 'rejected' ? 'rej' : 'pend') + '">' + promoStatusLabel(r.status) + '</span>'
+        + (r.status === 'rejected' && (r.rejectReason || r.reject_reason) ? '<span class="small muted">' + esc(r.rejectReason || r.reject_reason) + '</span>' : '')
+        + '</div>';
+    }).join('') + '</div>' : '')
+    + '</div>';
+}
+function adminPromoBody() {
+  const reqs = (state.promotions || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('promoAdmin') + '</h2><span class="small muted">' + t('promoSub') + '</span></div>'
+    + (reqs.length ? reqs.map(r => {
+      const p = productById(r.productId);
+      return '<div class="promo-req"><b>' + esc(p ? langObj(p).title : r.productId) + '</b>'
+        + '<span class="small muted">' + r.days + ' ' + t('promoDays') + ' · ' + esc(r.budget) + '</span>'
+        + '<span class="status-pill ' + (r.status === 'approved' ? 'done' : r.status === 'rejected' ? 'rej' : 'pend') + '">' + promoStatusLabel(r.status) + '</span>'
+        + (r.status === 'pending' ? '<div class="flex gap-10"><button type="button" class="btn btn-sm btn-primary" data-action="promo-review" data-id="' + r.id + '" data-action2="approve">' + t('approve') + '</button><button type="button" class="btn btn-sm btn-danger-ghost" data-action="promo-review" data-id="' + r.id + '" data-action2="reject">' + t('reject') + '</button></div>' : '')
+        + (r.status === 'rejected' && (r.rejectReason || r.reject_reason) ? '<span class="small muted">' + esc(r.rejectReason || r.reject_reason) + '</span>' : '')
+        + '</div>';
+    }).join('') : '<div class="empty-state" style="padding:30px"><p>' + t('noUsers') + '</p></div>')
+    + '</div>';
+}
+function openPromoModal(productId) {
+  const p = productById(productId);
+  if (!p) return;
+  showModal(
+    '<div class="modal-head"><h3>📈 ' + t('promoApply') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><p class="small muted">' + esc(langObj(p).title) + '</p>'
+    + '<form data-form="promo-form" data-product="' + productId + '" novalidate>'
+    + '<div class="field"><label>' + t('promoDays') + ' *</label><input class="input" name="days" type="number" min="1" max="90" value="7" required></div>'
+    + '<div class="field"><label>' + t('promoBudget') + '</label><select class="input" name="budget"><option value="basic">Basic</option><option value="standard">Standard</option><option value="premium">Premium</option></select></div>'
+    + '<div class="field"><label>' + t('tipNote') + '</label><input class="input" name="note" maxlength="300"></div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('promoSubmit') + '</button>'
+    + '</form></div>'
+  );
+}
+async function submitPromo(form) {
+  const days = parseInt(form.days.value, 10);
+  if (!(days >= 1) || days > 90) { toast(t('errPositive')); return; }
+  try {
+    await api.promotions.create({ productId: form.dataset.product, days, budget: form.budget.value, note: form.note.value });
+    closeModal();
+    toast('✓ ' + t('promoSubmit'));
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function reviewPromotion(id, action) {
+  const reason = action === 'reject' ? (prompt(t('rejectReason')) || '') : '';
+  if (action === 'reject' && !reason) { toast(t('rejectReasonPh')); return; }
+  try {
+    await api.promotions.review(id, { action, reason });
+    toast(action === 'approve' ? '✓ ' + t('promoApproved') : t('promoRejected'));
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+
 function renderLogin() {
   document.title = t('login') + ' · BeanBeanMouse';
   return '<div class="container"><div class="login-wrap">'
@@ -2068,6 +2290,7 @@ function renderSellerDash(path) {
     { tab: 'products', icon: 'box', label: t('productManage'), count: myProducts.length },
     { tab: 'publish', icon: 'plus', label: t('publish') },
     { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: pending || null },
+    { tab: 'promo', icon: 'sparkle', label: t('promoTitle'), count: (state.promotions || []).filter(r => r.sellerId === sid && r.status === 'pending').length || null },
     { tab: 'orders', icon: 'box', label: t('orders'), count: (state.orders || []).filter(o => o.sellerId === sid && o.status === 'created').length || null }
   ];
   const activeTab = path.split('/')[2] || '';
@@ -2115,6 +2338,8 @@ function renderSellerDash(path) {
       + '</div>';
   } else if (activeTab === 'orders') {
     body = companyBannerHtml() + ordersBody();
+  } else if (activeTab === 'promo') {
+    body = sellerPromoBody(sid);
   } else if (activeTab === 'publish') {
     body = renderPublishForm();
   } else if (activeTab === 'inquiries') {
@@ -2135,6 +2360,7 @@ function renderAdminDash(path) {
     { tab: 'overview', icon: 'chart', label: t('adminOverview') },
     { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
     { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
+    { tab: 'promo', icon: 'sparkle', label: t('promoAdmin'), count: (state.promotions || []).filter(r => r.status === 'pending').length || null },
     { tab: 'catreqs', icon: 'sparkle', label: t('catRequests'), count: (state.categoryRequests || []).filter(r => r.status === 'new').length || null },
     { tab: 'users', icon: 'users', label: t('userManage') },
     { tab: 'logs', icon: 'clock', label: t('auditLog') }
@@ -2142,6 +2368,7 @@ function renderAdminDash(path) {
   let body = '';
   if (activeTab === 'review') body = adminReviewBody();
   else if (activeTab === 'verify') body = adminVerifyBody();
+  else if (activeTab === 'promo') body = adminPromoBody();
   else if (activeTab === 'catreqs') body = adminCatReqBody();
   else if (activeTab === 'users') body = adminUsersBody();
   else if (activeTab === 'logs') body = adminLogsBody();
@@ -2371,7 +2598,7 @@ function inquiryItem(i) {
       ? '<div class="reply-box">' + quoteBlock(i) + '</div>'
       : done && i.reply
         ? '<div class="reply-box"><div class="reply-msg"><b>' + (state.lang === 'zh' ? '您的回复：' : 'Your reply: ') + '</b>' + esc(i.reply) + '</div></div>'
-        : '<div class="reply-box"><form data-form="quote-form" data-id="' + i.id + '">'
+        : '<div class="reply-box"><form data-form="quote-form" data-id="' + i.id + '" novalidate>'
           + '<div class="quote-title">' + icon('file') + ' ' + t('quoteTitle') + '</div>'
           + '<div class="quote-form-grid">'
           + '<div class="field"><label>' + t('quotePrice') + ' *</label><input class="input" type="number" min="0" step="0.01" name="price" required></div>'
@@ -2395,12 +2622,17 @@ function inquiryItem(i) {
 function submitQuote(f) {
   const i = state.inquiries.find(x => x.id === f.dataset.id);
   if (!i) return;
+  if (!validateForm(f, {
+    price: [v => requireNumber(v, 0.01)],
+    incoterm: [requireText],
+    validity: [v => requireNumber(v, 1)],
+    leadTime: [v => requireNumber(v, 1)]
+  })) return;
   const fd = new FormData(f);
   const price = +fd.get('price');
   const incoterm = fd.get('incoterm');
   const validity = +fd.get('validity');
   const leadTime = +fd.get('leadTime');
-  if (!price || price <= 0 || !incoterm || !validity || !leadTime) { toast(t('required')); return; }
   i.quote = {
     price: price,
     incoterm: incoterm,
@@ -2491,7 +2723,7 @@ function renderPublishForm() {
     + (p ? '<button type="button" class="btn btn-sm" data-action="cancel-edit">' + t('cancelEdit') + '</button>' : '')
     + '</div>'
     + '<div class="form-grid">'
-    + '<form data-form="product-form" data-id="' + (p ? p.id : '') + '" class="full">'
+    + '<form data-form="product-form" data-id="' + (p ? p.id : '') + '" class="full" novalidate>'
     + '<input type="hidden" name="hue" value="' + hue + '">'
     + '<div class="form-grid">'
     + '<div class="field"><label>' + t('titleEn') + ' *</label><input class="input" name="titleEn" value="' + esc(p ? p.en.title : '') + '" required></div>'
@@ -2502,6 +2734,10 @@ function renderPublishForm() {
     + '<option value="en"' + (p && p.srcLang === 'en' ? ' selected' : '') + '>English</option>'
     + '</select></div>'
     + '<div class="field"><label>' + t('categoryField') + ' *</label><select class="select" name="cat">' + CATEGORIES.map(c => '<option value="' + c.id + '" ' + (cat === c.id ? 'selected' : '') + '>' + langObj(c) + '</option>').join('') + '</select></div>'
+    + '<div class="field full"><label>' + t('subcatField') + ' <span class="hint">' + t('subcatHint') + '</span></label><select class="select" name="sub">'
+    + '<option value="">' + t('allSubs') + '</option>'
+    + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
+    + '</select></div>'
     + '<div class="field"><label>' + t('chooseImage') + '</label><div class="palette">' + hueList.map(h => '<span class="swatch ' + (h === hue ? 'on' : '') + '" data-action="pick-hue" data-hue="' + h + '" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 48%),hsl(' + ((h + 45) % 360) + ' 55% 30%))"></span>').join('') + '</div></div>'
     + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'
     + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
@@ -2536,9 +2772,19 @@ function submitProduct(f) {
   const moq = +fd.get('moq'), leadTime = +fd.get('leadTime');
   const descEn = (fd.get('descEn') || '').trim();
   const descZh = (fd.get('descZh') || '').trim();
-  if (!titleEn || !titleZh || !priceMin || !priceMax || !moq || !leadTime || !descEn || !descZh || priceMax < priceMin) {
-    toast(t('required')); return;
-  }
+  if (!validateForm(f, {
+    titleEn: [requireText],
+    titleZh: [requireText],
+    priceMin: [v => requireNumber(v, 0.01)],
+    priceMax: [v => requireNumber(v, 0.01), (v, input, form) => {
+      const min = Number((form.querySelector('[name="priceMin"]') || {}).value || 0);
+      return Number(v) < min ? t('errPriceMax') : '';
+    }],
+    moq: [v => requireNumber(v, 1)],
+    leadTime: [v => requireNumber(v, 1)],
+    descEn: [requireText],
+    descZh: [requireText]
+  })) return;
   const id = f.dataset.id;
   let srcLang = fd.get('srcLang') || 'auto';
   if (srcLang === 'auto') {
@@ -2546,7 +2792,7 @@ function submitProduct(f) {
     srcLang = (s && s.country === 'CN') ? 'zh' : 'en';
   }
   const data = {
-    cat: fd.get('cat'), country: fd.get('country'),
+    cat: fd.get('cat'), sub: (fd.get('sub') || '').trim(), country: fd.get('country'),
     hue: +(fd.get('hue') || 210),
     hsCode: (fd.get('hsCode') || '').trim(),
     markets: fd.getAll('markets'),

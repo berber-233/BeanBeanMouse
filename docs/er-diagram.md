@@ -205,6 +205,7 @@ erDiagram
   SHIPMENTS ||--o{ SHIPMENT_EVENTS : "轨迹事件"
   ORDERS ||--o{ PAYMENTS : "支付流水"
   USERS ||--o{ TIPS : "打赏/被打赏"
+  PRODUCTS ||--o{ PROMOTION_REQUESTS : "推广申请"
 
   TIPS {
     uuid id PK
@@ -256,6 +257,18 @@ erDiagram
     uuid created_by FK
     timestamp created_at
   }
+  PROMOTION_REQUESTS {
+    uuid id PK
+    uuid product_id FK
+    uuid seller_id FK
+    int days
+    string budget
+    text note
+    string status "pending / approved / rejected"
+    text reject_reason
+    timestamp reviewed_at
+    timestamp created_at
+  }
 ```
 
 要点：
@@ -263,3 +276,4 @@ erDiagram
 - `EVIDENCE_RECORDS` 按 `(order_id, chain_index)` 形成哈希链，`prev_hash` 指向前一条，可整体重放验证；
 - `SHIPMENTS` 与 `SHIPMENT_EVENTS` 支撑买卖双方共享的实时物流时间线；
 - `TIPS` 仅交易达成后可打赏，双方可见、未结算前可取消，并自动存证。
+- `PROMOTION_REQUESTS` 支撑卖家推广：审核通过后产品标记 `promoted`，进入首页精选与搜索推荐。

@@ -474,6 +474,49 @@ api.shipments = {
 };
 
 /* ============================================================
+ * 服务：卖家推广（提交 -> 管理员审核 -> 产品标记 promoted）
+ * ============================================================ */
+api.promotions = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/promotions');
+    await apiDelay();
+    const st = mockState();
+    let rows = st.promotions || [];
+    if (st.user && st.user.role !== 'admin') rows = rows.filter(x => x.sellerId === (st.user.sellerId || st.user.id));
+    return { items: apiClone(rows), total: rows.length };
+  },
+  async create({ productId, days, budget, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/promotions', { method: 'POST', body: { productId, days, budget, note } });
+    await apiDelay();
+    const st = mockState();
+    const p = (st.products || []).find(x => x.id === productId);
+    if (!p) throw new Error('NOT_FOUND');
+    const rec = {
+      id: 'pr' + Date.now(), productId, sellerId: st.user ? (st.user.sellerId || st.user.id) : null,
+      days: Math.max(1, Math.min(90, Math.round(Number(days) || 7))),
+      budget: budget || 'basic', note: note || '', status: 'pending', rejectReason: '', createdAt: Date.now()
+    };
+    st.promotions = st.promotions || [];
+    st.promotions.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async review(id, { action, reason } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/promotions/' + encodeURIComponent(id) + '/review', { method: 'POST', body: { action, reason } });
+    await apiDelay();
+    const st = mockState();
+    const r = (st.promotions || []).find(x => x.id === id);
+    if (!r) throw new Error('NOT_FOUND');
+    r.status = action === 'approve' ? 'approved' : 'rejected';
+    r.rejectReason = action === 'reject' ? String(reason || '') : '';
+    const p = (st.products || []).find(x => x.id === r.productId);
+    if (p) p.promoted = action === 'approve';
+    mockSave(st);
+    return apiClone(r);
+  }
+};
+
+/* ============================================================
  * 服务：品类需求（没找到想要的品类 → 记录 → 平台邀请供应商）
  * ============================================================ */
 api.categoryRequests = {

@@ -40,6 +40,7 @@ ensureColumns('companies', {
   business_scope: 'TEXT',
   reject_reason: 'TEXT'
 });
+ensureColumns('products', { sub: 'TEXT' });
 ensureColumns('orders', {
   quote_id: 'TEXT REFERENCES quotes(id)',
   confirmed_at: 'INTEGER',

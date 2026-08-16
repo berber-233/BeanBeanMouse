@@ -64,6 +64,9 @@ async function sendVerifyEmail(userId, email) {
 
 /* ---------- HTTP 基础 ---------- */
 const CORS_ORIGIN = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',')[0].trim() : '*';
+if (!process.env.ALLOWED_ORIGINS) {
+  console.warn('[security] ALLOWED_ORIGINS 未配置，CORS 使用 *（仅建议开发/演示；生产请配置白名单）');
+}
 const CORS = {
   'Access-Control-Allow-Origin': CORS_ORIGIN,
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
@@ -180,6 +183,11 @@ function audit(actor, action, targetType, targetId, detail) {
 function safeJson(s, fallback) {
   try { return JSON.parse(s); } catch (e) { return fallback; }
 }
+/* 安全最佳实践：数值字段显式转换为有限数字，避免类型混淆/注入 */
+function toNum(v, dft) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : dft;
+}
 
 function productView(row) {
   const trs = all('SELECT * FROM product_translations WHERE product_id = ?', row.id);
@@ -192,12 +200,14 @@ function productView(row) {
     };
   }
   const code = get('SELECT code FROM anti_fake_codes WHERE product_id = ?', row.id);
+  const promo = get('SELECT id FROM promotion_requests WHERE product_id = ? AND status = ?', row.id, 'approved');
   return {
     ...row,
     terms: safeJson(row.terms, []),
     certs: safeJson(row.certs, []),
     translations,
-    antiFakeCode: code ? code.code : null
+    antiFakeCode: code ? code.code : null,
+    promoted: !!promo
   };
 }
 
@@ -461,10 +471,17 @@ async function route(m, segs, q, req, res) {
       const id = randomUUID();
       const now = Date.now();
       const company = get('SELECT id FROM companies WHERE user_id = ?', u.id);
+      const priceMin = toNum(body.priceMin, 0);
+      const priceMax = toNum(body.priceMax, 0);
+      const moq = Math.max(1, Math.round(toNum(body.moq, 1)));
+      const leadTime = Math.max(1, Math.round(toNum(body.leadTime, 15)));
+      if (!(priceMin >= 0) || !(priceMax >= priceMin)) {
+        return fail(res, 400, 'VALIDATION', '价格区间不合法');
+      }
       run(
-        'INSERT INTO products (id, seller_id, company_id, category, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        id, u.id, company ? company.id : null, body.category, body.hsCode || '', body.country,
-        body.priceMin || 0, body.priceMax || 0, body.moq || 1, body.unit || 'pcs', body.leadTime || 15,
+        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        id, u.id, company ? company.id : null, body.category, String(body.sub || '').slice(0, 40), body.hsCode || '', body.country,
+        priceMin, priceMax, moq, body.unit || 'pcs', leadTime,
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
         'pending', now, now
       );
@@ -523,11 +540,17 @@ async function route(m, segs, q, req, res) {
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
       if (p.seller_id !== u.id && u.role !== 'admin') return fail(res, 403, 'FORBIDDEN', '只能编辑自己的产品');
       const body = await readBody(req);
+      const priceMin = body.priceMin != null ? toNum(body.priceMin, p.price_min) : p.price_min;
+      const priceMax = body.priceMax != null ? toNum(body.priceMax, p.price_max) : p.price_max;
+      const moq = body.moq != null ? Math.max(1, Math.round(toNum(body.moq, p.moq))) : p.moq;
+      const leadTime = body.leadTime != null ? Math.max(1, Math.round(toNum(body.leadTime, p.lead_time))) : p.lead_time;
+      if (!(priceMin >= 0) || !(priceMax >= priceMin)) {
+        return fail(res, 400, 'VALIDATION', '价格区间不合法');
+      }
       run(
-        'UPDATE products SET category = ?, hs_code = ?, country = ?, price_min = ?, price_max = ?, moq = ?, unit = ?, lead_time = ?, terms = ?, certs = ?, src_lang = ?, status = ?, updated_at = ? WHERE id = ?',
-        body.category || p.category, body.hsCode != null ? body.hsCode : p.hs_code, body.country || p.country,
-        body.priceMin != null ? body.priceMin : p.price_min, body.priceMax != null ? body.priceMax : p.price_max,
-        body.moq != null ? body.moq : p.moq, body.unit || p.unit, body.leadTime != null ? body.leadTime : p.lead_time,
+        'UPDATE products SET category = ?, sub = ?, hs_code = ?, country = ?, price_min = ?, price_max = ?, moq = ?, unit = ?, lead_time = ?, terms = ?, certs = ?, src_lang = ?, status = ?, updated_at = ? WHERE id = ?',
+        body.category || p.category, body.sub != null ? String(body.sub).slice(0, 40) : p.sub, body.hsCode != null ? body.hsCode : p.hs_code, body.country || p.country,
+        priceMin, priceMax, moq, body.unit || p.unit, leadTime,
         JSON.stringify(body.terms || safeJson(p.terms, [])), JSON.stringify(body.certs || safeJson(p.certs, [])),
         body.srcLang || p.src_lang, 'pending', Date.now(), b
       );
@@ -568,11 +591,12 @@ async function route(m, segs, q, req, res) {
       const body = await readBody(req);
       const u = currentUser(req);
       const p = body.productId ? get('SELECT * FROM products WHERE id = ?', body.productId) : null;
-      if (!p || !body.qty || !body.message) return fail(res, 400, 'VALIDATION', 'productId/qty/message 为必填');
+      const qty = toNum(body.qty, 0);
+      if (!p || !(qty >= 1) || !body.message) return fail(res, 400, 'VALIDATION', 'productId/qty/message 为必填且 qty 须为正整数');
       const id = randomUUID();
       run(
         'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        id, p.id, u ? u.id : null, body.qty, body.unit || 'pcs', body.payment || null, body.message, 'new', Date.now()
+        id, p.id, u ? u.id : null, qty, body.unit || 'pcs', body.payment || null, body.message, 'new', Date.now()
       );
       audit(u ? u.id : null, 'inquiry.create', 'inquiry', id, body.message.slice(0, 80));
       const seller = get('SELECT * FROM users WHERE id = ?', p.seller_id);
@@ -592,9 +616,13 @@ async function route(m, segs, q, req, res) {
       if (p.seller_id !== u.id && u.role !== 'admin') return fail(res, 403, 'FORBIDDEN', '只能回复自己产品的询盘');
       const body = await readBody(req);
       if (body.price == null || !body.incoterm) return fail(res, 400, 'VALIDATION', 'price/incoterm 为必填');
+      const price = toNum(body.price, NaN);
+      const validity = Math.max(1, Math.round(toNum(body.validity, 15)));
+      const leadTime = Math.max(1, Math.round(toNum(body.leadTime, 15)));
+      if (!(price >= 0)) return fail(res, 400, 'VALIDATION', '报价金额不合法');
       run(
         'INSERT INTO quotes (id, inquiry_id, price, incoterm, payment_term, validity_days, lead_time, note, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        randomUUID(), b, body.price, body.incoterm, body.payment || 'T/T', body.validity || 15, body.leadTime || 15, body.note || null, Date.now()
+        randomUUID(), b, price, body.incoterm, body.payment || 'T/T', validity, leadTime, body.note || null, Date.now()
       );
       run('UPDATE inquiries SET status = ? WHERE id = ?', 'quoted', b);
       audit(u.id, 'inquiry.quote', 'inquiry', b, String(body.price));
@@ -1011,7 +1039,7 @@ async function route(m, segs, q, req, res) {
         mime = body.mime;
         data = Buffer.from(String(body.data), 'base64');
       }
-      const { ext, error } = validateFile(mime, data.length);
+      const { ext, error } = validateFile(mime, data);
       if (error) return fail(res, error.status, error.code, error.message);
       const id = randomUUID();
       const key = id + '.' + ext;
@@ -1070,6 +1098,51 @@ async function route(m, segs, q, req, res) {
     }
   }
 
+  /* 卖家推广：提交 → 管理员审核 → 产品标记 promoted */
+  if (a === 'promotions') {
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const body = await readBody(req);
+      const p = get('SELECT * FROM products WHERE id = ?', body.productId);
+      if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能推广自己的产品');
+      const days = Math.max(1, Math.min(90, Math.round(toNum(body.days, 7))));
+      const id = randomUUID();
+      run(
+        'INSERT INTO promotion_requests (id, product_id, seller_id, days, budget, note, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        id, p.id, u.id, days, String(body.budget || 'basic').slice(0, 40), String(body.note || '').slice(0, 300), 'pending', Date.now()
+      );
+      audit(u.id, 'promotion.request', 'promotion', id, 'product=' + p.id);
+      return send(res, 201, get('SELECT * FROM promotion_requests WHERE id = ?', id));
+    }
+    if (m === 'GET' && !b) {
+      const u = requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const rows = u.role === 'admin'
+        ? all('SELECT * FROM promotion_requests ORDER BY created_at DESC')
+        : all('SELECT * FROM promotion_requests WHERE seller_id = ? ORDER BY created_at DESC', u.id);
+      return send(res, 200, paginate(rows, q));
+    }
+    if (b && c === 'review' && m === 'POST') {
+      const u = requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const body = await readBody(req);
+      const pr = get('SELECT * FROM promotion_requests WHERE id = ?', b);
+      if (!pr) return fail(res, 404, 'NOT_FOUND', '推广申请不存在');
+      if (body.action === 'approve') {
+        run('UPDATE promotion_requests SET status = ?, reject_reason = NULL, reviewed_at = ? WHERE id = ?', 'approved', Date.now(), b);
+        audit(u.id, 'promotion.approve', 'promotion', b, '');
+      } else if (body.action === 'reject') {
+        run('UPDATE promotion_requests SET status = ?, reject_reason = ?, reviewed_at = ? WHERE id = ?', 'rejected', String(body.reason || '不符合推广要求').slice(0, 300), Date.now(), b);
+        audit(u.id, 'promotion.reject', 'promotion', b, String(body.reason || ''));
+      } else {
+        return fail(res, 400, 'INVALID_ACTION', 'action 必须是 approve 或 reject');
+      }
+      return send(res, 200, get('SELECT * FROM promotion_requests WHERE id = ?', b));
+    }
+  }
+
   /* 管理后台 */
   if (a === 'admin') {
     if (b === 'overview' && m === 'GET') {
@@ -1086,6 +1159,7 @@ async function route(m, segs, q, req, res) {
         tips: get('SELECT COUNT(*) AS c FROM tips WHERE status = ?', 'active').c,
         evidence: get('SELECT COUNT(*) AS c FROM evidence_records').c,
         shipments: get('SELECT COUNT(*) AS c FROM shipments').c,
+        pendingPromotions: get('SELECT COUNT(*) AS c FROM promotion_requests WHERE status = ?', 'pending').c,
         categoryRequests: get('SELECT COUNT(*) AS c FROM category_requests').c
       });
     }

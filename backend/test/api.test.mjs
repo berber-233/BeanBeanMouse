@@ -349,6 +349,45 @@ let evidenceCount, evidenceId;
   check('不存在订单的存证 -> 404', r.status === 404);
 }
 
+/* ---- 卖家推广：提交 → 管理员审核 → 产品标记 promoted ---- */
+let promoId;
+{
+  const r = await req('/promotions', {
+    method: 'POST', token: sellerToken,
+    body: { productId: createdProductId, days: 14, budget: 'basic', note: '新品上市推广' }
+  });
+  check('卖家提交推广申请 -> 201 pending', r.status === 201 && r.data.status === 'pending' && r.data.days === 14);
+  promoId = r.data.id;
+}
+{
+  const r = await req('/promotions', { method: 'POST', token: buyerToken, body: { productId: createdProductId, days: 7 } });
+  check('买家提交推广申请 -> 403', r.status === 403 && r.data.error === 'FORBIDDEN');
+}
+{
+  const r = await req('/promotions', { token: adminToken });
+  check('管理员可见全部推广申请', r.status === 200 && r.data.items.some(x => x.id === promoId));
+}
+{
+  const r = await req('/promotions', { token: sellerToken });
+  check('卖家可见自己的推广申请', r.status === 200 && r.data.items.some(x => x.id === promoId));
+}
+{
+  const r = await req('/products/' + createdProductId);
+  check('审核前产品 promoted = false', r.status === 200 && r.data.promoted === false);
+}
+{
+  const r = await req('/promotions/' + promoId + '/review', { method: 'POST', token: adminToken, body: { action: 'approve' } });
+  check('管理员通过推广 -> approved', r.status === 200 && r.data.status === 'approved');
+}
+{
+  const r = await req('/products/' + createdProductId);
+  check('审核后产品 promoted = true', r.status === 200 && r.data.promoted === true);
+}
+{
+  const r = await req('/promotions/' + promoId + '/review', { method: 'POST', token: sellerToken, body: { action: 'approve' } });
+  check('卖家审核推广 -> 403', r.status === 403);
+}
+
 /* ---- 品类需求 ---- */
 let catReqId;
 {

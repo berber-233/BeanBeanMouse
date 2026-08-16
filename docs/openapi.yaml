@@ -676,6 +676,53 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: Verification result }
+  /promotions:
+    post:
+      tags: [promotions]
+      summary: Seller submits a listing-boost request (seller/admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, days]
+              properties:
+                productId: { type: string }
+                days: { type: integer, minimum: 1, maximum: 90 }
+                budget: { type: string }
+                note: { type: string }
+      responses:
+        '201': { description: Promotion request created (pending) }
+    get:
+      tags: [promotions]
+      summary: List promotion requests (admin all; seller own)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Paginated promotion requests }
+  /promotions/{id}/review:
+    post:
+      tags: [promotions]
+      summary: Admin approves or rejects a promotion request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [approve, reject] }
+                reason: { type: string }
+      responses:
+        '200': { description: Request reviewed; product marked promoted when approved }
   /category-requests:
     post:
       tags: [category-requests]

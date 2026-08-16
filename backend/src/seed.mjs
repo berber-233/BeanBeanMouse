@@ -42,21 +42,21 @@ export function seedIfEmpty() {
 
   const products = [
     {
-      id: 'p1', sellerId, companyId: c1, category: 'machinery', hsCode: '8456.11', country: 'CN',
+      id: 'p1', sellerId, companyId: c1, category: 'machinery', sub: 'laser', hsCode: '8456.11', country: 'CN',
       priceMin: 12800, priceMax: 16800, moq: 1, unit: 'set', leadTime: 30, terms: ['FOB', 'CIF'], certs: ['CE'],
       srcLang: 'zh', status: 'on',
       en: { title: '3000W Fiber Laser Cutting Machine', description: 'CNC fiber laser cutter with exchange table, 3kW, suitable for sheet metal cutting.', features: ['3kW fiber laser', 'Exchange table', 'CE certified'] },
       zh: { title: '3000W 光纤激光切割机', description: '数控光纤激光切割机，含交换工作台，3kW，适用于钣金切割。', features: ['3kW 光纤激光', '交换工作台', 'CE 认证'] }
     },
     {
-      id: 'p2', sellerId, companyId: c1, category: 'electronics', hsCode: '8504.40', country: 'CN',
+      id: 'p2', sellerId, companyId: c1, category: 'electronics', sub: 'ev-charging', hsCode: '8504.40', country: 'CN',
       priceMin: 3.2, priceMax: 4.8, moq: 1000, unit: 'pcs', leadTime: 15, terms: ['FOB', 'EXW'], certs: ['CE', 'RoHS'],
       srcLang: 'en', status: 'on',
       en: { title: 'GaN Fast Charger 65W USB-C', description: '65W GaN fast charger with USB-C PD3.0, compact design, CE & RoHS.', features: ['65W GaN', 'USB-C PD3.0', 'CE & RoHS'] },
       zh: { title: '65W 氮化镓快充充电器', description: '65W 氮化镓快充充电器，USB-C PD3.0，小巧便携，CE/RoHS 认证。', features: ['65W 氮化镓', 'USB-C PD3.0', 'CE/RoHS'] }
     },
     {
-      id: 'p3', sellerId, companyId: c1, category: 'textiles', hsCode: '5208.11', country: 'CN',
+      id: 'p3', sellerId, companyId: c1, category: 'textiles', sub: 'fabric', hsCode: '5208.11', country: 'CN',
       priceMin: 2.8, priceMax: 3.6, moq: 500, unit: 'kg', leadTime: 20, terms: ['FOB'], certs: ['GOTS'],
       srcLang: 'zh', status: 'pending',
       en: { title: 'Organic Cotton Jersey Fabric', description: 'GOTS organic cotton jersey, 180gsm, natural dye options.', features: ['GOTS certified', '180gsm', 'Natural dyes'] },
@@ -66,8 +66,8 @@ export function seedIfEmpty() {
 
   for (const p of products) {
     run(
-      'INSERT INTO products (id, seller_id, company_id, category, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      p.id, p.sellerId, p.companyId, p.category, p.hsCode, p.country, p.priceMin, p.priceMax, p.moq, p.unit, p.leadTime,
+      'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      p.id, p.sellerId, p.companyId, p.category, p.sub || '', p.hsCode, p.country, p.priceMin, p.priceMax, p.moq, p.unit, p.leadTime,
       JSON.stringify(p.terms), JSON.stringify(p.certs), p.srcLang, p.status, now, now
     );
     for (const lang of ['en', 'zh']) {

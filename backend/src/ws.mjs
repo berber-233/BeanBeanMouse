@@ -77,6 +77,11 @@ export function handleWsUpgrade(req, socket, head) {
 
   socket.on('data', chunk => {
     buffer = Buffer.concat([buffer, chunk]);
+    // 安全最佳实践：限制未解析帧缓冲，防止恶意客户端内存耗尽
+    if (buffer.length > 1024 * 1024) {
+      socket.destroy();
+      return;
+    }
     for (;;) {
       const frame = decodeClientFrame(buffer);
       if (!frame) break;

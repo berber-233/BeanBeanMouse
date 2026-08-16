@@ -4,12 +4,46 @@ const STORE_KEY = 'bridgetrade_v1';
 window.__TB_STORE_KEY__ = STORE_KEY;
 
 const CATEGORIES = [
-  { id: 'machinery',  zh: '机械设备', en: 'Machinery',            hue: 210 },
-  { id: 'electronics',zh: '电子电器', en: 'Electronics',         hue: 262 },
-  { id: 'textiles',   zh: '纺织服装', en: 'Textiles & Apparel',  hue: 330 },
-  { id: 'furniture',  zh: '家具家居', en: 'Furniture',           hue: 24  },
-  { id: 'chemicals',  zh: '化工原料', en: 'Chemicals',           hue: 160 },
-  { id: 'auto',       zh: '汽车配件', en: 'Auto Parts',          hue: 0   }
+  { id: 'machinery', zh: '机械设备', en: 'Machinery', hue: 42, subs: [
+    { id: 'cnc', zh: '数控机床与金属加工', en: 'CNC & Metalworking', hs: '8456-8460' },
+    { id: 'packaging', zh: '包装与灌装机械', en: 'Packaging & Filling', hs: '8422-8424' },
+    { id: 'food-mach', zh: '食品加工机械', en: 'Food Processing', hs: '8434-8438' },
+    { id: 'textile-mach', zh: '纺织与制衣机械', en: 'Textile Machinery', hs: '8444-8453' },
+    { id: 'construction', zh: '工程与起重机械', en: 'Construction & Hoisting', hs: '8426-8431' },
+    { id: 'laser', zh: '激光与焊接设备', en: 'Laser & Welding', hs: '8456, 8515' }
+  ]},
+  { id: 'electronics', zh: '电子电器', en: 'Electronics', hue: 48, subs: [
+    { id: 'consumer', zh: '消费电子', en: 'Consumer Electronics', hs: '8517-8528' },
+    { id: 'components', zh: '电子元器件', en: 'Components', hs: '8532-8536' },
+    { id: 'appliances', zh: '家用电器', en: 'Home Appliances', hs: '8508-8516' },
+    { id: 'lighting', zh: '照明与灯饰', en: 'Lighting', hs: '8539, 9405' },
+    { id: 'ev-charging', zh: '新能源与充电', en: 'EV & Charging', hs: '8504, 8711' }
+  ]},
+  { id: 'textiles', zh: '纺织服装', en: 'Textiles & Apparel', hue: 20, subs: [
+    { id: 'fabric', zh: '面料与坯布', en: 'Fabric', hs: '5208-5212, 5407-5408' },
+    { id: 'yarn', zh: '纱线与辅料', en: 'Yarn & Accessories', hs: '5201-5207, 5401-5406' },
+    { id: 'garments', zh: '成衣与配饰', en: 'Garments & Accessories', hs: '6101-6217' },
+    { id: 'home-textile', zh: '家纺', en: 'Home Textiles', hs: '6301-6304' }
+  ]},
+  { id: 'furniture', zh: '家具家居', en: 'Furniture', hue: 32, subs: [
+    { id: 'living', zh: '客厅与卧室家具', en: 'Living & Bedroom', hs: '9401-9403' },
+    { id: 'office', zh: '办公家具', en: 'Office Furniture', hs: '9401' },
+    { id: 'outdoor', zh: '户外与庭院家具', en: 'Outdoor & Garden', hs: '9403' },
+    { id: 'bedding', zh: '床垫与寝具', en: 'Bedding', hs: '9404' }
+  ]},
+  { id: 'chemicals', zh: '化工原料', en: 'Chemicals', hue: 88, subs: [
+    { id: 'organic', zh: '有机化工品', en: 'Organic Chemicals', hs: '2901-2942' },
+    { id: 'inorganic', zh: '无机化工品', en: 'Inorganic Chemicals', hs: '2801-2853' },
+    { id: 'paints', zh: '涂料与颜料', en: 'Paints & Pigments', hs: '3208-3210' },
+    { id: 'plastics', zh: '塑料与树脂', en: 'Plastics & Resins', hs: '3901-3926' },
+    { id: 'fertilizer', zh: '肥料', en: 'Fertilizers', hs: '3101-3105' }
+  ]},
+  { id: 'auto', zh: '汽车配件', en: 'Auto Parts', hue: 14, subs: [
+    { id: 'parts', zh: '汽车零部件', en: 'Auto Parts', hs: '8708' },
+    { id: 'tires', zh: '轮胎', en: 'Tires', hs: '4011' },
+    { id: 'auto-lighting', zh: '车灯与电子', en: 'Lighting & Electronics', hs: '8512' },
+    { id: 'accessories', zh: '内外饰与用品', en: 'Interior & Accessories', hs: '8707, 8709' }
+  ]}
 ];
 
 const SELLERS = [
@@ -519,6 +553,145 @@ function buildLogs(now) {
   ];
 }
 
+
+/* 清关/报关参考：买卖双方常用文件 + 当地官方来源（正式版可接入实时更新） */
+const CUSTOMS_REF = [
+  {
+    code: 'US', flag: 'US', zh: '美国', en: 'United States', note: '货物到港前完成 ISF 申报；关注 FDA/EPA 等机构对特定商品的准入要求。',
+    docs: [
+      { zh: '商业发票（Commercial Invoice）', en: 'Commercial Invoice' },
+      { zh: '装箱单（Packing List）', en: 'Packing List' },
+      { zh: '提单 / 空运单（B/L or AWB）', en: 'Bill of Lading / Air Waybill' },
+      { zh: '进口报关单（Entry Summary / CBP Form 3461）', en: 'Entry Summary (CBP 3461)' },
+      { zh: '原产地证 / 特定认证（FDA、EPA、DOT 等按品类）', en: 'Certificate of Origin / FDA, EPA, DOT as applicable' }
+    ],
+    sources: [
+      { name: 'U.S. Customs and Border Protection', url: 'https://www.cbp.gov/trade', region: 'US' },
+      { name: 'U.S. International Trade Commission (HTS)', url: 'https://hts.usitc.gov/', region: 'US' },
+      { name: 'Trade.gov', url: 'https://www.trade.gov/', region: 'US' }
+    ]
+  },
+  {
+    code: 'EU', flag: 'EU', zh: '欧盟（德国示例）', en: 'European Union (DE example)', note: '统一海关联盟，货物进入任一成员国即进入欧盟单一市场；CE 标记与增值税（VAT/OSS）需合规。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '欧盟统一报关单（SAD）', en: 'Single Administrative Document (SAD)' },
+      { zh: '原产地证（如享受关税优惠）', en: 'Certificate of Origin (for preferential duty)' },
+      { zh: 'CE 声明 / 特定产品合规文件', en: 'CE Declaration / product compliance files' }
+    ],
+    sources: [
+      { name: 'EU Taxation and Customs Union', url: 'https://taxation-customs.ec.europa.eu/', region: 'EU' },
+      { name: 'Access2Markets', url: 'https://trade.ec.europa.eu/access-to-markets/', region: 'EU' },
+      { name: 'German Customs (Zoll)', url: 'https://www.zoll.de/', region: 'EU' }
+    ]
+  },
+  {
+    code: 'GB', flag: 'GB', zh: '英国', en: 'United Kingdom', note: '脱欧后使用独立关税制度；GB 海关申报（CDS）与 UKCA/CE 标记要求并存至特定时限。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '英国海关申报（CDS）', en: 'UK Customs Declaration (CDS)' },
+      { zh: '原产地证 / 准入认证（UKCA 等）', en: 'Certificate of Origin / UKCA as applicable' }
+    ],
+    sources: [
+      { name: 'GOV.UK - Import goods into UK', url: 'https://www.gov.uk/import-goods-into-uk', region: 'GB' },
+      { name: 'UK Trade Tariff', url: 'https://www.trade-tariff.service.gov.uk/', region: 'GB' }
+    ]
+  },
+  {
+    code: 'CN', flag: 'CN', zh: '中国', en: 'China', note: '出口报关需如实申报 HS 编码与成交方式；退税与收汇合规（外汇管理局）需同步关注。',
+    docs: [
+      { zh: '出口报关单（海关申报）', en: 'Export Customs Declaration' },
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '报关委托书 / 代理报关协议', en: 'Customs Broker Authorization' },
+      { zh: '原产地证（一般/优惠）', en: 'Certificate of Origin' },
+      { zh: '商检/许可证（按品类，如食品、化工、医疗器械）', en: 'Inspection / License (per category)' }
+    ],
+    sources: [
+      { name: '中国海关总署', url: 'http://www.customs.gov.cn/', region: 'CN' },
+      { name: '海关 HS 编码查询（中国电子口岸）', url: 'https://www.chinaport.gov.cn/', region: 'CN' }
+    ]
+  },
+  {
+    code: 'JP', flag: 'JP', zh: '日本', en: 'Japan', note: '通关由日本海关（税関）负责；食品/药品/化妆品需厚生劳动省准入。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '进口申报书（Import Declaration）', en: 'Import Declaration (NACCS)' },
+      { zh: '原产地证 / 特定品类许可（PSE、食品等）', en: 'Certificate of Origin / permits as applicable' }
+    ],
+    sources: [
+      { name: 'Japan Customs', url: 'https://www.customs.go.jp/english/', region: 'JP' },
+      { name: 'NACCS（电子通关）', url: 'https://www.naccs.jp/', region: 'JP' }
+    ]
+  },
+  {
+    code: 'KR', flag: 'KR', zh: '韩国', en: 'Korea', note: 'Korea Customs 电子通关（UNI-PASS）；KC 认证按品类要求。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '进口申报（UNI-PASS）', en: 'Import Declaration (UNI-PASS)' },
+      { zh: 'KC 认证 / 原产地证（按品类）', en: 'KC certification / CO as applicable' }
+    ],
+    sources: [
+      { name: 'Korea Customs Service', url: 'https://www.customs.go.kr/', region: 'KR' },
+      { name: 'UNI-PASS', url: 'https://unipass.customs.go.kr/', region: 'KR' }
+    ]
+  },
+  {
+    code: 'IN', flag: 'IN', zh: '印度', en: 'India', note: 'BIS 认证与强制标签要求较多；关税与 GST 需在报关时申报。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '进口报关单（BOE）', en: 'Bill of Entry (BOE)' },
+      { zh: 'BIS 认证 / 原产地证（按品类）', en: 'BIS certification / CO as applicable' }
+    ],
+    sources: [
+      { name: 'CBIC (Indian Customs)', url: 'https://www.cbic.gov.in/', region: 'IN' },
+      { name: 'BIS (Bureau of Indian Standards)', url: 'https://www.bis.gov.in/', region: 'IN' }
+    ]
+  },
+  {
+    code: 'VN', flag: 'VN', zh: '越南', en: 'Vietnam', note: 'VAN 电子通关；纺织/电子等品类关注原产地规则与 C/O 表格。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '进口报关单（VAN）', en: 'Import Declaration (VAN)' },
+      { zh: '原产地证（C/O）', en: 'Certificate of Origin' }
+    ],
+    sources: [
+      { name: 'Vietnam Customs', url: 'https://www.customs.gov.vn/', region: 'VN' },
+      { name: 'VNACCS/VCIS', url: 'https://www.vnaccs.vn/', region: 'VN' }
+    ]
+  },
+  {
+    code: 'AE', flag: 'AE', zh: '阿联酋', en: 'UAE', note: '迪拜等酋长国为转口枢纽；清关文件要求严格，需注意 EORI/进口代码与禁运清单。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '进口报关（Dubai Customs / Federal）', en: 'Import Declaration (Dubai/Federal Customs)' },
+      { zh: '原产地证 / 特定品类认证（SFDA、ECAS 等）', en: 'CO / SFDA, ECAS as applicable' }
+    ],
+    sources: [
+      { name: 'Dubai Customs', url: 'https://www.dubai-customs.gov.ae/', region: 'AE' },
+      { name: 'Federal Customs Authority UAE', url: 'https://www.fca.gov.ae/', region: 'AE' }
+    ]
+  },
+  {
+    code: 'BR', flag: 'BR', zh: '巴西', en: 'Brazil', note: '清关流程较复杂（Siscomex），部分品类需 ANVISA/INMETRO 许可；关税与 ICMS 税种较多。',
+    docs: [
+      { zh: '商业发票与装箱单', en: 'Commercial Invoice & Packing List' },
+      { zh: '提单 / 空运单', en: 'B/L or AWB' },
+      { zh: '进口报关（Siscomex / DI）', en: 'Import Declaration (Siscomex / DI)' },
+      { zh: 'ANVISA / INMETRO 许可（按品类）', en: 'ANVISA / INMETRO permits as applicable' }
+    ],
+    sources: [
+      { name: 'Receita Federal (Brazil Customs)', url: 'https://www.gov.br/receitafederal/', region: 'BR' },
+      { name: 'Siscomex', url: 'https://www.siscomex.gov.br/', region: 'BR' }
+    ]
+  }
+];
 const I18N = {
   zh: {
     home: '首页', marketplace: '产品市场', dashboard: '工作台', login: '登录', logout: '退出登录',
@@ -618,6 +791,17 @@ const I18N = {
     evOrderCreate: '订单创建', evReceiptConfirmed: '买家确认签收', evTipCreate: '小费打赏', evTipCancel: '打赏取消',
     evShipmentCreate: '物流单创建', evShipmentEvent: '物流更新', evManual: '手动快照',
     tipAlready: '已打赏', tipAgain: '感谢支持！你已打赏，可再次表达感谢或取消。', tipBtnAgain: '再次打赏',
+    navCustoms: '清关参考', customsTitle: '清关 / 报关参考', customsSub: '按目的国查看进出口所需单证与官方来源，减少清关延误与罚款',
+    customsPick: '选择目的地国家/地区', customsDocs: '常用单证', customsSources: '官方来源', customsNote: '注意事项',
+    customsDisclaimer: '以上为通用参考，实际请以目的国海关最新规定为准；正式上线将接入实时政策。',
+    navRecruit: '招商入驻', recruitTitle: '招商入驻：连接全球优质供应商', recruitSub: '面向工厂与贸易公司开放入驻，平台按外贸细分品类精准招商并扶持新店推广',
+    recruitCta: '立即申请入驻', promoTitle: '推广管理', promoSub: '提交推广位申请，审核通过后展示在首页精选与搜索推荐',
+    promoApply: '申请推广', promoDays: '推广天数', promoBudget: '预算档位', promoSubmit: '提交申请',
+    promoPending: '审核中', promoApproved: '已通过', promoRejected: '未通过', promoAdmin: '推广审核', promoBadge: '推广',
+    promoNote: '演示功能：正式版将接入结算与投放系统。',
+    errRequired: '此项为必填', errEmail: '邮箱格式不正确', errNumber: '请输入有效数字', errPositive: '请输入大于 0 的数字',
+    errPriceMax: '最高价不能低于最低价', errPick: '请选择此项', errPassword: '密码至少 8 位且含字母和数字',
+    subcatField: '外贸子分类（含 HS 参考）', hsRef: 'HS 参考', subcatHint: '子分类帮助买家精准匹配，也是平台招商参考', allSubs: '全部分类',
     partyBuyer: '买家', partySeller: '卖家', party: '交易双方',
     navGuide: '贸易流程参考', guideTitle: '国际贸易流程规范参考', guideSub: '从询盘到售后的一站式流程、术语与风险提示',
     guideDisclaimer: '本指南为通用参考，不构成法律意见；正式交易请以双方签署的合同及当地最新法规为准。',
@@ -838,6 +1022,17 @@ const I18N = {
     evOrderCreate: 'Order created', evReceiptConfirmed: 'Buyer confirmed receipt', evTipCreate: 'Tip sent', evTipCancel: 'Tip cancelled',
     evShipmentCreate: 'Shipment created', evShipmentEvent: 'Tracking update', evManual: 'Manual snapshot',
     tipAlready: 'Tipped', tipAgain: 'Thank you! You already sent a tip - you may send another or cancel it.', tipBtnAgain: 'Tip again',
+    navCustoms: 'Customs guide', customsTitle: 'Customs & clearance reference', customsSub: 'Per-country import/export document checklists and official sources to avoid delays and penalties',
+    customsPick: 'Select destination country/region', customsDocs: 'Common documents', customsSources: 'Official sources', customsNote: 'Notes',
+    customsDisclaimer: 'General reference only - always follow the latest local customs rules. Live policy updates will be added.',
+    navRecruit: 'Sell with us', recruitTitle: 'Recruit: connect global suppliers', recruitSub: 'Open to factories and trading companies; we recruit by foreign-trade category and help new stores grow',
+    recruitCta: 'Apply now', promoTitle: 'Promotion', promoSub: 'Submit a listing-boost request; approved products appear in homepage features and search',
+    promoApply: 'Request boost', promoDays: 'Days', promoBudget: 'Budget tier', promoSubmit: 'Submit',
+    promoPending: 'Pending', promoApproved: 'Approved', promoRejected: 'Rejected', promoAdmin: 'Promotion review', promoBadge: 'Promoted',
+    promoNote: 'Demo feature - billing and ad delivery will be added.',
+    errRequired: 'This field is required', errEmail: 'Invalid email', errNumber: 'Enter a valid number', errPositive: 'Must be greater than 0',
+    errPriceMax: 'Max price must be >= min price', errPick: 'Please select', errPassword: 'Password needs 8+ chars with letters and numbers',
+    subcatField: 'Subcategory (HS reference)', hsRef: 'HS reference', subcatHint: 'Subcategories improve matching and inform recruiting', allSubs: 'All subcategories',
     partyBuyer: 'Buyer', partySeller: 'Seller', party: 'Parties',
     navGuide: 'Trade process guide', guideTitle: 'International trade process reference', guideSub: 'A step-by-step guide from inquiry to after-sales, with terms and risk alerts',
     guideDisclaimer: 'This guide is general reference only and not legal advice. Formal transactions are governed by the signed contract and the latest local regulations.',

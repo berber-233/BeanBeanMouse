@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS products (
   seller_id TEXT NOT NULL REFERENCES users(id),
   company_id TEXT REFERENCES companies(id),
   category TEXT NOT NULL,
+  sub TEXT,
   hs_code TEXT,
   country TEXT NOT NULL,
   price_min REAL NOT NULL,
@@ -295,6 +296,20 @@ CREATE TABLE IF NOT EXISTS shipment_events (
   created_at INTEGER NOT NULL
 );
 
+-- 卖家推广申请：审核通过后产品标记为推广（首页精选/搜索推荐）
+CREATE TABLE IF NOT EXISTS promotion_requests (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  seller_id TEXT NOT NULL,
+  days INTEGER NOT NULL,
+  budget TEXT,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  reject_reason TEXT,
+  reviewed_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
@@ -303,3 +318,4 @@ CREATE INDEX IF NOT EXISTS idx_translation_usage ON translation_usage(user_id, d
 CREATE INDEX IF NOT EXISTS idx_evidence_order ON evidence_records(order_id, chain_index);
 CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id);
 CREATE INDEX IF NOT EXISTS idx_shipment_events_shipment ON shipment_events(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_promo_product ON promotion_requests(product_id, status);
