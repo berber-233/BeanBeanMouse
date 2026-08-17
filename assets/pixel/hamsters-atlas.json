@@ -1,6 +1,7 @@
 {
-  "description": "BeanBeanMouse character hamsters (pixel art). 32x32 cells, 8 cols x 4 rows.",
-  "cell_size": 32,
+  "description": "BeanBeanMouse character hamsters v2 (48x48 golden hamster cells, padded atlas).",
+  "cell_size": 48,
+  "padding": 2,
   "cols": 8,
   "rows": 4,
   "order": [
@@ -21,10 +22,10 @@
     "insurance"
   ],
   "costumes": {
-    "land": "green tunic + leather cap + pouch (road merchant)",
-    "sea": "sailor tricorn hat + cream shirt + rope belt",
-    "air": "goggles + brown jacket + red scarf",
-    "insurance": "cream robe + red cross tabard + quill + coin purse"
+    "land": "green tunic + leather cap + belt pouch (road merchant)",
+    "sea": "sailor tricorn hat + striped shirt + compass",
+    "air": "aviator cap + goggles + brown jacket + red scarf",
+    "insurance": "cream robe + red cross + quill + coin purse"
   },
   "files": {
     "land": "assets/pixel/hamster-land.gif",
@@ -32,5 +33,5 @@
     "air": "assets/pixel/hamster-air.gif",
     "insurance": "assets/pixel/hamster-insurance.gif"
   },
-  "license_note": "Platform original artwork (placeholder until replaced by commissioned art)."
+  "license_note": "Platform original artwork."
 }

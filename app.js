@@ -71,7 +71,7 @@ function l10nAttrs(id, key, srcLang, srcText) {
 }
 
 /* 商务合作邮箱（试验阶段联系方式；正式运营前替换为运营邮箱） */
-const SITE_PARTNER_EMAIL = 'partner@beanbeanmouse.com';
+const SITE_PARTNER_EMAIL = '694113406@qq.com';
 const TRIAL_DISMISS_KEY = 'bbm_trial_dismissed_v1';
 function initTrialBanner() {
   const el = document.getElementById('trialBanner');
