@@ -311,6 +311,44 @@ CREATE TABLE IF NOT EXISTS promotion_requests (
   created_at INTEGER NOT NULL
 );
 
+-- 第三方运输保险：平台试点自营 + 后续合作保险商（框架已预留）
+CREATE TABLE IF NOT EXISTS insurance_providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  region TEXT,
+  tiers TEXT NOT NULL DEFAULT '{}',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS insurances (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  provider_id TEXT,
+  provider_name TEXT,
+  tier TEXT,
+  tier_label TEXT,
+  premium REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  coverage TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','cancelled','claimed')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- 合同草案保管：交易双方可申请平台保管 30 天（电子版哈希留痕）
+CREATE TABLE IF NOT EXISTS contract_custodies (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  draft_text TEXT NOT NULL,
+  contract_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','expired','released')),
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
@@ -320,3 +358,5 @@ CREATE INDEX IF NOT EXISTS idx_evidence_order ON evidence_records(order_id, chai
 CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id);
 CREATE INDEX IF NOT EXISTS idx_shipment_events_shipment ON shipment_events(shipment_id);
 CREATE INDEX IF NOT EXISTS idx_promo_product ON promotion_requests(product_id, status);
+CREATE INDEX IF NOT EXISTS idx_insurances_order ON insurances(order_id);
+CREATE INDEX IF NOT EXISTS idx_contract_custody_order ON contract_custodies(order_id);

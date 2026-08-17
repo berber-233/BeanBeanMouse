@@ -907,7 +907,7 @@ button { font-family: inherit; }
 .escort-txt { flex: 1; min-width: 0; }
 .escort-txt b { display: block; font-size: 13.5px; color: #8A4B08; }
 .transport-scene-wrap { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); margin: 4px 0 8px; }
-.transport-scene { width: 100%; height: auto; aspect-ratio: 10 / 3; object-fit: fill; display: block; }
+.transport-scene { width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: fill; display: block; }
 .escort-pkg { position: absolute; bottom: 10px; font-size: 26px; line-height: 1; animation: pkgBob 1.1s ease-in-out infinite; filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); transition: left .6s ease; }
 .transport-scene-label { position: absolute; top: 8px; left: 8px; background: rgba(74,46,8,.72); color: #FFE9BE; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; backdrop-filter: blur(4px); }
 .phase-bar { position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin: 8px 0 4px; }
@@ -977,6 +977,41 @@ button { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- 试验阶段横幅 ---------- */
+.trial-banner[hidden] { display: none !important; }
+.trial-banner { display: flex; align-items: center; gap: 6px; justify-content: center; flex-wrap: wrap;
+  background: linear-gradient(90deg, #FFF3D6, #FFE3AE); color: #6B4A16; font-size: 12.5px;
+  padding: 7px 40px 7px 12px; border-bottom: 1px solid #F0D9A8; position: relative; z-index: 900; }
+.trial-banner a { color: #B45309; font-weight: 700; text-decoration: underline; }
+.trial-dismiss { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; color: #8A5A2B; font-size: 14px; cursor: pointer; padding: 4px; }
+
+/* ---------- 运输保险（订单内 + 保险页） ---------- */
+.insurance-box { border: 1px dashed #E7C98A; background: #FFFBF0; border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
+.insurance-box.on { border-style: solid; border-color: #A8D5A2; background: #F3FBF0; }
+.ins-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.ins-head b { color: #8A4B08; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.ins-tiers { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.ins-tier.sel { background: linear-gradient(135deg, var(--primary-600), var(--primary)); color: #fff; border-color: var(--primary); }
+.ins-providers { display: grid; gap: 12px; }
+.ins-provider { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: #fff; }
+.ins-provider.off { opacity: .62; background: #FAF6EC; }
+.ins-provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.ins-tier-list { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #5F4A2A; }
+.ins-tier-list li { margin: 3px 0; }
+
+/* ---------- 合同草案与平台保管 ---------- */
+.contract-doc { margin-top: 12px; }
+.contract-pre { background: #FFFDF6; border: 1px solid #EAD9B4; border-radius: 10px; padding: 12px;
+  font-family: "Courier New", Consolas, monospace; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; color: #3E2C14; }
+.warn-box { background: #FFF4F2; border: 1px solid #F3C1B8; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+.warn-box b { color: #B42318; font-size: 13px; display: block; margin-bottom: 4px; }
+.warn-box ul { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: #7A2E22; }
+.warn-box li { margin: 4px 0; }
+.custody-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 0; border-bottom: 1px dashed #E7DCC3; }
+.custody-row:last-child { border-bottom: none; }
+.custody-row b { min-width: 140px; color: var(--accent); }
 
 /* ---------- 弹窗增强（焦点陷阱 / 滚动锁定 / 小屏适配） ---------- */
 body.modal-open { overflow: hidden; }

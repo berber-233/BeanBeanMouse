@@ -721,5 +721,121 @@ api.files = {
   }
 };
 
+/* ============================================================
+ * 服务：第三方运输保险（试点自营 + 合作保险商框架）
+ * ============================================================ */
+const MOCK_INSURANCE_PROVIDERS = [
+  {
+    id: 'prov-bbm-pilot', name: '豆豆鼠护航计划（平台试点）', region: 'GLOBAL', enabled: 1, sort: 1,
+    tiers: {
+      basic:    { label: '基础保障', rate: 0.005, minPremium: 3,  coverage: '运输途中意外损坏（免赔 20%，最高赔偿订单金额）' },
+      standard: { label: '标准保障', rate: 0.010, minPremium: 5,  coverage: '损坏 / 灭失 + 延误补贴（免赔 10%）' },
+      premium:  { label: '尊享保障', rate: 0.015, minPremium: 10, coverage: '全损 / 损坏 / 延误 + 关税损失（免赔 5%）' }
+    }
+  },
+  { id: 'prov-partner-a', name: '合作保险商 A（接入洽谈中）', region: 'GLOBAL', enabled: 0, sort: 2, tiers: {} },
+  { id: 'prov-partner-b', name: '合作保险商 B（接入洽谈中）', region: 'GLOBAL', enabled: 0, sort: 3, tiers: {} }
+];
+
+api.insurance = {
+  async providers() {
+    if (api.config.mode === 'http') return apiRequest('/insurances/providers');
+    await apiDelay();
+    return apiClone(MOCK_INSURANCE_PROVIDERS);
+  },
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/insurances');
+    await apiDelay();
+    const st = mockState();
+    return apiClone((st.insurances || []).filter(x => x.userId === (st.user && st.user.id)));
+  },
+  async create({ orderId, providerId, tier }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/insurances', { method: 'POST', body: { orderId, providerId, tier } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o || o.buyerId !== (st.user && st.user.id)) throw new Error('FORBIDDEN');
+    if (!['created', 'complete'].includes(o.status)) throw new Error('VALIDATION');
+    if ((st.insurances || []).some(x => x.orderId === orderId && x.status === 'active')) throw new Error('DUPLICATE');
+    const prov = MOCK_INSURANCE_PROVIDERS.find(p => p.id === providerId && p.enabled === 1);
+    if (!prov) throw new Error('NOT_FOUND');
+    const t = prov.tiers[tier];
+    if (!t) throw new Error('VALIDATION');
+    const total = Number(o.total) || 0;
+    const premium = Math.max(Number(t.minPremium) || 3, Math.round(total * (Number(t.rate) || 0.01) * 100) / 100);
+    const ins = {
+      id: 'ins' + Date.now(), orderId, userId: st.user.id, providerId: prov.id, providerName: prov.name,
+      tier, tierLabel: t.label, premium, currency: o.currency || 'USD', coverage: t.coverage,
+      status: 'active', createdAt: Date.now(), updatedAt: Date.now()
+    };
+    st.insurances = st.insurances || [];
+    st.insurances.push(ins);
+    mockPushEvidence(st, orderId, 'insurance_create', ins.id, { provider: prov.name, tier, premium });
+    mockSave(st);
+    return apiClone(ins);
+  },
+  async cancel(id) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/insurances/' + encodeURIComponent(id) + '/cancel', { method: 'POST' });
+    }
+    await apiDelay();
+    const st = mockState();
+    const row = (st.insurances || []).find(x => x.id === id && x.userId === (st.user && st.user.id));
+    if (!row) throw new Error('FORBIDDEN');
+    if (row.status !== 'active') throw new Error('INVALID_STATUS');
+    row.status = 'cancelled';
+    row.updatedAt = Date.now();
+    mockSave(st);
+    return apiClone(row);
+  }
+};
+
+/* ============================================================
+ * 服务：合同草案保管（30 天电子保管 + 哈希留痕）
+ * ============================================================ */
+api.contracts = {
+  async custody({ orderId, draftText }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/contracts/custody', { method: 'POST', body: { orderId, draftText } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o || (o.buyerId !== (st.user && st.user.id) && o.sellerId !== (st.user && st.user.id))) {
+      throw new Error('FORBIDDEN');
+    }
+    const exist = (st.contracts || []).find(x => x.orderId === orderId);
+    if (exist) return apiClone(exist);
+    const text = String(draftText || '').trim();
+    if (!text) throw new Error('VALIDATION');
+    const rec = {
+      id: 'ct' + Date.now(), orderId, userId: st.user.id, draftText: text,
+      contractHash: mockEvidenceHash(text), status: 'active',
+      createdAt: Date.now(), expiresAt: Date.now() + 30 * 24 * 3600 * 1000
+    };
+    st.contracts = st.contracts || [];
+    st.contracts.push(rec);
+    mockPushEvidence(st, orderId, 'contract_custody', rec.id, { hash: rec.contractHash, keepDays: 30 });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/contracts');
+    await apiDelay();
+    const st = mockState();
+    return apiClone((st.contracts || []).filter(x => x.userId === (st.user && st.user.id)));
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/contracts/' + encodeURIComponent(id));
+    await apiDelay();
+    const st = mockState();
+    const row = (st.contracts || []).find(x => x.id === id);
+    if (!row) throw new Error('NOT_FOUND');
+    return apiClone(row);
+  }
+};
+
 /* 暴露给页面与控制台测试 */
 window.api = api;

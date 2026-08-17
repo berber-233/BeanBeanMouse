@@ -96,7 +96,7 @@
 - 前端数据层 [api.js](api.js)：页面统一通过 `window.api` 访问数据，
   当前为 mock（localStorage 模拟），接真实后端时改 `API_CONFIG.mode='http'` 即可
 
-验证：`test/api-smoke.cjs`（16 项断言）+ `test/verify.cjs`（158 项页面回归）；后端 `backend/test/api.test.mjs`（95 项断言）。
+验证：`test/api-smoke.cjs`（16 项断言）+ `test/verify.cjs`（164 项页面回归）；后端 `backend/test/api.test.mjs`（107 项断言）。
 
 ## 说明
 
@@ -122,7 +122,7 @@
 - **货物实时跟进**：卖家创建物流单并按节点更新（处理中→已打包→已发货→运输中→清关中→派送中→已签收/异常），
   买卖双方共享动画进度条 + 事件时间线；物流更新自动通知对方并存证。
 - **货代功能预留**：分阶段路线图见 [docs/freight-forwarding-roadmap.md](docs/freight-forwarding-roadmap.md)。
-- 测试：后端 95 项、前端 158 项全部通过；API 文档已同步（[docs/openapi.yaml](docs/openapi.yaml)）。
+- 测试：后端 107 项、前端 164 项全部通过；API 文档已同步（[docs/openapi.yaml](docs/openapi.yaml)）。
 
 ## 2026-08-16 吉祥物矢量定稿 + Flash 式运输动画
 
@@ -134,4 +134,19 @@
   - 海运 `assets/transport-sea-anim.svg`：三桅帆船破浪前行，帆幕鼓风、海鸥拍翅、灯塔光束、水花星光；
   - 空运 `assets/transport-air-anim.svg`：仓鼠空艇吊运货箱，螺旋桨旋转、货网摆动、云层分层漂移、降落平台。
   画风统一为圆润描边 + 金黄/奶油/暖棕，与网站黄白暖色主题呼应。
-- 测试：后端 95 项、前端 158 项全部通过；设计可换色/换装，后续可继续扩展船型、季节与节日皮肤。
+- 测试：后端 107 项、前端 164 项全部通过；设计可换色/换装，后续可继续扩展船型、季节与节日皮肤。
+
+## 2026-08-18 升级：像素动画 / 保险 / 合同保管 / 试验提示 / 支付合规框架
+
+- **像素风 Flash 动画**：运输场景改为像素 GIF（陆运马车 / 海运三桅帆船 / 空运空艇），
+  每 12 帧循环"出发 → 运输中 → 到达"，按订单运输方式自动切换（`assets/pixel/transport-*.gif`）。
+- **形象化仓鼠**：陆运/海运/空运/保险员四位角色像素插画（前后左右四方向 + 呼吸帧，中世纪服饰），
+  图集与元数据在 `assets/pixel/hamsters.png` / `hamsters-atlas.json`，后续按角色替换动画骑手。
+- **第三方运输保险**：订单内投保（基础/标准/尊享），保单双方可见可取消；试点计划已启用，
+  合作保险商占位（`backend` 提供 `/insurances` 接口与表）。
+- **合同草案与 30 天保管**：`/contracts` 按订单生成国际货物买卖合同草案，附双方风险提示、
+  PDF 下载与平台 30 天电子保管（哈希留痕）。
+- **试验阶段提示**：全站 Beta 横幅 + 商务合作邮箱；正式运营邮箱待定。
+- **支付合规框架**：`docs/payments-compliance-roadmap.md` + `backend/src/payments.mjs` 占位模块，
+  明确无持牌主体前禁止真实收款。
+- 测试：后端 107 项、前端 164 项全部通过；本次改动已推送 GitHub。

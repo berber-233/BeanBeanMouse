@@ -313,6 +313,44 @@ CREATE TABLE IF NOT EXISTS promotion_requests (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 第三方运输保险：平台试点自营 + 后续合作保险商（框架已预留）
+CREATE TABLE IF NOT EXISTS insurance_providers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  region TEXT,
+  tiers JSONB NOT NULL DEFAULT '{}',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS insurances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  user_id UUID NOT NULL REFERENCES users(id),
+  provider_id UUID,
+  provider_name TEXT,
+  tier TEXT,
+  tier_label TEXT,
+  premium NUMERIC(14,2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  coverage TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','cancelled','claimed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 合同草案保管：交易双方可申请平台保管 30 天（电子版哈希留痕）
+CREATE TABLE IF NOT EXISTS contract_custodies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  user_id UUID NOT NULL REFERENCES users(id),
+  draft_text TEXT NOT NULL,
+  contract_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','expired','released')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
@@ -322,3 +360,5 @@ CREATE INDEX IF NOT EXISTS idx_evidence_order ON evidence_records(order_id, chai
 CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id);
 CREATE INDEX IF NOT EXISTS idx_shipment_events_shipment ON shipment_events(shipment_id);
 CREATE INDEX IF NOT EXISTS idx_promo_product ON promotion_requests(product_id, status);
+CREATE INDEX IF NOT EXISTS idx_insurances_order ON insurances(order_id);
+CREATE INDEX IF NOT EXISTS idx_contract_custody_order ON contract_custodies(order_id);

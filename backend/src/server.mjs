@@ -98,6 +98,32 @@ function startNewsAutoRefresh() {
   t.unref();
 }
 
+/* 保险商框架：首次访问自动写入试点计划 + 合作商占位（后续接入真实保险公司时改为后台维护） */
+function ensureInsuranceProviders() {
+  const n = all('SELECT COUNT(*) AS c FROM insurance_providers')[0].c;
+  if (n > 0) return;
+  const now = Date.now();
+  const defaults = [
+    {
+      name: '豆豆鼠护航计划（平台试点）',
+      region: 'GLOBAL', sort: 1, enabled: 1,
+      tiers: {
+        basic:    { label: '基础保障', rate: 0.005, minPremium: 3,  coverage: '运输途中意外损坏（免赔 20%，最高赔偿订单金额）' },
+        standard: { label: '标准保障', rate: 0.010, minPremium: 5,  coverage: '损坏 / 灭失 + 延误补贴（免赔 10%）' },
+        premium:  { label: '尊享保障', rate: 0.015, minPremium: 10, coverage: '全损 / 损坏 / 延误 + 关税损失（免赔 5%）' }
+      }
+    },
+    { name: '合作保险商 A（接入洽谈中）', region: 'GLOBAL', sort: 2, enabled: 0, tiers: {} },
+    { name: '合作保险商 B（接入洽谈中）', region: 'GLOBAL', sort: 3, enabled: 0, tiers: {} }
+  ];
+  for (const d of defaults) {
+    run(
+      'INSERT INTO insurance_providers (id, name, region, tiers, enabled, sort, created_at) VALUES (?,?,?,?,?,?,?)',
+      randomUUID(), d.name, d.region, JSON.stringify(d.tiers), d.enabled, d.sort, now
+    );
+  }
+}
+
 /* 简单登录限流：同 IP 每分钟最多 10 次（防暴力破解） */
 const loginAttempts = new Map();
 const LOGIN_LIMIT = Number(process.env.LOGIN_LIMIT || 10);
@@ -1005,6 +1031,111 @@ async function route(m, segs, q, req, res) {
     }
   }
 
+  /* 第三方运输保险：试点自营 + 合作保险商框架（后续接入真实保险公司） */
+  if (a === 'insurances') {
+    ensureInsuranceProviders();
+    if (m === 'GET' && b === 'providers') {
+      return send(res, 200, all('SELECT * FROM insurance_providers ORDER BY sort'));
+    }
+    if (m === 'GET' && !b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      return send(res, 200, all('SELECT * FROM insurances WHERE user_id = ? ORDER BY created_at DESC', u.id));
+    }
+    if (m === 'POST' && !b) {
+      const u = requireAuth(res, req, ['buyer']);
+      if (!u) return;
+      const body = await readBody(req);
+      const orderId = String(body.orderId || '').trim();
+      const providerId = String(body.providerId || '').trim();
+      const tier = String(body.tier || '').trim();
+      const order = get('SELECT * FROM orders WHERE id = ?', orderId);
+      if (!order || order.buyer_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能为本人订单投保');
+      if (!['created', 'complete'].includes(order.status)) return fail(res, 400, 'VALIDATION', '当前订单状态不支持投保');
+      const exist = get("SELECT * FROM insurances WHERE order_id = ? AND status = 'active'", orderId);
+      if (exist) return fail(res, 400, 'DUPLICATE', '该订单已有生效中的保险');
+      const prov = get('SELECT * FROM insurance_providers WHERE id = ? AND enabled = 1', providerId);
+      if (!prov) return fail(res, 404, 'NOT_FOUND', '保险商不存在或暂未开放');
+      const t = safeJson(prov.tiers, {})[tier];
+      if (!t) return fail(res, 400, 'VALIDATION', '无效的保障档位');
+      const total = toNum(order.total, 0);
+      const premium = Math.max(toNum(t.minPremium, 3), Math.round(total * toNum(t.rate, 0.01) * 100) / 100);
+      const id = randomUUID();
+      run(
+        'INSERT INTO insurances (id, order_id, user_id, provider_id, provider_name, tier, tier_label, premium, currency, coverage, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        id, orderId, u.id, prov.id, prov.name, tier, String(t.label || tier), premium, order.currency || 'USD',
+        String(t.coverage || ''), 'active', Date.now(), Date.now()
+      );
+      audit(u.id, 'insurance.create', 'insurance', id, 'order=' + orderId + ' tier=' + tier);
+      await notifyUser(order.seller_id, 'insurance', '买家已为订单投保',
+        '订单 ' + orderId + ' 已投保（' + prov.name + ' · ' + String(t.label || tier) + '），请知悉。');
+      return send(res, 201, get('SELECT * FROM insurances WHERE id = ?', id));
+    }
+    if (m === 'GET' && b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const row = get('SELECT * FROM insurances WHERE id = ?', b);
+      if (!row) return fail(res, 404, 'NOT_FOUND', '保单不存在');
+      const order = get('SELECT * FROM orders WHERE id = ?', row.order_id);
+      if (!order || (order.buyer_id !== u.id && order.seller_id !== u.id && u.role !== 'admin')) {
+        return fail(res, 403, 'FORBIDDEN', '无权查看该保单');
+      }
+      return send(res, 200, row);
+    }
+    if (m === 'POST' && c === 'cancel') {
+      const u = requireAuth(res, req, ['buyer']);
+      if (!u) return;
+      const row = get('SELECT * FROM insurances WHERE id = ?', b);
+      if (!row || row.user_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能取消本人投保');
+      if (row.status !== 'active') return fail(res, 400, 'INVALID_STATUS', '保单状态不可取消');
+      run('UPDATE insurances SET status = ?, updated_at = ? WHERE id = ?', 'cancelled', Date.now(), b);
+      audit(u.id, 'insurance.cancel', 'insurance', b, 'order=' + row.order_id);
+      return send(res, 200, get('SELECT * FROM insurances WHERE id = ?', b));
+    }
+  }
+
+  /* 合同草案保管：双方可申请平台保管 30 天（电子版哈希留痕，到期自动标记过期） */
+  if (a === 'contracts') {
+    if (m === 'POST' && b === 'custody') {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const body = await readBody(req);
+      const orderId = String(body.orderId || '').trim();
+      const draftText = String(body.draftText || '').trim();
+      if (!orderId || !draftText) return fail(res, 400, 'VALIDATION', '订单与合同文本为必填');
+      const order = get('SELECT * FROM orders WHERE id = ?', orderId);
+      if (!order || (order.buyer_id !== u.id && order.seller_id !== u.id)) {
+        return fail(res, 403, 'FORBIDDEN', '仅订单双方可申请合同保管');
+      }
+      const exist = get('SELECT * FROM contract_custodies WHERE order_id = ?', orderId);
+      if (exist) return send(res, 200, exist);
+      const id = randomUUID();
+      const expiresAt = Date.now() + 30 * 24 * 3600 * 1000;
+      run(
+        'INSERT INTO contract_custodies (id, order_id, user_id, draft_text, contract_hash, status, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        id, orderId, u.id, draftText, sha256(draftText), 'active', expiresAt, Date.now()
+      );
+      audit(u.id, 'contract.custody', 'contract', id, 'order=' + orderId + ' keep=30d');
+      return send(res, 201, get('SELECT * FROM contract_custodies WHERE id = ?', id));
+    }
+    if (m === 'GET' && !b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      return send(res, 200, all('SELECT * FROM contract_custodies WHERE user_id = ? ORDER BY created_at DESC', u.id));
+    }
+    if (m === 'GET' && b) {
+      const u = requireAuth(res, req);
+      if (!u) return;
+      const row = get('SELECT * FROM contract_custodies WHERE id = ?', b);
+      if (!row) return fail(res, 404, 'NOT_FOUND', '保管记录不存在');
+      const order = get('SELECT * FROM orders WHERE id = ?', row.order_id);
+      if (!order || (order.buyer_id !== u.id && order.seller_id !== u.id && u.role !== 'admin')) {
+        return fail(res, 403, 'FORBIDDEN', '无权查看该保管记录');
+      }
+      return send(res, 200, row);
+    }
+  }
+
   /* 通知 */
   if (a === 'notifications' && m === 'GET') {
     const u = requireAuth(res, req);
@@ -1200,7 +1331,9 @@ async function route(m, segs, q, req, res) {
         evidence: get('SELECT COUNT(*) AS c FROM evidence_records').c,
         shipments: get('SELECT COUNT(*) AS c FROM shipments').c,
         pendingPromotions: get('SELECT COUNT(*) AS c FROM promotion_requests WHERE status = ?', 'pending').c,
-        categoryRequests: get('SELECT COUNT(*) AS c FROM category_requests').c
+        categoryRequests: get('SELECT COUNT(*) AS c FROM category_requests').c,
+        insurances: get('SELECT COUNT(*) AS c FROM insurances').c,
+        contracts: get('SELECT COUNT(*) AS c FROM contract_custodies').c
       });
     }
     if (b === 'logs' && m === 'GET') {

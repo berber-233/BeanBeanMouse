@@ -70,6 +70,22 @@ function l10nAttrs(id, key, srcLang, srcText) {
   return ' data-l10n="' + id + ':' + key + ':' + srcLang + '" data-l10n-text="' + esc(srcText) + '"';
 }
 
+/* 商务合作邮箱（试验阶段联系方式；正式运营前替换为运营邮箱） */
+const SITE_PARTNER_EMAIL = 'partner@beanbeanmouse.com';
+const TRIAL_DISMISS_KEY = 'bbm_trial_dismissed_v1';
+function initTrialBanner() {
+  const el = document.getElementById('trialBanner');
+  if (!el) return;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(TRIAL_DISMISS_KEY) === '1'; } catch (e) { /* 忽略 */ }
+  if (dismissed) return;
+  el.hidden = false;
+  const txt = document.getElementById('trialBannerText');
+  const mail = document.getElementById('trialBannerMail');
+  if (txt) txt.textContent = t('trialNotice') + ' ';
+  if (mail) { mail.href = 'mailto:' + SITE_PARTNER_EMAIL; mail.textContent = SITE_PARTNER_EMAIL; }
+}
+
 /* 非中/英浏览者：把页面中标记过的产品/资讯内容异步翻译成浏览者语言并回填（结果本地缓存） */
 function applyViewerLang(root) {
   if (!root) return;
@@ -133,6 +149,8 @@ function migrateState() {
   if (!Array.isArray(state.shipments)) { state.shipments = []; changed = true; }
   if (!Array.isArray(state.evidence)) { state.evidence = []; changed = true; }
   if (!Array.isArray(state.promotions)) { state.promotions = []; changed = true; }
+  if (!Array.isArray(state.insurances)) { state.insurances = []; changed = true; }
+  if (!Array.isArray(state.contracts)) { state.contracts = []; changed = true; }
   if (!state.tipDismissed || typeof state.tipDismissed !== 'object') { state.tipDismissed = {}; changed = true; }
   state.products.forEach(p => {
     if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
@@ -146,6 +164,7 @@ function migrateState() {
   if (changed) saveState();
 }
 migrateState();
+initTrialBanner();
 
 function syncVerification() {
   state.companies.forEach(c => {
@@ -563,6 +582,22 @@ function handleAction(el) {
     case 'promo-open': openPromoModal(id); break;
     case 'promo-review': reviewPromotion(id, el.dataset.action2); break;
     case 'catreq-status': setCatReqStatus(id, el.dataset.status, el.dataset.note); break;
+    case 'insurance-tier': {
+      const box = el.closest('.insurance-box');
+      if (box) box.querySelectorAll('.ins-tier').forEach(b => b.classList.toggle('sel', b === el));
+      break;
+    }
+    case 'insurance-buy': runBusy(el, () => buyInsurance(el.dataset.order)); break;
+    case 'insurance-cancel': runBusy(el, () => cancelInsurance(el.dataset.id)); break;
+    case 'contract-gen': renderContractPreview(); break;
+    case 'contract-print': openContractPrint((state.orders || []).find(o => o.id === el.dataset.order)); break;
+    case 'contract-custody': runBusy(el, () => requestContractCustody(el.dataset.order)); break;
+    case 'dismiss-trial': {
+      try { localStorage.setItem(TRIAL_DISMISS_KEY, '1'); } catch (e) { /* 忽略 */ }
+      const b = document.getElementById('trialBanner');
+      if (b) b.hidden = true;
+      break;
+    }
     case 'logout': logout(false); break;
     case 'switch-role': logout(false, true); break;
     case 'go-dashboard': go('/dashboard'); break;
@@ -979,6 +1014,8 @@ function render() {
   else if (path === '/guide') { app.innerHTML = renderGuide(); }
   else if (path === '/customs') { app.innerHTML = renderCustoms(); }
   else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
+  else if (path === '/insurance') { app.innerHTML = renderInsurance(); bindInsurancePage(); }
+  else if (path === '/contracts') { app.innerHTML = renderContracts(); }
   else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
@@ -989,20 +1026,7 @@ function render() {
 }
 
 function renderPage() {
-  const { path, params } = parseHash();
-  const app = $('#app');
-  if (path === '' || path === '/') app.innerHTML = renderHome();
-  else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
-  else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
-  else if (path === '/guide') { app.innerHTML = renderGuide(); }
-  else if (path === '/customs') { app.innerHTML = renderCustoms(); }
-  else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
-  else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
-  else if (path === '/login') app.innerHTML = renderLogin();
-  else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
-  else app.innerHTML = renderHome();
-  applyViewerLang(app);
-  if (path === '' || path === '/') fitHeroTitle();
+  render();
 }
 
 /* ---------- 产品卡片 ---------- */
@@ -1620,7 +1644,7 @@ function transportMode(shipment) {
   return 'land';
 }
 function transportArt(mode) {
-  return 'assets/transport-' + (mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land') + '-anim.svg';
+  return 'assets/pixel/transport-' + (mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land') + '.gif';
 }
 function transportName(mode) {
   return mode === 'sea' ? t('modeSea') : mode === 'air' ? t('modeAir') : t('modeLand');
@@ -1714,6 +1738,118 @@ function tipCalloutHtml(o) {
     + '<button type="button" class="btn btn-sm" data-action="tip-dismiss" data-id="' + o.id + '">' + t('tipDismissBtn') + '</button>'
     + '</div></div>';
 }
+function insuranceOfOrder(o) {
+  const rows = (state.insurances || []).filter(x => x.orderId === o.id);
+  return rows.find(x => x.status === 'active') || rows[0] || null;
+}
+function insuranceBoxHtml(o) {
+  const isBuyer = state.user && o.buyerId === state.user.id;
+  const ins = insuranceOfOrder(o);
+  if (ins) {
+    return '<div class="insurance-box ' + (ins.status === 'active' ? 'on' : '') + '">'
+      + '<div class="ins-head"><b>' + icon('shield') + ' ' + t('insuranceTitle') + '</b>'
+      + '<span class="status-pill ' + (ins.status === 'active' ? 'done' : 'rej') + '">' + (ins.status === 'active' ? t('insuranceActive') : t('insuranceCancelled')) + '</span></div>'
+      + '<p class="small muted">' + t('insProviderLabel') + '：' + esc(ins.providerName || '') + ' · ' + t('insTierLabel') + '：' + esc(ins.tierLabel || ins.tier || '') + '</p>'
+      + '<p class="small">' + t('insCoverageLabel') + '：' + esc(ins.coverage || '') + '</p>'
+      + '<p class="small"><b>' + t('insPremiumLabel') + '：' + (ins.currency || 'USD') + ' ' + Number(ins.premium || 0).toFixed(2) + '</b></p>'
+      + (isBuyer && ins.status === 'active'
+        ? '<button type="button" class="btn btn-sm" data-action="insurance-cancel" data-id="' + ins.id + '">' + t('insuranceCancel') + '</button>' : '')
+      + '</div>';
+  }
+  if (!isBuyer || !['created', 'complete'].includes(o.status)) return '';
+  return '<div class="insurance-box"><div class="ins-head"><b>' + icon('shield') + ' ' + t('insuranceTitle') + '</b>'
+    + '<span class="chip sub-chip">' + t('insurancePartnersNote') + '</span></div>'
+    + '<div class="ins-tiers" role="radiogroup" aria-label="' + esc(t('insTierLabel')) + '">'
+    + [['basic', t('insTierBasic')], ['standard', t('insTierStandard')], ['premium', t('insTierPremium')]].map((kv, i) =>
+      '<button type="button" class="chip ins-tier' + (i === 1 ? ' sel' : '') + '" data-action="insurance-tier" data-tier="' + kv[0] + '">' + esc(kv[1]) + '</button>').join('')
+    + '</div>'
+    + '<div class="flex gap-10"><button type="button" class="btn btn-sm btn-primary" data-action="insurance-buy" data-order="' + o.id + '">' + t('insuranceBuy') + '</button></div>'
+    + '</div>';
+}
+function contractDraftText(o) {
+  const p = productById(o.productId);
+  const buyer = partyNameOf(o, 'buyer'), seller = partyNameOf(o, 'seller');
+  const qty = Number(o.quantity) || 100;
+  const unit = p && p.unit ? p.unit : 'pcs';
+  const total = Number(o.total) || 0;
+  const price = qty > 0 ? total / qty : (p ? p.priceMin : 0);
+  const date = new Date().toISOString().slice(0, 10);
+  const code = 'BBM-C-' + String(o.id).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10) + '-' + date.replace(/-/g, '');
+  return [
+    '=== ' + t('contractTitle2') + ' ===', '',
+    t('contractNo') + '：' + code,
+    t('contractDate') + '：' + date, '',
+    t('partyBuyer') + '：' + buyer,
+    t('partySeller') + '：' + seller,
+    t('contractId') + '：' + o.id, '',
+    '1. ' + t('contractQty') + '：' + qty + ' ' + unit,
+    '2. ' + t('contractUnitPrice') + '：' + (o.currency || 'USD') + ' ' + Number(price).toFixed(2) + ' / ' + unit,
+    '3. ' + t('contractTotal') + '：' + (o.currency || 'USD') + ' ' + Number(total).toLocaleString('en-US'),
+    '4. ' + t('contractIncoterm') + '：' + (p && p.incoterm ? p.incoterm : 'FOB'),
+    '5. ' + t('contractDelivery') + '：45 days after deposit',
+    '6. ' + t('contractPayment') + '：30% T/T deposit, 70% against copy of B/L',
+    '7. ' + t('contractInspection') + '：pre-shipment inspection by buyer or third party (e.g. SGS)',
+    '8. ' + t('contractForceMajeure') + '：standard clause, notice within 7 days',
+    '9. ' + t('contractDispute') + '：HKIAC arbitration, Hong Kong SAR', '',
+    '--- ' + t('contractSignBlock') + ' ---',
+    t('contractSignParty'), '________________________',
+    t('contractSignParty2'), '________________________'
+  ].join('\n');
+}
+function contractWarningsHtml() {
+  return [1, 2, 3, 4, 5].map(n => '<li>' + esc(t('contractWarn' + n)) + '</li>').join('');
+}
+function openContractPrint(o) {
+  if (!o) return;
+  const draft = contractDraftText(o);
+  const doc = '<div class="contract-doc">'
+    + '<h3>' + esc(t('contractTitle2')) + '</h3>'
+    + '<p class="small muted">' + esc(t('contractDraftNotice')) + '</p>'
+    + '<pre class="contract-pre">' + esc(draft) + '</pre>'
+    + '<div class="warn-box"><b>' + esc(t('contractWarnings')) + '</b><p class="small muted">' + esc(t('contractWarningTitle')) + '</p><ul>' + contractWarningsHtml() + '</ul></div>'
+    + '</div>';
+  const printEl = document.getElementById('printDoc');
+  if (printEl) printEl.innerHTML = doc;
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + t('contractsTitle') + '</h3>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">' + doc
+    + '<p class="small muted">' + icon('file') + ' ' + t('contractPrintHint') + '</p>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
+    + '</div></div>');
+}
+async function buyInsurance(orderId) {
+  const btn = document.querySelector('[data-action="insurance-buy"][data-order="' + orderId + '"]');
+  const box = btn && btn.closest('.insurance-box');
+  const sel = box && box.querySelector('.ins-tier.sel');
+  const tier = sel ? sel.dataset.tier : 'standard';
+  try {
+    const provs = await api.insurance.providers();
+    const prov = provs.find(p => p.enabled === 1);
+    if (!prov) throw new Error('NOT_FOUND');
+    const rec = await api.insurance.create({ orderId, providerId: prov.id, tier });
+    toast(t('insuranceActive') + ' · ' + (rec.currency || 'USD') + ' ' + Number(rec.premium || 0).toFixed(2));
+    renderPage();
+  } catch (e) {
+    toast(e.message === 'DUPLICATE' ? t('insuranceActive') : (e.message || 'ERROR'));
+  }
+}
+async function cancelInsurance(id) {
+  try {
+    await api.insurance.cancel(id);
+    toast(t('insuranceCancelled'));
+    renderPage();
+  } catch (e) { toast(e.message || 'ERROR'); }
+}
+async function requestContractCustody(orderId) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  if (!o) return;
+  try {
+    await api.contracts.custody({ orderId, draftText: contractDraftText(o) });
+    toast(t('contractCustodyDone'));
+    renderPage();
+  } catch (e) { toast(e.message || 'ERROR'); }
+}
 function orderCard(o) {
   const p = productById(o.productId);
   const isBuyer = state.user && o.buyerId === state.user.id;
@@ -1729,6 +1865,7 @@ function orderCard(o) {
     + '<p class="small muted">' + t('party') + '：' + t('partyBuyer') + ' ' + esc(partyNameOf(o, 'buyer')) + ' · ' + t('partySeller') + ' ' + esc(partyNameOf(o, 'seller')) + '</p>'
     + (showTipCallout ? tipCalloutHtml(o) : '')
     + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-hamster-full.svg" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
+    + insuranceBoxHtml(o)
     + (tips.length ? '<div class="reply-box"><ul style="margin:6px 0 0;padding-left:18px">'
       + tips.map(x => '<li>💛 ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
         + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')
@@ -2179,6 +2316,83 @@ function renderRecruit() {
     + '<div class="cta-band recruit-cta"><div><h2>' + t('recruitCta') + '</h2><p>' + (zh ? '免费入驻，按效果付费' : 'Free to join, pay by results') + '</p></div>'
     + '<a class="btn btn-accent btn-lg" href="#/login" data-nav="/login">' + t('recruitCta') + '</a></div>'
     + '</div>';
+}
+
+/* ---------- 第三方运输保险页 ---------- */
+function renderInsurance() {
+  document.title = t('insurancePageTitle') + ' · BeanBeanMouse';
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>' + icon('shield') + ' ' + t('insurancePageTitle') + '</h1><p>' + t('insurancePageSub') + '</p></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('insProviderLabel') + '</h2></div>'
+    + '<div id="insuranceProviders" class="ins-providers"><p class="muted">…</p></div></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>⚖️ ' + t('insurancePageNote') + '</h2></div>'
+    + '<p class="small muted">' + t('insurancePartnersNote') + '</p></section>'
+    + '</div>';
+}
+async function bindInsurancePage() {
+  const wrap = document.getElementById('insuranceProviders');
+  if (!wrap) return;
+  try {
+    const provs = await api.insurance.providers();
+    wrap.innerHTML = provs.map(p => {
+      const tiers = Object.keys(p.tiers || {});
+      return '<div class="ins-provider' + (p.enabled ? '' : ' off') + '">'
+        + '<div class="ins-provider-head"><b>' + esc(p.name) + '</b>'
+        + '<span class="chip ' + (p.enabled ? 'ok' : '') + '">' + (p.enabled ? t('insuranceActive') : t('insurancePartnersNote')) + '</span></div>'
+        + (tiers.length
+          ? '<ul class="ins-tier-list">' + tiers.map(k => '<li><b>' + esc(p.tiers[k].label) + '</b> — ' + esc(p.tiers[k].coverage) + '</li>').join('') + '</ul>'
+          : '<p class="small muted">' + t('insurancePartnersNote') + '</p>')
+        + '</div>';
+    }).join('');
+  } catch (e) {
+    wrap.innerHTML = '<p class="muted">' + esc(e.message || 'ERROR') + '</p>';
+  }
+}
+
+/* ---------- 合同草案参考与 30 天平台保管 ---------- */
+function renderContracts() {
+  document.title = t('contractsTitle') + ' · BeanBeanMouse';
+  if (!state.user) {
+    return '<div class="container page"><div class="card panel"><p>' + t('contractNeedLogin') + '</p>'
+      + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('login') + '</a></div></div>';
+  }
+  const mine = (state.orders || []).filter(o => o.buyerId === state.user.id || o.sellerId === (state.user.sellerId || state.user.id));
+  const opts = mine.map(o => '<option value="' + o.id + '">' + esc(o.id) + ' · ' + esc(partyNameOf(o, 'seller')) + ' ⇄ ' + esc(partyNameOf(o, 'buyer')) + '</option>').join('');
+  const cust = (state.contracts || []).filter(c => c.userId === state.user.id);
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>' + icon('file') + ' ' + t('contractsTitle') + '</h1><p>' + t('contractsSub') + '</p></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('contractSelectOrder') + '</h2></div>'
+    + (mine.length
+      ? '<div class="field"><label for="contractOrderSelect">' + t('contractSelectOrder') + '</label>'
+        + '<select class="input" id="contractOrderSelect">' + opts + '</select></div>'
+        + '<button type="button" class="btn btn-primary" data-action="contract-gen">' + t('contractGenerate') + '</button>'
+        + '<div id="contractPreview"></div>'
+      : '<p class="muted">' + t('contractNoOrders') + '</p>')
+    + '</section>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('contractCustodyRecords') + '</h2></div>'
+    + (cust.length
+      ? cust.map(c => '<div class="custody-row"><b>' + esc(c.orderId) + '</b>'
+        + '<span class="small muted">' + (c.status === 'active' ? t('custodyActiveLabel') : t('custodyExpiredLabel')) + ' · ' + t('contractExpiresAt') + '：' + fmtDate(c.expiresAt) + '</span>'
+        + '<code class="ev-hash">' + esc(String(c.contractHash || '').slice(0, 16)) + '…</code></div>').join('')
+      : '<p class="muted">—</p>')
+    + '</section></div>';
+}
+function renderContractPreview() {
+  const sel = document.getElementById('contractOrderSelect');
+  const wrap = document.getElementById('contractPreview');
+  if (!sel || !wrap) return;
+  const o = (state.orders || []).find(x => x.id === sel.value);
+  if (!o) { wrap.innerHTML = '<p class="muted">' + t('contractSelectHint') + '</p>'; return; }
+  const cust = (state.contracts || []).find(c => c.orderId === o.id);
+  wrap.innerHTML = '<div class="contract-doc"><h4>' + esc(o.id) + '</h4><pre class="contract-pre">' + esc(contractDraftText(o)) + '</pre></div>'
+    + '<div class="warn-box"><b>' + t('contractWarnings') + '</b><p class="small muted">' + t('contractWarningTitle') + '</p><ul>' + contractWarningsHtml() + '</ul></div>'
+    + '<div class="flex gap-10">'
+    + '<button type="button" class="btn" data-action="contract-print" data-order="' + o.id + '">🖨 ' + t('contractDownloadPdf') + '</button>'
+    + (cust
+      ? '<span class="status-pill done">' + t('contractCustodyDone') + '</span>'
+      : '<button type="button" class="btn btn-primary" data-action="contract-custody" data-order="' + o.id + '">' + t('contractCustody') + '</button>')
+    + '</div>'
+    + (cust ? '<p class="small muted">' + t('contractExpiresAt') + '：' + fmtDate(cust.expiresAt) + ' · ' + t('contractHash') + '：<code class="ev-hash">' + esc(String(cust.contractHash || '').slice(0, 16)) + '…</code></p>' : '');
 }
 
 /* ---------- 卖家推广 / 管理员推广审核 ---------- */

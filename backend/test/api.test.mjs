@@ -321,6 +321,48 @@ let shipmentId;
   check('买家更新物流事件 -> 403', r.status === 403);
 }
 
+/* ---- 第三方保险：试点计划 + 合作商框架 ---- */
+let insuranceId;
+{
+  const r = await req('/insurances/providers');
+  check('保险商列表（试点 + 合作占位）', r.status === 200 && r.data.length >= 3 && r.data[0].enabled === 1);
+  const prov = r.data.find(p => p.enabled === 1);
+  const buy = await req('/insurances', { method: 'POST', token: buyerToken, body: { orderId, providerId: prov.id, tier: 'standard' } });
+  check('买家投保 -> 201 active', buy.status === 201 && buy.data.status === 'active' && buy.data.premium > 0);
+  insuranceId = buy.data && buy.data.id;
+  const dup = await req('/insurances', { method: 'POST', token: buyerToken, body: { orderId, providerId: prov.id, tier: 'basic' } });
+  check('重复投保 -> 400', dup.status === 400 && dup.data.error === 'DUPLICATE');
+  const sellerBuy = await req('/insurances', { method: 'POST', token: sellerToken, body: { orderId, providerId: prov.id, tier: 'basic' } });
+  check('非买家投保 -> 403', sellerBuy.status === 403);
+  const badTier = await req('/insurances', { method: 'POST', token: buyerToken, body: { orderId: 'o-none', providerId: prov.id, tier: 'basic' } });
+  check('非本人订单投保 -> 403', badTier.status === 403);
+}
+{
+  const r = await req('/insurances/' + insuranceId, { token: sellerToken });
+  check('卖家可见保单（双方可见）', r.status === 200 && r.data.order_id === orderId);
+  const r2 = await req('/insurances/' + insuranceId + '/cancel', { method: 'POST', token: buyerToken });
+  check('买家取消保单 -> cancelled', r2.status === 200 && r2.data.status === 'cancelled');
+}
+
+/* ---- 合同草案保管：30 天电子保管 + 哈希留痕 ---- */
+let custodyId;
+{
+  const draft = 'DRAFT v1: Buyer Thomas, Seller Wang, product P1, qty 100, total 13500 USD, Incoterm FOB, payment TT 30% deposit, delivery 45 days.';
+  const r = await req('/contracts/custody', { method: 'POST', token: buyerToken, body: { orderId, draftText: draft } });
+  check('买家申请合同保管 -> 201 active', r.status === 201 && r.data.status === 'active' && r.data.contract_hash.length === 64);
+  custodyId = r.data && r.data.id;
+  const days = Math.round((r.data.expires_at - r.data.created_at) / (24 * 3600 * 1000));
+  check('保管期限为 30 天', days === 30);
+  const dup = await req('/contracts/custody', { method: 'POST', token: buyerToken, body: { orderId, draftText: draft } });
+  check('重复申请返回既有保管记录', dup.status === 200 && dup.data.id === custodyId);
+}
+{
+  const r = await req('/contracts/' + custodyId, { token: sellerToken });
+  check('卖家可见保管记录（双方可见）', r.status === 200 && r.data.id === custodyId);
+  const r2 = await req('/contracts/' + custodyId, { token: adminToken });
+  check('管理员可见保管记录', r2.status === 200);
+}
+
 /* ---- 第三方存证：自动记录 + 手动快照 + 哈希链验证 ---- */
 let evidenceCount, evidenceId;
 {
