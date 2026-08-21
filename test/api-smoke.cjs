@@ -119,6 +119,86 @@ const { chromium } = require('playwright-core');
       return document.querySelector('#app').innerHTML.length > 100;
     }));
 
+  await run('exports.getReadiness defaults', async () =>
+    page.evaluate(async () => {
+      const r = await api.exports.getReadiness('s1');
+      return r.sellerId === 's1' && r.score >= 0 && r.items.length >= 7 && r.coreTotal >= 6;
+    }));
+
+  await run('exports.setItem updates readiness', async () =>
+    page.evaluate(async () => {
+      await api.exports.setItem('s1', 'customs-reg', true);
+      const r = await api.exports.getReadiness('s1');
+      return r.items.find(x => x.id === 'customs-reg').done === true && r.score > 0;
+    }));
+
+  await run('documents.generate + consistency', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      const oid = (s.orders || [])[0].id;
+      if (!oid) return false;
+      const rec = await api.documents.generate(oid, 'CI');
+      return !!rec.generated.CI && ['pass', 'warn'].includes(rec.consistency);
+    }));
+
+  await run('afterSales.create forbidden for seller', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      s.user = { id: 'u-seller', role: 'seller', sellerId: 's1' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+      try {
+        await api.afterSales.create({ orderId: s.orders[0].id, type: 'quality', description: 'x' });
+        return false;
+      } catch (e) { return e.message === 'FORBIDDEN'; }
+    }));
+
+  await run('afterSales buyer create + seller respond', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      const oid = s.orders[0].id;
+      s.user = { id: 'u-buyer', role: 'buyer', name: 'B' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+      const c = await api.afterSales.create({ orderId: oid, type: 'damage', description: 'broken on arrival' });
+      const s2 = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      s2.user = { id: 'u-seller', role: 'seller', sellerId: 's1' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s2));
+      const r = await api.afterSales.respond(c.id, { action: 'accept', reply: 'reship' });
+      return r.status === 'resolved' && r.sellerReply === 'reship';
+    }));
+
+  await run('afterSales.escalate + arbitrate', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      const oid = s.orders[0].id;
+      s.user = { id: 'u-buyer', role: 'buyer', name: 'B' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+      const c = await api.afterSales.create({ orderId: oid, type: 'other', description: 'delay' });
+      const esc = await api.afterSales.escalate(c.id);
+      const s2 = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      s2.user = { id: 'u-admin', role: 'admin', name: 'Admin' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s2));
+      const r = await api.afterSales.arbitrate(c.id, { ruling: 'compromise', note: 'split' });
+      return esc.status === 'arbitrating' && r.status === 'resolved' && r.ruling === 'compromise';
+    }));
+
+  await run('compliance.screen flags keywords', async () =>
+    page.evaluate(async () => {
+      const r = await api.compliance.screen('Military drone with night vision camera');
+      return r.hits.length >= 3 && r.clean === false;
+    }));
+
+  await run('compliance.screen clean text', async () =>
+    page.evaluate(async () => {
+      const r = await api.compliance.screen('Cotton t-shirt with custom logo');
+      return r.clean === true && r.hits.length === 0;
+    }));
+
+  await run('logistics.estimate returns ranges', async () =>
+    page.evaluate(async () => {
+      const r = await api.logistics.estimate({ mode: 'sea', weight: 500, volume: 3, container: 'LCL' });
+      return r.currency === 'USD' && r.lo > 0 && r.hi >= r.lo;
+    }));
+
   console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
   const failed = results.filter(([, ok]) => !ok).length;
   console.log('PAGE ERRORS: ' + JSON.stringify(errors));

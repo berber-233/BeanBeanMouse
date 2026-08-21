@@ -151,6 +151,9 @@ function migrateState() {
   if (!Array.isArray(state.promotions)) { state.promotions = []; changed = true; }
   if (!Array.isArray(state.insurances)) { state.insurances = []; changed = true; }
   if (!Array.isArray(state.contracts)) { state.contracts = []; changed = true; }
+  if (!state.exportReadiness || typeof state.exportReadiness !== 'object') { state.exportReadiness = {}; changed = true; }
+  if (!state.orderDocs || typeof state.orderDocs !== 'object') { state.orderDocs = {}; changed = true; }
+  if (!Array.isArray(state.afterSales)) { state.afterSales = []; changed = true; }
   if (!state.tipDismissed || typeof state.tipDismissed !== 'object') { state.tipDismissed = {}; changed = true; }
   state.products.forEach(p => {
     if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
@@ -476,6 +479,11 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'shipment-create-form') p = submitShipmentCreate(f);
   else if (f.dataset.form === 'shipment-event-form') p = submitShipmentEvent(f);
   else if (f.dataset.form === 'promo-form') p = submitPromo(f);
+  else if (f.dataset.form === 'logistics-estimate-form') p = runLogisticsEstimate(f);
+  else if (f.dataset.form === 'compliance-screen-form') p = runComplianceScreen(f);
+  else if (f.dataset.form === 'after-sales-form') p = submitAfterSales(f);
+  else if (f.dataset.form === 'aftersales-respond-form') p = submitAfterSalesRespond(f);
+  else if (f.dataset.form === 'aftersales-arbitrate-form') p = submitAfterSalesArbitrate(f);
   if (p && typeof p.finally === 'function') p.finally(release);
   else release();
 });
@@ -592,6 +600,16 @@ function handleAction(el) {
     case 'contract-gen': renderContractPreview(); break;
     case 'contract-print': openContractPrint((state.orders || []).find(o => o.id === el.dataset.order)); break;
     case 'contract-custody': runBusy(el, () => requestContractCustody(el.dataset.order)); break;
+    case 'export-toggle': runBusy(el, () => toggleExportItem(el)); break;
+    case 'doc-gen': runBusy(el, () => generateOrderDoc(el.dataset.order, el.dataset.type)); break;
+    case 'doc-print': openOrderDocPrint(el.dataset.order, el.dataset.type); break;
+    case 'doc-check': runBusy(el, () => checkOrderDocConsistency(el.dataset.order)); break;
+    case 'after-sales-open': openAfterSalesModal(id, false); break;
+    case 'dispute-open': openAfterSalesModal(id, true); break;
+    case 'as-respond': openAfterSalesRespondModal(id); break;
+    case 'as-escalate': runBusy(el, () => escalateAfterSales(id)); break;
+    case 'as-arbitrate': openAfterSalesArbitrateModal(id); break;
+    case 'as-evidence': openEvidencePrint(id); break;
     case 'dismiss-trial': {
       try { localStorage.setItem(TRIAL_DISMISS_KEY, '1'); } catch (e) { /* 忽略 */ }
       const b = document.getElementById('trialBanner');
@@ -820,7 +838,7 @@ function renderHeader() {
   if (u) {
     ua.innerHTML =
       '<button type="button" class="user-chip" data-action="go-dashboard">'
-      + '<span class="avatar">' + esc(u.name[0].toUpperCase()) + '</span>'
+      + '<span class="avatar">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span>'
       + '<span>' + esc(u.name) + '</span>'
       + '<span class="role-tag">' + (u.role === 'seller' ? (state.lang === 'zh' ? '卖家' : 'Seller') : u.role === 'admin' ? t('adminRoleTag') : (state.lang === 'zh' ? '买家' : 'Buyer')) + '</span>'
       + '</button>'
@@ -1012,6 +1030,10 @@ function render() {
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
   else if (path === '/guide') { app.innerHTML = renderGuide(); }
+  else if (path === '/export') { app.innerHTML = renderExport(); }
+  else if (path === '/logistics') { app.innerHTML = renderLogistics(); bindLogisticsPage(); }
+  else if (path === '/compliance') { app.innerHTML = renderCompliance(); bindCompliancePage(); }
+  else if (path === '/disputes') { app.innerHTML = renderDisputes(); bindDisputesPage(); }
   else if (path === '/customs') { app.innerHTML = renderCustoms(); }
   else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path === '/insurance') { app.innerHTML = renderInsurance(); bindInsurancePage(); }
@@ -1077,7 +1099,12 @@ const HELP_ITEMS = {
     ['防伪查询', '页脚「防伪查询」输入防伪码验真；「验证本站真伪」可识别钓鱼网站。'],
     ['文档打印', '报价单与形式发票按国际通行格式生成，支持打印或另存为 PDF。'],
     ['贸易资讯', '按你关注的区域聚合权威政策，每条资讯附可查询的官方来源。'],
-    ['贸易流程参考', '从询盘到售后的规范流程、贸易术语与风险提示，帮助新手安全完成跨国交易。']
+    ['贸易流程参考', '从询盘到售后的规范流程、贸易术语与风险提示，帮助新手安全完成跨国交易。'],
+    ['出口准备', '核对经营资质、收汇、退税、许可证与商检清单，发布前先查缺补漏。'],
+    ['物流与订舱', '选择运输方式、拼箱/整柜，了解目的港费用与电放提单。'],
+    ['合规筛查', '出口管制、制裁名单与产品环保法规演示筛查，降低海关扣货风险。'],
+    ['售后与纠纷', '订单交付后申请售后或发起纠纷，平台依据存证链仲裁。'],
+    ['订单单据中心', '按订单生成商业发票、装箱单、原产地证与提单参考件，自动核对单证一致性。']
   ],
   en: [
     ['Browse products', 'Go to Products, filter by category, price, origin and certification, then click a card for details.'],
@@ -1088,7 +1115,12 @@ const HELP_ITEMS = {
     ['Anti-counterfeit', 'Use Anti-counterfeit Query in the footer to verify codes; Verify This Site detects phishing.'],
     ['Documents', 'Quotations and proforma invoices follow international formats and support print / save as PDF.'],
     ['Trade news', 'Aggregated by your followed regions; every item links to an official source.'],
-    ['Trade process guide', 'Standard flow from inquiry to after-sales, Incoterms and risk alerts to help you trade safely.']
+    ['Trade process guide', 'Standard flow from inquiry to after-sales, Incoterms and risk alerts to help you trade safely.'],
+    ['Export readiness', 'Review trading rights, FX receipts, tax rebate, licences and inspection before you publish.'],
+    ['Logistics & booking', 'Choose a transport mode, LCL/FCL, destination charges and telex release.'],
+    ['Compliance screening', 'Demo screening for export control, sanctions and product environmental rules.'],
+    ['After-sales & disputes', 'Request after-sales or open a dispute after delivery; the platform arbitrates on the evidence chain.'],
+    ['Order document center', 'Generate commercial invoice, packing list, certificate of origin and B/L reference per order with consistency checks.']
   ]
 };
 function helpLocale() { return state.lang === 'zh' ? 'zh' : 'en'; }
@@ -1455,6 +1487,18 @@ function renderDetail(pid) {
       }).join('')
       : '<p class="muted">' + t('complianceEmpty') + '</p>')
     + '<p class="small muted">' + t('complianceRef') + '</p></div>'
+    + (function () {
+      const flags = productScreenFlags(p);
+      return '<div class="card detail-block"><h2>🔎 ' + t('compliancePanelTitle') + '</h2>'
+        + '<div class="compliance-screen">'
+        + (flags.length
+          ? '<span class="status-pill rej">' + t('complianceFlagLabel') + ' ' + flags.length + '</span>'
+          : '<span class="status-pill done">' + t('compliancePassLabel') + '</span>')
+        + (flags.length ? '<div class="risk-box">' + flags.map(k => '<span class="risk-chip">' + esc(k) + '</span>').join('') + '</div>' : '')
+        + '<p class="small muted">' + t('compliancePanelNote') + '</p>'
+        + '<a class="btn btn-sm" href="#/compliance" data-nav="/compliance">' + t('complianceScreenDemo') + ' →</a>'
+        + '</div></div>';
+    })()
     + '<div class="card detail-block"><h2>' + t('aboutSeller') + '</h2><div class="seller-block">'
     + '<span class="avatar" style="width:54px;height:54px;font-size:18px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
     + '<div><div class="name" style="font-weight:700">' + esc(langObj(seller).company) + '</div>'
@@ -1695,6 +1739,15 @@ function shipmentTimelineHtml(shipment) {
     + '<div class="phase-fill" style="width:' + phasePct + '%"></div></div>'
     + '<div class="ship-loc"><span>' + t('shipmentCurrent') + '</span><b>' + esc(shipment.current_location || shipment.currentLocation || shipment.origin || '—') + '</b></div>'
     + (shipment.eta ? '<div class="ship-meta muted">' + t('shipmentEta') + '：' + fmtDate(shipment.eta) + '</div>' : '')
+    + (shipment.containerType || shipment.vessel || shipment.telexRelease
+      ? '<div class="ship-meta muted">'
+        + (shipment.containerType ? esc(shipment.containerType) : '')
+        + (shipment.vessel ? ' · ' + t('shpVessel') + ' ' + esc(shipment.vessel) : '')
+        + (shipment.billNo ? ' · ' + t('shpBillNo') + ' ' + esc(shipment.billNo) : '')
+        + (shipment.telexRelease ? ' · ' + t('shpTelex') : '')
+        + (shipment.freightTerms ? ' · ' + t('shpFreightTerms') + ' ' + esc(shipment.freightTerms) : '')
+        + '</div>'
+      : '')
     + (evs.length ? '<ul class="ship-events">' + evs.slice(-4).reverse().map(ev =>
       '<li><span class="ev-dot"></span><div><b>' + esc(shipmentStatusLabel(ev.status)) + '</b>' + (ev.location ? ' · ' + esc(ev.location) : '')
       + '<div class="muted small">' + fmtDate(ev.event_time || ev.createdAt) + (ev.note ? ' · ' + esc(ev.note) : '') + '</div></div></li>'
@@ -1705,7 +1758,10 @@ function evidenceKindLabel(kind) {
   const map = {
     order_create: t('evOrderCreate'), receipt_confirmed: t('evReceiptConfirmed'), tip_create: t('evTipCreate'),
     tip_cancel: t('evTipCancel'), shipment_create: t('evShipmentCreate'), shipment_event: t('evShipmentEvent'),
-    manual: t('evManual')
+    contract_custody: t('evContractCustody'), insurance_create: t('evInsuranceCreate'),
+    after_sales_create: t('evAfterSalesCreate'), after_sales_reply: t('evAfterSalesReply'),
+    after_sales_ruling: t('evAfterSalesRuling'), dispute_open: t('evDisputeOpen'),
+    document_generated: t('evDocGenerated'), manual: t('evManual')
   };
   return map[kind] || String(kind || '');
 }
@@ -1872,6 +1928,8 @@ function orderCard(o) {
         + '</li>').join('')
       + '</ul></div>' : '')
     + (shipments.length ? shipmentTimelineHtml(shipments[0]) : '')
+    + orderDocPanelHtml(o)
+    + orderAfterSalesPanel(o)
     + evidencePanelHtml(o)
     + '<div class="flex gap-10" style="margin-top:10px;flex-wrap:wrap">'
     + (o.status === 'created' && isBuyer ? '<button type="button" class="btn btn-primary" data-action="order-confirm" data-id="' + o.id + '">' + t('confirmReceipt') + '</button><button type="button" class="btn" data-action="order-cancel" data-id="' + o.id + '">' + t('orderStatusCancelled') + '</button>' : '')
@@ -2102,10 +2160,16 @@ function openShipmentCreateModal(orderId) {
     + '<div class="field"><label>' + t('shipmentCarrier') + '</label><input class="input" name="carrier" maxlength="80" placeholder="COSCO / DHL / FedEx…"></div>'
     + '<div class="field"><label>' + t('shipmentTrackingNo') + '</label><input class="input" name="trackingNo" maxlength="80"></div>'
     + '<div class="field"><label>' + t('shipmentMode') + '</label><select class="input" name="mode"><option value="land">' + t('modeLand') + '</option><option value="sea">' + t('modeSea') + '</option><option value="air">' + t('modeAir') + '</option></select></div>'
+    + '<div class="field"><label>' + t('shpContainer') + '</label><select class="input" name="containerType">' + CONTAINER_TYPES.map(c => '<option value="' + c.id + '">' + esc(langObj(c)) + '</option>').join('') + '</select></div>'
     + '<div class="grid-2"><div class="field"><label>' + t('shipmentOrigin') + '</label><input class="input" name="origin" maxlength="120" placeholder="Ningbo, CN"></div>'
     + '<div class="field"><label>' + t('shipmentDestination') + '</label><input class="input" name="destination" maxlength="120" placeholder="Hamburg, DE"></div></div>'
+    + '<div class="grid-2"><div class="field"><label>' + t('shpVessel') + '</label><input class="input" name="vessel" maxlength="80" placeholder="COSCO Vessel / Flight"></div>'
+    + '<div class="field"><label>' + t('shpBillNo') + '</label><input class="input" name="billNo" maxlength="60"></div></div>'
+    + '<div class="grid-2"><div class="field"><label>' + t('shpFreightTerms') + '</label><select class="input" name="freightTerms"><option value="Prepaid">' + t('freightPrepaid') + '</option><option value="Collect">' + t('freightCollect') + '</option></select></div>'
+    + '<div class="field"><label class="checkbox-label"><input type="checkbox" name="telexRelease" value="1"> ' + t('shpTelex') + '</label></div></div>'
     + '<div class="field"><label>' + t('shipmentEta') + '</label><input class="input" name="eta" type="date"></div>'
     + '<div class="field"><label>' + t('shipmentRemark') + '</label><input class="input" name="remark" maxlength="500"></div>'
+    + '<p class="small muted">' + t('shpCostHint') + '</p>'
     + '<button type="submit" class="btn btn-primary btn-block">' + t('shipmentCreateBtn') + '</button>'
     + '</form></div>'
   );
@@ -2121,8 +2185,13 @@ async function submitShipmentCreate(form) {
     carrier: form.carrier.value.trim(),
     trackingNo: form.trackingNo.value.trim(),
     mode: form.mode ? form.mode.value : 'land',
+    containerType: form.containerType ? form.containerType.value : 'LCL',
     origin: form.origin.value.trim(),
     destination: form.destination.value.trim(),
+    vessel: form.vessel ? form.vessel.value.trim() : '',
+    billNo: form.billNo ? form.billNo.value.trim() : '',
+    freightTerms: form.freightTerms ? form.freightTerms.value : 'Prepaid',
+    telexRelease: !!(form.telexRelease && form.telexRelease.checked),
     eta,
     remark: form.remark.value.trim()
   };
@@ -2260,6 +2329,13 @@ function renderGuide() {
     + '<section class="card panel guide-section guide-risk"><div class="panel-head"><h2>' + esc(L.riskTitle) + '</h2></div>'
     + '<p class="small muted">' + esc(L.riskSub) + '</p>'
     + '<ul class="risk-list">' + TRADE_GUIDE_RISKS.map(x => '<li><span class="risk-ico">⚠</span><span>' + esc(zh ? x.zh : x.en) + '</span></li>').join('') + '</ul></section>'
+    + '<section class="card panel guide-section"><div class="panel-head"><h2>' + (zh ? '配套工具' : 'Related tools') + '</h2></div>'
+    + '<div class="flex gap-10" style="flex-wrap:wrap">'
+    + '<a class="btn" href="#/export" data-nav="/export">' + t('navExport') + ' →</a>'
+    + '<a class="btn" href="#/logistics" data-nav="/logistics">' + t('navLogistics') + ' →</a>'
+    + '<a class="btn" href="#/compliance" data-nav="/compliance">' + t('navCompliance') + ' →</a>'
+    + '<a class="btn" href="#/disputes" data-nav="/disputes">' + t('navDisputes') + ' →</a>'
+    + '</div></section>'
     + '<p class="small muted guide-disclaimer">' + esc(L.disclaimer) + '</p>'
     + '</div>';
 }
@@ -2393,6 +2469,544 @@ function renderContractPreview() {
       : '<button type="button" class="btn btn-primary" data-action="contract-custody" data-order="' + o.id + '">' + t('contractCustody') + '</button>')
     + '</div>'
     + (cust ? '<p class="small muted">' + t('contractExpiresAt') + '：' + fmtDate(cust.expiresAt) + ' · ' + t('contractHash') + '：<code class="ev-hash">' + esc(String(cust.contractHash || '').slice(0, 16)) + '…</code></p>' : '');
+}
+
+/* ============================================================
+ * 出口准备 / 物流指南 / 合规中心 / 售后纠纷（2026-08-21 新增）
+ * ============================================================ */
+
+/* ---------- 出口资质：就绪度与清单 ---------- */
+function exportReadinessOf(sellerId) {
+  const rows = (state.exportReadiness || {})[sellerId] || {};
+  const items = (typeof EXPORT_READINESS_ITEMS !== 'undefined' ? EXPORT_READINESS_ITEMS : [])
+    .map(x => ({ id: x.id, optional: !!x.optional, zh: x.zh, en: x.en, done: !!rows[x.id] }));
+  const core = items.filter(x => !x.optional);
+  const done = items.filter(x => x.done).length;
+  return {
+    items,
+    done,
+    total: items.length,
+    score: items.length ? Math.round(done / items.length * 100) : 0,
+    coreDone: core.filter(x => x.done).length,
+    coreTotal: core.length
+  };
+}
+
+function exportLevelHtml(score) {
+  const cls = score >= 80 ? 'ok' : score >= 50 ? 'mid' : 'low';
+  const txt = score >= 80 ? t('exportReadyHigh') : score >= 50 ? t('exportReadyMid') : t('exportReadyLow');
+  return '<div class="exp-level ' + cls + '"><b>' + t('exportReadinessScore') + '：' + score + '%</b><span>' + esc(txt) + '</span></div>';
+}
+
+function exportChecklistHtml(sellerId) {
+  const r = exportReadinessOf(sellerId);
+  return '<div class="card panel"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('exportChecklistTitle') + '</h2>'
+    + '<span class="small muted">' + r.coreDone + '/' + r.coreTotal + ' · ' + t('exportTabHint') + '</span></div>'
+    + exportLevelHtml(r.score)
+    + (r.items.length ? r.items.map(it => {
+      const L = langObj(it);
+      return '<div class="exp-item' + (it.done ? ' done' : '') + '">'
+        + '<div class="exp-item-head"><span class="exp-check">' + (it.done ? '✓' : '○') + '</span>'
+        + '<b>' + esc(L.name) + '</b>' + (it.optional ? '<span class="chip sub-chip">' + t('exportOptional') + '</span>' : '')
+        + '<button type="button" class="btn btn-sm ' + (it.done ? '' : 'btn-primary') + '" data-action="export-toggle" data-id="' + it.id + '" data-done="' + (it.done ? '1' : '0') + '">' + (it.done ? t('exportMarkUndone') : t('exportMarkDone')) + '</button>'
+        + '</div>'
+        + '<div class="exp-item-grid">'
+        + '<span><b>' + t('exportWhat') + '</b>' + esc(L.what) + '</span>'
+        + '<span><b>' + t('exportWho') + '</b>' + esc(L.who) + '</span>'
+        + '<span><b>' + t('exportWhen') + '</b>' + esc(L.when) + '</span>'
+        + '<span class="full"><b>' + t('exportTip') + '</b>' + esc(L.tip) + '</span>'
+        + '</div></div>';
+    }).join('') : '')
+    + '<p class="small muted" style="margin-top:10px">' + t('exportGuideNote') + '</p></div>';
+}
+
+function renderExport() {
+  document.title = t('navExport') + ' · BeanBeanMouse';
+  const u = state.user;
+  const checklist = u && u.role === 'seller' ? exportChecklistHtml(u.sellerId || u.id) : '';
+  const guideItems = (typeof EXPORT_READINESS_ITEMS !== 'undefined' ? EXPORT_READINESS_ITEMS : []);
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>📋 ' + t('exportTitle') + '</h1><p>' + t('exportSub') + '</p></div>'
+    + (u && u.role === 'seller'
+      ? checklist
+      : '<div class="card panel"><div class="panel-head"><h2>🏭 ' + t('exportChecklistTitle') + '</h2></div>'
+        + '<p class="muted">' + t('exportNoLoginHint') + '</p>'
+        + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('exportLoginBtn') + '</a></div>')
+    + '<section class="card panel guide-section"><div class="panel-head"><h2>' + t('exportChecklistTitle') + '</h2>'
+    + '<span class="small muted">' + t('exportChecklistSub') + '</span></div>'
+    + (guideItems.length ? guideItems.map(it => {
+      const L = langObj(it);
+      return '<div class="exp-item"><div class="exp-item-head"><span class="exp-check">' + (it.optional ? '◇' : '◆') + '</span><b>' + esc(L.name) + '</b>'
+        + (it.optional ? '<span class="chip sub-chip">' + t('exportOptional') + '</span>' : '') + '</div>'
+        + '<div class="exp-item-grid">'
+        + '<span><b>' + t('exportWhat') + '</b>' + esc(L.what) + '</span>'
+        + '<span><b>' + t('exportWho') + '</b>' + esc(L.who) + '</span>'
+        + '<span><b>' + t('exportWhen') + '</b>' + esc(L.when) + '</span>'
+        + '<span class="full"><b>' + t('exportTip') + '</b>' + esc(L.tip) + '</span>'
+        + '</div></div>';
+    }).join('') : '<p class="muted">—</p>')
+    + '<p class="small muted" style="margin-top:10px">' + t('exportGuideNote') + '</p></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>🏷️ ' + t('exportProductHint') + '</h2></div>'
+    + '<p class="small muted">' + t('exportChecklistSub') + '</p>'
+    + '<div class="flex gap-10" style="flex-wrap:wrap">'
+    + '<a class="btn" href="#/guide" data-nav="/guide">' + t('navGuide') + ' →</a>'
+    + '<a class="btn" href="#/compliance" data-nav="/compliance">' + t('navCompliance') + ' →</a>'
+    + '<a class="btn" href="#/logistics" data-nav="/logistics">' + t('navLogistics') + ' →</a></div></section>'
+    + '</div>';
+}
+
+async function toggleExportItem(el) {
+  const sid = state.user ? (state.user.sellerId || state.user.id) : '';
+  if (!sid) return;
+  const done = el.dataset.done === '1';
+  try {
+    await api.exports.setItem(sid, el.dataset.id, !done);
+    toast(t('exportReadinessScore') + ' ✓');
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
+
+/* ---------- 物流与订舱指南 ---------- */
+function renderLogistics() {
+  document.title = t('navLogistics') + ' · BeanBeanMouse';
+  const zh = state.lang === 'zh';
+  const { params } = parseHash();
+  const portCode = params.get('port') || 'Hamburg';
+  const port = PORT_CHARGES.find(x => x.code === portCode) || PORT_CHARGES[0];
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>🚢 ' + t('logisticsTitle') + '</h1><p>' + t('logisticsSub') + '</p></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('logisticsModeTitle') + '</h2><span class="small muted">' + t('logisticsModeNote') + '</span></div>'
+    + '<div class="table-responsive"><table class="table guide-table"><thead><tr><th>' + t('logisticsFieldMode') + '</th><th>' + t('logisticsSpeed') + '</th><th>' + t('logisticsCost') + '</th><th>' + t('logisticsBestFor') + '</th></tr></thead><tbody>'
+    + LOGISTICS_MODES.map(m => '<tr><td><b>' + esc(langObj(m).name) + '</b></td><td>' + esc(langObj(m).speed) + '</td><td>' + esc(langObj(m).cost) + '</td><td>' + esc(langObj(m).bestFor) + '</td></tr>').join('')
+    + '</tbody></table></div></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('logisticsContainerTitle') + '</h2></div>'
+    + '<p class="small muted">' + t('logisticsContainerNote') + '</p>'
+    + '<div class="container-grid">' + CONTAINER_TYPES.map(c => '<div class="container-card"><b>' + esc(langObj(c)) + '</b></div>').join('') + '</div></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('logisticsCostTitle') + '</h2><span class="small muted">' + t('logisticsCostNote') + '</span></div>'
+    + '<div class="customs-grid">' + PORT_CHARGES.map(c =>
+      '<a class="customs-card' + (c.code === port.code ? ' on' : '') + '" href="#/logistics?port=' + c.code + '" data-nav="/logistics?port=' + c.code + '">'
+      + '<span class="lang-flag">' + flagEmoji(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
+    ).join('') + '</div>'
+    + '<div class="port-charge-card"><h3>' + flagEmoji(port.flag) + ' ' + esc(zh ? port.zh : port.en) + '</h3>'
+    + '<p class="small muted">' + esc(port.note) + '</p>'
+    + '<div class="table-responsive"><table class="table"><tbody>' + port.items.map(r =>
+      '<tr><td>' + esc(r[0]) + '</td><td><b>' + esc(r[1]) + '</b></td></tr>').join('') + '</tbody></table></div></div></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>⚡ ' + t('logisticsTelexTitle') + '</h2></div>'
+    + '<p class="small">' + t('logisticsTelexNote') + '</p></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>🧮 ' + t('logisticsEstimateTitle') + '</h2><span class="small muted">' + t('logisticsEstimateHint') + '</span></div>'
+    + '<form data-form="logistics-estimate-form" novalidate>'
+    + '<div class="form-grid">'
+    + '<div class="field"><label>' + t('logisticsFieldMode') + '</label><select class="select" name="mode">' + LOGISTICS_MODES.map(m => '<option value="' + m.id + '">' + esc(langObj(m).name) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('logisticsFieldContainer') + '</label><select class="select" name="container">' + CONTAINER_TYPES.map(c => '<option value="' + c.id + '">' + esc(langObj(c)) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('logisticsFieldWeight') + '</label><input class="input" name="weight" type="number" min="0" step="0.1" value="500"></div>'
+    + '<div class="field"><label>' + t('logisticsFieldVolume') + '</label><input class="input" name="volume" type="number" min="0" step="0.01" value="3"></div>'
+    + '<div class="field"><label>' + t('logisticsFieldOrigin') + '</label><input class="input" name="origin" maxlength="80" placeholder="Ningbo, CN"></div>'
+    + '<div class="field"><label>' + t('logisticsFieldDestination') + '</label><input class="input" name="destination" maxlength="80" placeholder="Hamburg, DE"></div>'
+    + '</div>'
+    + '<button type="submit" class="btn btn-primary">' + t('logisticsEstimateBtn') + '</button>'
+    + '<div id="logisticsEstimateResult" class="screen-result"></div>'
+    + '</form></section>'
+    + '<p class="small muted" style="margin:14px 0 0">' + t('logisticsEstimateNote') + '</p>'
+    + '</div>';
+}
+
+async function runLogisticsEstimate(form) {
+  const wrap = document.getElementById('logisticsEstimateResult');
+  if (!wrap) return;
+  const fd = new FormData(form);
+  wrap.innerHTML = '<p class="muted">…</p>';
+  try {
+    const r = await api.logistics.estimate({
+      mode: fd.get('mode') || 'sea',
+      container: fd.get('container') || 'LCL',
+      weight: fd.get('weight'),
+      volume: fd.get('volume'),
+      origin: fd.get('origin'),
+      destination: fd.get('destination')
+    });
+    const mode = LOGISTICS_MODES.find(m => m.id === r.mode);
+    wrap.innerHTML = '<div class="estimate-result"><b>' + t('logisticsEstimateResult') + '</b>'
+      + '<div class="n">USD ' + Number(r.lo).toLocaleString() + ' – ' + Number(r.hi).toLocaleString() + '</div>'
+      + '<div class="small muted">' + (mode ? esc(langObj(mode).name) : r.mode)
+      + (r.container ? ' · ' + esc(r.container) : '') + (r.origin ? ' · ' + esc(r.origin) : '')
+      + (r.destination ? ' → ' + esc(r.destination) : '') + '</div>'
+      + '<p class="small muted">' + t('logisticsEstimateNote') + '</p></div>';
+  } catch (e) {
+    wrap.innerHTML = '<p class="muted">' + esc(e.message || 'ERROR') + '</p>';
+  }
+}
+
+function bindLogisticsPage() { /* 港口切换由 hash 路由完成 */ }
+
+/* ---------- 合规中心 ---------- */
+function productScreenFlags(p) {
+  const txt = (((p.en && p.en.title) || '') + ' ' + ((p.en && p.en.desc) || '') + ' '
+    + ((p.zh && p.zh.title) || '') + ' ' + ((p.zh && p.zh.desc) || '')).toLowerCase();
+  return (typeof SANCTION_KEYWORDS !== 'undefined' ? SANCTION_KEYWORDS : [])
+    .filter(kw => txt.includes(String(kw).toLowerCase()));
+}
+
+function renderCompliance() {
+  document.title = t('navCompliance') + ' · BeanBeanMouse';
+  const demo = state.products.filter(isLive).slice(0, 4);
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>🛡 ' + t('complianceTitle') + '</h1><p>' + t('complianceSub') + '</p></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>🔎 ' + t('complianceControlTitle') + '</h2><span class="small muted">' + t('complianceControlNote') + '</span></div>'
+    + '<form data-form="compliance-screen-form" novalidate>'
+    + '<div class="field"><label>' + t('complianceScreenHint') + '</label><textarea class="textarea" name="text" rows="3" maxlength="2000" placeholder="e.g. 3000W fiber laser cutting machine with automatic focus"></textarea></div>'
+    + '<div class="flex gap-10" style="flex-wrap:wrap;margin:8px 0">'
+    + (demo.length ? demo.map(p => '<button type="button" class="chip" data-action="screen-sample" data-id="' + p.id + '" title="' + esc(langObj(p).title) + '">' + esc(langObj(p).title) + '</button>').join('') : '')
+    + '</div>'
+    + '<button type="submit" class="btn btn-primary">' + t('complianceScreenBtn') + '</button>'
+    + '<div id="complianceResult" class="screen-result"></div>'
+    + '</form></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>📋 ' + t('complianceListTitle') + '</h2></div>'
+    + '<div class="compliance-grid">' + COMPLIANCE_RULES.map(r =>
+      '<div class="compliance-card"><div class="compliance-ico">' + r.icon + '</div><b>' + esc(langObj(r).name) + '</b>'
+      + '<ul>' + langObj(r).items.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>'
+    ).join('') + '</div></section>'
+    + '<p class="small muted" style="margin:14px 0 0">' + t('complianceDisclaimer') + '</p>'
+    + '</div>';
+}
+
+async function runComplianceScreen(form) {
+  const wrap = document.getElementById('complianceResult');
+  if (!wrap) return;
+  const text = (form ? new FormData(form).get('text') : '') || '';
+  wrap.innerHTML = '<p class="muted">…</p>';
+  try {
+    const r = await api.compliance.screen(text);
+    wrap.innerHTML = r.clean
+      ? '<div class="screen-verdict ok">✓ ' + esc(t('complianceClear')) + '</div>'
+      : '<div class="screen-verdict bad">⚠ ' + esc(t('complianceHits')) + '</div>'
+        + '<div class="risk-box">' + r.hits.map(h => '<span class="risk-chip">' + esc(h) + '</span>').join('') + '</div>'
+        + '<p class="small muted">' + t('complianceDisclaimer') + '</p>';
+  } catch (e) {
+    wrap.innerHTML = '<p class="muted">' + esc(e.message || 'ERROR') + '</p>';
+  }
+}
+
+function bindCompliancePage() {
+  const ta = document.querySelector('form[data-form="compliance-screen-form"] textarea');
+  $$('[data-action="screen-sample"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = productById(btn.dataset.id);
+      if (!p || !ta) return;
+      ta.value = ((p.en && p.en.title) || '') + ' — ' + ((p.en && p.en.desc) || '');
+    });
+  });
+}
+
+/* ---------- 售后与纠纷 ---------- */
+function afterSalesStatusLabel(st) {
+  const key = { new: 'afterSalesNew', responded: 'afterSalesResponded', arbitrating: 'afterSalesArbitrating', resolved: 'afterSalesResolved', closed: 'afterSalesClosed' }[st] || 'afterSalesNew';
+  return t(key);
+}
+function afterSalesStatusCls(st) {
+  return st === 'resolved' ? 'done' : st === 'arbitrating' ? 'pend' : st === 'closed' ? '' : 'new';
+}
+function afterSalesTypeLabel(id) {
+  const x = AFTER_SALES_TYPES.find(y => y.id === id);
+  return x ? langObj(x) : String(id || '');
+}
+function afterSalesCaseHtml(c) {
+  const o = (state.orders || []).find(x => x.id === c.orderId);
+  const p = o ? productById(o.productId) : null;
+  const isBuyer = state.user && c.buyerId === state.user.id;
+  const isSeller = state.user && c.sellerId === (state.user.sellerId || state.user.id);
+  const isAdmin = state.user && state.user.role === 'admin';
+  return '<div class="as-card">'
+    + '<div class="as-head"><b>' + (c.dispute ? '⚖️ ' : '🔧 ') + esc(afterSalesTypeLabel(c.type)) + '</b>'
+    + '<span class="status-pill ' + afterSalesStatusCls(c.status) + '">' + esc(afterSalesStatusLabel(c.status)) + '</span></div>'
+    + '<p class="small muted">' + t('afterSalesCaseNo') + '：' + esc(c.id) + ' · ' + t('afterSalesOrder') + '：' + esc(c.orderId)
+    + (p ? ' · ' + esc(langObj(p).title) : '') + '</p>'
+    + '<p class="small">' + t('afterSalesDescLabel') + '：' + esc(c.description) + '</p>'
+    + (c.resolution ? '<p class="small muted">' + t('afterSalesResolution') + '：' + esc(c.resolution) + '</p>' : '')
+    + (c.sellerReply ? '<div class="reply-box"><div class="reply-msg"><b>' + t('sellerReply') + '：</b>' + esc(c.sellerReply) + '</div></div>' : '')
+    + (c.ruling ? '<div class="arbitration-box"><b>' + t('afterSalesRuling') + '：</b>'
+      + esc(t(c.ruling === 'buyer' ? 'arbitrateBuyer' : c.ruling === 'seller' ? 'arbitrateSeller' : 'arbitrateCompromise'))
+      + (c.rulingNote ? ' — ' + esc(c.rulingNote) : '') + '</div>' : '')
+    + '<div class="flex gap-10" style="margin-top:8px;flex-wrap:wrap">'
+    + (isBuyer && (c.status === 'new' || c.status === 'responded') ? '<button type="button" class="btn btn-sm" data-action="as-escalate" data-id="' + c.id + '">' + t('afterSalesOpen') + '</button>' : '')
+    + (isSeller && (c.status === 'new' || c.status === 'responded') ? '<button type="button" class="btn btn-sm btn-primary" data-action="as-respond" data-id="' + c.id + '">' + t('afterSalesRespond') + '</button>' : '')
+    + (isAdmin && c.status === 'arbitrating' ? '<button type="button" class="btn btn-sm btn-primary" data-action="as-arbitrate" data-id="' + c.id + '">' + t('afterSalesArbitrate') + '</button>' : '')
+    + (c.orderId ? '<button type="button" class="btn btn-sm" data-action="as-evidence" data-id="' + c.orderId + '">' + icon('shield') + ' ' + t('afterSalesEvidence') + '</button>' : '')
+    + '</div></div>';
+}
+function renderDisputes() {
+  document.title = t('navDisputes') + ' · BeanBeanMouse';
+  if (!state.user) {
+    return '<div class="container page"><div class="card panel"><p>' + t('afterSalesNeedLogin') + '</p>'
+      + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('login') + '</a></div></div>';
+  }
+  const u = state.user;
+  let rows = state.afterSales || [];
+  if (u.role === 'seller') rows = rows.filter(c => c.sellerId === (u.sellerId || u.id));
+  else if (u.role !== 'admin') rows = rows.filter(c => c.buyerId === u.id);
+  rows = rows.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  const eligible = (state.orders || []).filter(o =>
+    (u.role === 'buyer' ? o.buyerId === u.id : u.role === 'seller' ? o.sellerId === (u.sellerId || u.id) : false)
+    && (o.status === 'created' || o.status === 'complete'));
+  return '<div class="container page">'
+    + '<div class="page-head guide-head"><h1>⚖️ ' + t('disputesTitle') + '</h1><p>' + t('disputesSub') + '</p></div>'
+    + (u.role === 'buyer' && eligible.length
+      ? '<section class="card panel"><div class="panel-head"><h2>' + t('afterSalesCreate') + '</h2></div>'
+        + '<div class="as-order-grid">' + eligible.map(o => {
+          const p = productById(o.productId);
+          return '<div class="as-order-card"><b>' + esc(p ? langObj(p).title : o.id) + '</b>'
+            + '<span class="small muted">' + esc(o.id) + ' · ' + (o.currency || 'USD') + ' ' + Number(o.total || 0).toLocaleString() + '</span>'
+            + '<div class="flex gap-10"><button type="button" class="btn btn-sm btn-primary" data-action="after-sales-open" data-id="' + o.id + '">' + t('afterSalesCreate') + '</button>'
+            + '<button type="button" class="btn btn-sm" data-action="dispute-open" data-id="' + o.id + '">' + t('afterSalesOpen') + '</button></div></div>';
+        }).join('') + '</div></section>'
+      : '')
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('asMyCases') + '</h2><span class="small muted">' + t('afterSalesNote') + '</span></div>'
+    + (rows.length ? rows.map(afterSalesCaseHtml).join('') : '<div class="empty-state" style="padding:32px"><div class="ico">🛠️</div><p>' + t('afterSalesEmpty') + '</p></div>')
+    + '</section></div>';
+}
+function bindDisputesPage() { /* 数据来自本地状态，动作走全局委托 */ }
+
+function openAfterSalesModal(orderId, dispute) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  if (!o) return;
+  showModal('<div class="modal-head"><h3>' + (dispute ? '⚖️ ' + t('afterSalesOpen') : '🔧 ' + t('afterSalesCreate')) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="after-sales-form" data-order="' + orderId + '" data-dispute="' + (dispute ? 1 : 0) + '" novalidate>'
+    + '<p class="small muted">' + esc(o.id) + ' · ' + (dispute ? t('afterSalesOpen') : t('afterSalesCreate')) + '</p>'
+    + '<div class="field"><label>' + t('afterSalesTypeLabel') + ' *</label><select class="select" name="type">'
+    + AFTER_SALES_TYPES.map(x => '<option value="' + x.id + '">' + esc(langObj(x)) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('afterSalesDescLabel') + ' *</label><textarea class="textarea" name="description" rows="3" required maxlength="1000" placeholder="…"></textarea></div>'
+    + '<div class="field"><label>' + t('afterSalesResolution') + '</label><input class="input" name="resolution" maxlength="300" placeholder="e.g. replacement / reship / refund / discount"></div>'
+    + (dispute ? '<p class="small muted">' + t('afterSalesNote') + '</p>' : '')
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('afterSalesSubmit') + '</button>'
+    + '</form></div>');
+}
+async function submitAfterSales(form) {
+  const fd = new FormData(form);
+  const desc = String(fd.get('description') || '').trim();
+  if (!desc) { toast(t('required')); return; }
+  try {
+    await api.afterSales.create({
+      orderId: form.dataset.order,
+      type: fd.get('type') || 'other',
+      description: desc,
+      resolution: String(fd.get('resolution') || '').trim(),
+      dispute: form.dataset.dispute === '1'
+    });
+    closeModal();
+    toast(form.dataset.dispute === '1' ? t('afterSalesOpen') + ' ✓' : t('afterSalesCreate') + ' ✓');
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+function openAfterSalesRespondModal(id) {
+  const c = (state.afterSales || []).find(x => x.id === id);
+  if (!c) return;
+  showModal('<div class="modal-head"><h3>' + t('afterSalesRespond') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="aftersales-respond-form" data-id="' + id + '" novalidate>'
+    + '<p class="small muted">' + esc(c.id) + ' · ' + esc(afterSalesTypeLabel(c.type)) + '</p>'
+    + '<p class="small">' + t('afterSalesDescLabel') + '：' + esc(c.description) + '</p>'
+    + '<div class="field"><label>' + t('afterSalesResolution') + '</label><input class="input" name="reply" maxlength="600" placeholder="…"></div>'
+    + '<div class="flex gap-10"><button type="submit" class="btn btn-primary" name="action" value="accept">' + t('afterSalesAccept') + '</button>'
+    + '<button type="submit" class="btn" name="action" value="reject">' + t('afterSalesReject') + '</button></div>'
+    + '</form></div>');
+}
+async function submitAfterSalesRespond(form) {
+  const fd = new FormData(form);
+  try {
+    await api.afterSales.respond(form.dataset.id, { action: fd.get('action') || 'accept', reply: fd.get('reply') });
+    closeModal();
+    toast(t('afterSalesRespond') + ' ✓');
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+function openAfterSalesArbitrateModal(id) {
+  const c = (state.afterSales || []).find(x => x.id === id);
+  if (!c) return;
+  showModal('<div class="modal-head"><h3>⚖️ ' + t('afterSalesArbitrate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body"><form data-form="aftersales-arbitrate-form" data-id="' + id + '" novalidate>'
+    + '<p class="small muted">' + esc(c.id) + ' · ' + esc(c.orderId) + '</p>'
+    + '<p class="small">' + t('afterSalesDescLabel') + '：' + esc(c.description) + '</p>'
+    + (c.sellerReply ? '<div class="reply-box"><div class="reply-msg"><b>' + t('sellerReply') + '：</b>' + esc(c.sellerReply) + '</div></div>' : '')
+    + '<p class="small muted">' + t('afterSalesArbitrateTip') + '</p>'
+    + '<div class="field"><label>' + t('afterSalesRuling') + ' *</label><select class="select" name="ruling">'
+    + '<option value="buyer">' + t('arbitrateBuyer') + '</option><option value="seller">' + t('arbitrateSeller') + '</option><option value="compromise">' + t('arbitrateCompromise') + '</option></select></div>'
+    + '<div class="field"><label>' + t('afterSalesDescLabel') + '（' + t('afterSalesRuling') + '）</label><textarea class="textarea" name="note" rows="2" maxlength="600"></textarea></div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('afterSalesArbitrate') + '</button>'
+    + '</form></div>');
+}
+async function submitAfterSalesArbitrate(form) {
+  const fd = new FormData(form);
+  try {
+    await api.afterSales.arbitrate(form.dataset.id, { ruling: fd.get('ruling'), note: fd.get('note') });
+    closeModal();
+    toast(t('afterSalesArbitrate') + ' ✓');
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function escalateAfterSales(id) {
+  try {
+    await api.afterSales.escalate(id);
+    toast(t('afterSalesOpen') + ' ✓');
+    render();
+  } catch (e) { toast(e.message || String(e)); }
+}
+function adminAfterSalesBody() {
+  const rows = (state.afterSales || []).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  const pending = rows.filter(c => c.status === 'arbitrating');
+  const rest = rows.filter(c => c.status !== 'arbitrating');
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('adminAfterSales') + '</h2><span class="small muted">' + t('adminAfterSalesHint') + '</span></div>'
+    + (pending.length ? pending.map(afterSalesCaseHtml).join('') : '')
+    + (rest.length ? '<div class="section-divider">' + t('asMyCases') + ' · ' + rest.length + '</div>' + rest.map(afterSalesCaseHtml).join('') : '')
+    + (!rows.length ? '<div class="empty-state" style="padding:32px"><div class="ico">🛠️</div><p>' + t('afterSalesEmpty') + '</p></div>' : '')
+    + '</div>';
+}
+
+/* ---------- 订单单据中心（商业发票/装箱单/原产地证/提单参考） ---------- */
+function orderDocRecord(o) {
+  return (state.orderDocs || {})[o.id] || { generated: {}, consistency: null, checkedAt: null };
+}
+function orderDocPanelHtml(o) {
+  const rec = orderDocRecord(o);
+  const types = [['CI', t('docCI')], ['PL', t('docPL')], ['CO', t('docCO')], ['BL', t('docBL')]];
+  const cons = rec.consistency;
+  return '<div class="doc-center-box">'
+    + '<div class="doc-center-head"><b>' + icon('file') + ' ' + t('docCenter') + '</b>'
+    + (cons
+      ? '<span class="status-pill ' + (cons === 'pass' ? 'done' : 'pend') + '">' + (cons === 'pass' ? '✓ ' + t('docConsistencyPass') : '⚠ ' + t('docConsistencyWarn')) + '</span>'
+      : '<span class="chip sub-chip">' + t('docCheckHint') + '</span>')
+    + '</div>'
+    + '<div class="doc-type-grid">' + types.map(([type, label]) => {
+      const gen = rec.generated && rec.generated[type];
+      return '<div class="doc-type"><b>' + esc(label) + '</b>'
+        + '<span class="small muted">' + (gen ? t('docGenerated') + ' · ' + fmtDate(gen) : '—') + '</span>'
+        + '<button type="button" class="btn btn-sm ' + (gen ? '' : 'btn-primary') + '" data-action="' + (gen ? 'doc-print' : 'doc-gen') + '" data-order="' + o.id + '" data-type="' + type + '">' + (gen ? '🖨' : t('docGenerate')) + '</button>'
+        + '</div>';
+    }).join('') + '</div>'
+    + '<div class="flex gap-10">'
+    + '<button type="button" class="btn btn-sm" data-action="doc-check" data-order="' + o.id + '">' + icon('check') + ' ' + t('docConsistencyCheck') + '</button>'
+    + '<span class="small muted" style="align-self:center">' + t('docCheckHint') + '</span>'
+    + '</div></div>';
+}
+function orderDocNo(prefix) {
+  const d = new Date();
+  const ymd = '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  return prefix + '-' + ymd + '-' + Math.floor(1000 + Math.random() * 9000);
+}
+function buildOrderDoc(o, type) {
+  const p = productById(o.productId);
+  if (!p) return '';
+  const seller = sellerOf(p);
+  const lang = state.lang;
+  const buyerName = partyNameOf(o, 'buyer');
+  const sellerName = partyNameOf(o, 'seller');
+  const qty = Number(o.quantity) || 1;
+  const unit = p.unit || 'pcs';
+  const price = qty > 0 ? Number(o.total || 0) / qty : p.priceMin;
+  const amount = Number(o.total || 0);
+  const marks = o.shippingMarks || 'N/M';
+  const shipment = (o.shipments && o.shipments.length ? o.shipments[0] : (state.shipments || []).find(s => s.orderId === o.id)) || null;
+  const dateFmt = ts => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const titleMap = { CI: t('docCI'), PL: t('docPL'), CO: t('docCO'), BL: t('docBL') };
+  const title = titleMap[type] || type;
+  let body = '';
+  if (type === 'CI') {
+    body = '<div class="doc-meta"><span><b>' + t('docNo') + '：</b>' + orderDocNo('CI') + '</span>'
+      + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span>'
+      + '<span><b>' + t('docCurrency') + '</b></span></div>'
+      + '<div class="doc-parties"><div><div class="doc-party-label">' + t('docSeller') + '</div><b>' + esc(sellerName) + '</b><div>' + esc(seller[lang] ? seller[lang].city : '') + '</div></div>'
+      + '<div><div class="doc-party-label">' + t('docBuyer') + '</div><b>' + esc(buyerName) + '</b></div></div>'
+      + '<table class="doc-table"><thead><tr><th>' + t('docItem') + '</th><th>HS Code</th><th>' + t('docQty') + '</th><th>' + t('docUnitPrice') + '</th><th>' + t('docAmount') + '</th></tr></thead>'
+      + '<tbody><tr><td>' + esc(langObj(p).title) + '</td><td>' + esc(p.hsCode || '—') + '</td><td>' + qty + ' ' + esc(unit) + '</td><td>' + fmtPrice(price) + '</td><td>' + fmtPrice(amount) + '</td></tr></tbody>'
+      + '<tfoot><tr><td colspan="4" class="doc-total-label">' + t('docTotal') + '</td><td><b>' + fmtPrice(amount) + '</b></td></tr></tfoot></table>'
+      + '<div class="doc-terms"><span><b>' + t('docMarks') + '：</b>' + esc(marks) + '</span>'
+      + '<span><b>' + t('quoteIncoterm') + '：</b>' + esc((p.incoterm || 'FOB')) + '</span>'
+      + (shipment ? '<span><b>' + t('shpVessel') + '：</b>' + esc(shipment.vessel || shipment.carrier || '—') + '</span>' : '')
+      + '<span><b>' + t('docOriginClaim') + '：</b>' + esc(countryName(seller.country)) + '</span></div>';
+  } else if (type === 'PL') {
+    const cartons = Math.max(1, Math.ceil(qty / Math.max(1, o.perCarton || 10)));
+    const gross = Number(o.grossWeight) || Math.max(1, Math.round(qty * 1.5));
+    const net = Number(o.netWeight) || Math.max(1, Math.round(gross * 0.92));
+    body = '<div class="doc-meta"><span><b>' + t('docNo') + '：</b>' + orderDocNo('PL') + '</span>'
+      + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span></div>'
+      + '<div class="doc-parties"><div><div class="doc-party-label">' + t('docSeller') + '</div><b>' + esc(sellerName) + '</b></div>'
+      + '<div><div class="doc-party-label">' + t('docBuyer') + '</div><b>' + esc(buyerName) + '</b></div></div>'
+      + '<table class="doc-table"><thead><tr><th>' + t('docItem') + '</th><th>HS Code</th><th>' + t('docQty') + '</th><th>' + t('docCartons') + '</th><th>' + t('docGrossWeight') + '</th><th>' + t('docNetWeight') + '</th></tr></thead>'
+      + '<tbody><tr><td>' + esc(langObj(p).title) + '</td><td>' + esc(p.hsCode || '—') + '</td><td>' + qty + ' ' + esc(unit) + '</td><td>' + cartons + '</td><td>' + gross + ' kg</td><td>' + net + ' kg</td></tr></tbody></table>'
+      + '<div class="doc-terms"><span><b>' + t('docMarks') + '：</b>' + esc(marks) + '</span>'
+      + '<span><b>' + t('docOriginClaim') + '：</b>' + esc(countryName(seller.country)) + '</span></div>';
+  } else if (type === 'CO') {
+    body = '<div class="doc-meta"><span><b>' + t('docNo') + '：</b>' + orderDocNo('CO') + '</span>'
+      + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span></div>'
+      + '<div class="doc-parties"><div><div class="doc-party-label">' + t('docSeller') + '</div><b>' + esc(sellerName) + '</b><div>' + esc(seller[lang] ? seller[lang].city : '') + ', ' + countryName(seller.country) + '</div></div>'
+      + '<div><div class="doc-party-label">' + t('docConsignee') + '</div><b>' + esc(buyerName) + '</b></div></div>'
+      + '<table class="doc-table"><thead><tr><th>' + t('docItem') + '</th><th>HS Code</th><th>' + t('docQty') + '</th><th>' + t('docOriginClaim') + '</th></tr></thead>'
+      + '<tbody><tr><td>' + esc(langObj(p).title) + '</td><td>' + esc(p.hsCode || '—') + '</td><td>' + qty + ' ' + esc(unit) + '</td><td>' + esc(countryName(seller.country)) + '</td></tr></tbody></table>'
+      + '<div class="doc-terms"><span><b>' + t('docMarks') + '：</b>' + esc(marks) + '</span>'
+      + '<span><b>' + t('docIssue') + '：</b>CCPIT / Customs</span></div>'
+      + '<p class="small muted">' + t('docCOHint') + '</p>';
+  } else if (type === 'BL') {
+    body = '<div class="doc-meta"><span><b>' + t('docNo') + '：</b>' + orderDocNo('BL') + '</span>'
+      + '<span><b>' + t('docDate') + '：</b>' + dateFmt(Date.now()) + '</span></div>'
+      + '<div class="doc-parties"><div><div class="doc-party-label">' + t('docConsignee') + '</div><b>' + esc(buyerName) + '</b></div>'
+      + '<div><div class="doc-party-label">' + t('docNotify') + '</div><b>' + esc(buyerName) + '</b></div></div>'
+      + '<div class="doc-meta"><span><b>' + t('shpVessel') + '：</b>' + esc((shipment && (shipment.vessel || shipment.carrier)) || 'TBD') + '</span>'
+      + '<span><b>' + t('docBillNo') + '：</b>' + esc((shipment && shipment.trackingNo) || 'TBD') + '</span>'
+      + '<span><b>' + t('shpPortLoading') + '：</b>' + esc((shipment && shipment.origin) || (o.portLoading || 'TBD')) + '</span>'
+      + '<span><b>' + t('shpPortDischarge') + '：</b>' + esc((shipment && shipment.destination) || (o.portDischarge || 'TBD')) + '</span>'
+      + '<span><b>' + t('shpContainer') + '：</b>' + esc((shipment && shipment.containerType) || o.containerType || 'LCL') + '</span>'
+      + '<span><b>' + t('docMarks') + '：</b>' + esc(marks) + '</span></div>'
+      + '<table class="doc-table"><thead><tr><th>' + t('docItem') + '</th><th>HS Code</th><th>' + t('docQty') + '</th><th>' + t('docGrossWeight') + '</th></tr></thead>'
+      + '<tbody><tr><td>' + esc(langObj(p).title) + '</td><td>' + esc(p.hsCode || '—') + '</td><td>' + qty + ' ' + esc(unit) + '</td><td>' + (o.grossWeight || '—') + ' kg</td></tr></tbody></table>'
+      + '<div class="doc-terms"><span><b>' + t('shpTelex') + '：</b>' + (((shipment && shipment.telexRelease) || o.telexRelease) ? (state.lang === 'zh' ? '是' : 'Yes') : (state.lang === 'zh' ? '否' : 'No')) + '</span>'
+      + '<span><b>' + t('shpFreightTerms') + '：</b>' + esc((shipment && shipment.freightTerms) || (state.lang === 'zh' ? '预付' : 'Prepaid')) + '</span></div>'
+      + '<p class="small muted">' + t('docBLHint') + '</p>';
+  }
+  return '<div class="doc" id="docSheet">'
+    + '<div class="doc-head"><div class="doc-brand"><b>BeanBeanMouse</b><div>' + esc(t('docCenter')) + '</div><div class="doc-web">beanbeanmouse.com</div></div>'
+    + '<div class="doc-title"><h2>' + esc(title) + '</h2><div>ORDER · ' + esc(o.id) + '</div></div></div>'
+    + body
+    + '<div class="doc-sign"><div>' + t('docSellerSign') + '</div><div>' + t('docBuyerSign') + '</div></div>'
+    + '<div class="doc-disclaimer">' + t('docDisclaimer') + '</div>'
+    + '</div>';
+}
+function openOrderDocPrint(orderId, type) {
+  const o = (state.orders || []).find(x => x.id === orderId);
+  if (!o) return;
+  const doc = buildOrderDoc(o, type);
+  if (!doc) return;
+  const printEl = document.getElementById('printDoc');
+  if (printEl) printEl.innerHTML = doc;
+  const titleMap = { CI: t('docCI'), PL: t('docPL'), CO: t('docCO'), BL: t('docBL') };
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + esc(titleMap[type] || type) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">' + doc
+    + '<p class="small muted">' + icon('file') + ' ' + t('printHint') + '</p>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
+    + '</div></div>');
+}
+async function generateOrderDoc(orderId, type) {
+  try {
+    await api.documents.generate(orderId, type);
+    openOrderDocPrint(orderId, type);
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function checkOrderDocConsistency(orderId) {
+  try {
+    const r = await api.documents.consistency(orderId);
+    toast(r.status === 'pass' ? '✓ ' + t('docConsistencyPass') : '⚠ ' + t('docConsistencyWarn'));
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
+function orderAfterSalesPanel(o) {
+  const cases = (state.afterSales || []).filter(c => c.orderId === o.id);
+  const isBuyer = state.user && o.buyerId === state.user.id;
+  return '<div class="as-order-panel">'
+    + '<div class="as-order-head"><b>🛠 ' + t('asPanelTitle') + '</b>'
+    + (isBuyer && (o.status === 'created' || o.status === 'complete')
+      ? '<span class="flex gap-10"><button type="button" class="btn btn-sm" data-action="after-sales-open" data-id="' + o.id + '">' + t('asApplyBtn') + '</button>'
+        + '<button type="button" class="btn btn-sm" data-action="dispute-open" data-id="' + o.id + '">' + t('asDisputeBtn') + '</button></span>'
+      : '')
+    + '</div>'
+    + (cases.length ? cases.map(afterSalesCaseHtml).join('') : '<p class="small muted">' + t('afterSalesEmpty') + '</p>')
+    + '</div>';
 }
 
 /* ---------- 卖家推广 / 管理员推广审核 ---------- */
@@ -2533,7 +3147,8 @@ function renderSellerDash(path) {
     { tab: 'publish', icon: 'plus', label: t('publish') },
     { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: pending || null },
     { tab: 'promo', icon: 'sparkle', label: t('promoTitle'), count: (state.promotions || []).filter(r => r.sellerId === sid && r.status === 'pending').length || null },
-    { tab: 'orders', icon: 'box', label: t('orders'), count: (state.orders || []).filter(o => o.sellerId === sid && o.status === 'created').length || null }
+    { tab: 'orders', icon: 'box', label: t('orders'), count: (state.orders || []).filter(o => o.sellerId === sid && o.status === 'created').length || null },
+    { tab: 'export', icon: 'shield', label: t('exportTab') }
   ];
   const activeTab = path.split('/')[2] || '';
   let body = '';
@@ -2580,6 +3195,11 @@ function renderSellerDash(path) {
       + '</div>';
   } else if (activeTab === 'orders') {
     body = companyBannerHtml() + ordersBody();
+  } else if (activeTab === 'export') {
+    body = exportChecklistHtml(sid)
+      + '<div class="card panel mt-20"><div class="panel-head"><h2>🏷️ ' + t('exportProductHint') + '</h2></div>'
+      + '<p class="small muted">' + t('exportGuideNote') + '</p>'
+      + '<a class="btn" href="#/export" data-nav="/export">' + t('navExport') + ' →</a></div>';
   } else if (activeTab === 'promo') {
     body = sellerPromoBody(sid);
   } else if (activeTab === 'publish') {
@@ -2604,6 +3224,7 @@ function renderAdminDash(path) {
     { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
     { tab: 'promo', icon: 'sparkle', label: t('promoAdmin'), count: (state.promotions || []).filter(r => r.status === 'pending').length || null },
     { tab: 'catreqs', icon: 'sparkle', label: t('catRequests'), count: (state.categoryRequests || []).filter(r => r.status === 'new').length || null },
+    { tab: 'aftersales', icon: 'shield', label: t('adminAfterSales'), count: (state.afterSales || []).filter(c => c.status === 'arbitrating').length || null },
     { tab: 'users', icon: 'users', label: t('userManage') },
     { tab: 'logs', icon: 'clock', label: t('auditLog') }
   ];
@@ -2612,6 +3233,7 @@ function renderAdminDash(path) {
   else if (activeTab === 'verify') body = adminVerifyBody();
   else if (activeTab === 'promo') body = adminPromoBody();
   else if (activeTab === 'catreqs') body = adminCatReqBody();
+  else if (activeTab === 'aftersales') body = adminAfterSalesBody();
   else if (activeTab === 'users') body = adminUsersBody();
   else if (activeTab === 'logs') body = adminLogsBody();
   else body = adminOverviewBody();
@@ -2707,6 +3329,11 @@ function adminReviewCard(p, st) {
         ? '<div class="risk-box"><div class="risk-title">⚠ ' + t('riskHints') + '</div>' + risks.map(r => '<span class="risk-chip">' + esc(r) + '</span>').join('') + '</div>'
         : '<div class="risk-box ok">✓ ' + t('noRisk') + '</div>')
       : '')
+    + '<div class="meta">' + t('adminScreenLabel') + '：'
+    + (productScreenFlags(p).length
+      ? productScreenFlags(p).map(k => '<span class="risk-chip">' + esc(k) + '</span>').join('')
+      : '<span class="chip ok">' + t('compliancePassLabel') + '</span>')
+    + '</div>'
     + (p.status === 'rejected' && p.rejectReason ? '<div class="reject-reason">' + t('rejectedLabel') + '：' + esc(p.rejectReason) + '</div>' : '')
     + '</div>'
     + (st === 'pending'
@@ -2954,6 +3581,15 @@ function openPrintDoc(inquiryId, type) {
     + '</div></div>');
 }
 
+function exportPublishHint() {
+  if (!state.user || state.user.role !== 'seller') return '';
+  const r = exportReadinessOf(state.user.sellerId || state.user.id);
+  const level = r.score >= 80 ? 'ok' : r.score >= 50 ? 'mid' : 'low';
+  return '<div class="exp-level ' + level + '" style="margin:0 0 14px"><b>' + t('exportReadinessScore') + '：' + r.score + '%</b>'
+    + '<span>' + esc(r.score >= 80 ? t('exportReadyHigh') : r.score >= 50 ? t('exportReadyMid') : t('exportReadyLow')) + '</span>'
+    + '<a class="btn btn-sm" href="#/dashboard/export" data-nav="/dashboard/export" style="margin-left:auto">' + t('exportTab') + ' →</a></div>';
+}
+
 function renderPublishForm() {
   const { params } = parseHash();
   const editId = params.get('id') || '';
@@ -2964,6 +3600,7 @@ function renderPublishForm() {
   return '<div class="card panel"><div class="panel-head"><h2>' + (p ? t('updateProduct') : t('publish')) + '</h2>'
     + (p ? '<button type="button" class="btn btn-sm" data-action="cancel-edit">' + t('cancelEdit') + '</button>' : '')
     + '</div>'
+    + exportPublishHint()
     + '<div class="form-grid">'
     + '<form data-form="product-form" data-id="' + (p ? p.id : '') + '" class="full" novalidate>'
     + '<input type="hidden" name="hue" value="' + hue + '">'

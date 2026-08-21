@@ -46,7 +46,7 @@ let page;
   check('help: widget button visible', await page.locator('.help-btn').count() === 1);
   await page.click('[data-action="toggle-help"]');
   await page.waitForTimeout(150);
-  check('help: panel opens with 9 items', await page.locator('#helpPanel:visible .help-item').count() === 9);
+  check('help: panel opens with 14 items', await page.locator('#helpPanel:visible .help-item').count() === 14);
   await page.click('[data-action="close-help"]');
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
@@ -102,6 +102,35 @@ let page;
   check('guide: disclaimer visible', await page.locator('.guide-disclaimer').isVisible());
   check('guide: no horizontal overflow', await noOverflow());
 
+  await page.evaluate(() => { location.hash = '#/export'; });
+  await page.waitForTimeout(300);
+  check('export: page renders', await page.locator('.guide-head h1').isVisible());
+  check('export: checklist items >= 7', await page.locator('.exp-item').count() >= 7);
+  check('export: item details shown', (await page.locator('.exp-item-grid span').count()) >= 14);
+  check('export: no horizontal overflow', await noOverflow());
+
+  await page.evaluate(() => { location.hash = '#/logistics'; });
+  await page.waitForTimeout(300);
+  check('logistics: mode table 4 rows', await page.locator('.guide-table tbody tr').count() === 4);
+  check('logistics: container cards 4', await page.locator('.container-card').count() === 4);
+  check('logistics: port charges selectable', await page.locator('.customs-card').count() >= 6 && await page.locator('.port-charge-card').count() === 1);
+  check('logistics: estimator form', await page.locator('form[data-form="logistics-estimate-form"]').isVisible());
+  await page.fill('form[data-form="logistics-estimate-form"] input[name="weight"]', '800');
+  await page.click('form[data-form="logistics-estimate-form"] button[type="submit"]');
+  await page.waitForTimeout(500);
+  check('logistics: estimate result', await page.locator('.estimate-result').isVisible());
+  check('logistics: no horizontal overflow', await noOverflow());
+
+  await page.evaluate(() => { location.hash = '#/compliance'; });
+  await page.waitForTimeout(300);
+  check('compliance: rules cards >= 4', await page.locator('.compliance-card').count() >= 4);
+  check('compliance: screen form', await page.locator('form[data-form="compliance-screen-form"]').isVisible());
+  await page.fill('form[data-form="compliance-screen-form"] textarea[name="text"]', 'Military-grade drone with night vision camera');
+  await page.click('form[data-form="compliance-screen-form"] button[type="submit"]');
+  await page.waitForTimeout(500);
+  check('compliance: screening flags keywords', await page.locator('.screen-verdict.bad').isVisible());
+  check('compliance: no horizontal overflow', await noOverflow());
+
   await page.evaluate(() => { location.hash = '#/customs'; });
   await page.waitForTimeout(300);
   check('customs: country cards >= 10', await page.locator('.customs-card').count() >= 10);
@@ -118,6 +147,8 @@ let page;
   check('recruit: CTA present', await page.locator('.recruit-cta [data-nav="/login"]').count() === 1);
   check('footer: customs & recruit links', await page.locator('[data-nav="/customs"]').count() >= 1 && await page.locator('[data-nav="/recruit"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
+  check('footer: version 0.1 shown', /0\.1/.test(await page.locator('.version-line').textContent()));
+  check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
 
   await page.evaluate(() => { location.hash = '#/news?cat=tariff'; });
   await page.waitForTimeout(300);
@@ -222,6 +253,13 @@ let page;
   await page.evaluate(() => { location.hash = '#/dashboard'; });
   await page.waitForTimeout(300);
   check('seller: overview 4 stat cards', await page.locator('.stat-card').count() === 4);
+  await page.evaluate(() => { location.hash = '#/dashboard/export'; });
+  await page.waitForTimeout(300);
+  check('seller: export tab checklist', await page.locator('.exp-item').count() >= 7);
+  check('seller: readiness score shown', await page.locator('.exp-level').count() === 1);
+  await page.locator('[data-action="export-toggle"]').first().click();
+  await page.waitForTimeout(400);
+  check('seller: export item toggles done', await page.locator('.exp-item.done').count() >= 1);
 
   await page.evaluate(() => { location.hash = '#/dashboard/publish'; });
   await page.waitForTimeout(300);
@@ -392,6 +430,59 @@ let page;
   await page.waitForTimeout(400);
   check('buyer: sees seller shipment updates', await page.locator('.shipment-box').count() >= 2);
 
+  // ---- 单据中心与售后/纠纷 ----
+  check('buyer: document center on orders', await page.locator('.doc-center-box').count() >= 1);
+  await page.locator('.doc-center-box [data-action="doc-gen"]').first().click();
+  await page.waitForTimeout(500);
+  check('buyer: commercial invoice printable', await page.locator('.doc-modal .doc-table').count() >= 1);
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+  await page.locator('.doc-center-box [data-action="doc-check"]').first().click();
+  await page.waitForTimeout(400);
+  check('buyer: document consistency status shown', await page.locator('.doc-center-box .status-pill').count() >= 1);
+
+  await page.locator('.as-order-panel [data-action="after-sales-open"]').first().click();
+  await page.waitForTimeout(300);
+  check('buyer: after-sales modal opens', await page.locator('form[data-form="after-sales-form"]').isVisible());
+  await page.selectOption('form[data-form="after-sales-form"] select[name="type"]', 'quality');
+  await page.fill('form[data-form="after-sales-form"] textarea[name="description"]', 'Two units have scratches and one hinge is broken.');
+  await page.fill('form[data-form="after-sales-form"] input[name="resolution"]', 'Please reship replacement parts.');
+  await page.click('form[data-form="after-sales-form"] button[type="submit"]');
+  await page.waitForTimeout(400);
+  check('buyer: after-sales case created on order', await page.locator('.as-card').count() >= 1);
+
+  await page.locator('.as-order-panel [data-action="dispute-open"]').first().click();
+  await page.waitForTimeout(300);
+  await page.selectOption('form[data-form="after-sales-form"] select[name="type"]', 'other');
+  await page.fill('form[data-form="after-sales-form"] textarea[name="description"]', 'Delivery delay caused storage cost; requesting compensation.');
+  await page.click('form[data-form="after-sales-form"] button[type="submit"]');
+  await page.waitForTimeout(400);
+  check('buyer: dispute escalates to arbitration', await page.locator('.status-pill.pend').count() >= 1);
+
+  await page.evaluate(() => { location.hash = '#/disputes'; });
+  await page.waitForTimeout(300);
+  check('disputes: page lists cases', await page.locator('.as-card').count() >= 2);
+  check('disputes: arbitration pending badge', await page.locator('.status-pill.pend').count() >= 1);
+
+  // ---- 卖家处理售后 ----
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 's1' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/disputes'; });
+  await page.waitForTimeout(300);
+  check('seller: disputes page lists cases', await page.locator('.as-card').count() >= 2);
+  await page.locator('[data-action="as-respond"]').first().click();
+  await page.waitForTimeout(300);
+  check('seller: respond modal opens', await page.locator('form[data-form="aftersales-respond-form"]').isVisible());
+  await page.fill('form[data-form="aftersales-respond-form"] input[name="reply"]', 'We will reship replacement parts within 7 days.');
+  await page.click('form[data-form="aftersales-respond-form"] button[value="accept"]');
+  await page.waitForTimeout(400);
+  check('seller: accepted case resolved', await page.locator('.status-pill.done').count() >= 1);
+
   // ---- 平台管理员后台 ----
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
@@ -405,6 +496,18 @@ let page;
   check('admin: overview stat cards', await page.locator('.stat-card').count() === 4);
   check('admin: chart bars rendered', await page.locator('.bar-row').count() >= 2);
   check('admin: latest activity table', await page.locator('.panel table tbody tr').count() >= 1);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/aftersales'; });
+  await page.waitForTimeout(300);
+  check('admin: arbitration tab lists cases', await page.locator('.as-card').count() >= 1);
+  await page.locator('[data-action="as-arbitrate"]').first().click();
+  await page.waitForTimeout(300);
+  check('admin: arbitration modal opens', await page.locator('form[data-form="aftersales-arbitrate-form"]').isVisible());
+  await page.selectOption('form[data-form="aftersales-arbitrate-form"] select[name="ruling"]', 'buyer');
+  await page.fill('form[data-form="aftersales-arbitrate-form"] textarea[name="note"]', 'Compensation for demurrage per evidence chain.');
+  await page.click('form[data-form="aftersales-arbitrate-form"] button[type="submit"]');
+  await page.waitForTimeout(400);
+  check('admin: ruling recorded on case', await page.locator('.arbitration-box').count() >= 1);
 
   await page.evaluate(() => { location.hash = '#/dashboard/review'; });
   await page.waitForTimeout(300);
@@ -523,6 +626,18 @@ let page;
   await page.evaluate(() => { location.hash = '#/dashboard/orders'; });
   await page.waitForTimeout(300);
   check('mobile: orders no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/export'; });
+  await page.waitForTimeout(300);
+  check('mobile: export no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/logistics'; });
+  await page.waitForTimeout(300);
+  check('mobile: logistics no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/compliance'; });
+  await page.waitForTimeout(300);
+  check('mobile: compliance no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/disputes'; });
+  await page.waitForTimeout(300);
+  check('mobile: disputes no overflow', await noOverflow());
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForTimeout(300);
   check('mobile: home no horizontal overflow', await noOverflow());

@@ -266,6 +266,7 @@ api.orders = {
     const o = {
       id: 'o' + Date.now(), inquiryId, productId: i.productId, buyerId: st.user ? st.user.id : i.buyerId,
       sellerId: p ? p.sellerId : i.sellerId, status: 'created', total: amount, currency: currency || 'USD',
+      quantity: i.qty || null, unit: i.unit || (p ? p.unit : null),
       createdAt: Date.now(), receiptConfirmedAt: null, tips: []
     };
     st.orders = st.orders || [];
@@ -439,6 +440,9 @@ api.shipments = {
     const s = {
       id: 'sh' + now, orderId, carrier: payload.carrier || '', trackingNo: payload.trackingNo || '',
       mode: ['land', 'sea', 'air'].includes(payload.mode) ? payload.mode : 'land',
+      containerType: payload.containerType || 'LCL',
+      vessel: payload.vessel || '', billNo: payload.billNo || '',
+      freightTerms: payload.freightTerms || 'Prepaid', telexRelease: !!payload.telexRelease,
       status: 'processing', origin: payload.origin || '', destination: payload.destination || '',
       currentLocation: payload.origin || '', etd: payload.etd || null, eta: payload.eta || null,
       remark: payload.remark || '', createdAt: now, updatedAt: now,
@@ -834,6 +838,270 @@ api.contracts = {
     const row = (st.contracts || []).find(x => x.id === id);
     if (!row) throw new Error('NOT_FOUND');
     return apiClone(row);
+  }
+};
+
+/* ============================================================
+ * 服务：出口资质清单（卖家维护，平台按品类提示缺口）
+ * ============================================================ */
+api.exports = {
+  async getReadiness(sellerId) {
+    if (api.config.mode === 'http') return apiRequest('/exports/readiness/' + encodeURIComponent(sellerId));
+    await apiDelay();
+    const st = mockState();
+    const rows = (st.exportReadiness || {})[sellerId] || {};
+    const items = (typeof EXPORT_READINESS_ITEMS !== 'undefined' ? EXPORT_READINESS_ITEMS : [])
+      .map(x => ({ id: x.id, optional: !!x.optional, done: !!rows[x.id], updatedAt: rows[x.id + ':ts'] || null }));
+    const core = items.filter(x => !x.optional);
+    const done = items.filter(x => x.done).length;
+    const score = items.length ? Math.round(done / items.length * 100) : 0;
+    return { sellerId, score, coreDone: core.filter(x => x.done).length, coreTotal: core.length, items };
+  },
+  async setItem(sellerId, itemId, done) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/exports/readiness/' + encodeURIComponent(sellerId), { method: 'PUT', body: { itemId, done } });
+    }
+    await apiDelay();
+    const st = mockState();
+    st.exportReadiness = st.exportReadiness || {};
+    const rows = (st.exportReadiness[sellerId] = st.exportReadiness[sellerId] || {});
+    rows[itemId] = !!done;
+    rows[itemId + ':ts'] = Date.now();
+    mockSave(st);
+    return api.exports.getReadiness(sellerId);
+  },
+  async reset(sellerId) {
+    if (api.config.mode === 'http') return apiRequest('/exports/readiness/' + encodeURIComponent(sellerId), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.exportReadiness = st.exportReadiness || {};
+    st.exportReadiness[sellerId] = {};
+    mockSave(st);
+    return api.exports.getReadiness(sellerId);
+  }
+};
+
+/* ============================================================
+ * 服务：订单单据中心（商业发票 / 装箱单 / 原产地证 / 提单参考）
+ * ============================================================ */
+api.documents = {
+  async list(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/documents');
+    await apiDelay();
+    const st = mockState();
+    return apiClone((st.orderDocs || {})[orderId] || { generated: {}, consistency: null, checkedAt: null });
+  },
+  async generate(orderId, type) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/orders/' + encodeURIComponent(orderId) + '/documents', { method: 'POST', body: { type } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (!['CI', 'PL', 'CO', 'BL'].includes(type)) throw new Error('VALIDATION');
+    st.orderDocs = st.orderDocs || {};
+    const rec = (st.orderDocs[orderId] = st.orderDocs[orderId] || { generated: {}, consistency: null, checkedAt: null });
+    rec.generated[type] = Date.now();
+    rec.consistency = api.documents.consistencyOf(st, o);
+    rec.checkedAt = Date.now();
+    mockPushEvidence(st, orderId, 'document_generated', type, { docType: type });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  /* 一致性检查：品名 / HS 编码 / 数量 / 唛头 */
+  consistencyOf(st, o) {
+    const p = (st.products || []).find(x => x.id === o.productId);
+    const issues = [];
+    if (!p || !((p.en && p.en.title) || (p.zh && p.zh.title))) issues.push('title');
+    if (!p || !p.hsCode) issues.push('hs');
+    if (!o.quantity || !(Number(o.quantity) > 0)) issues.push('qty');
+    if (!o.shippingMarks) issues.push('marks');
+    return issues.length === 0 ? 'pass' : 'warn';
+  },
+  async consistency(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/documents/consistency');
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    const status = api.documents.consistencyOf(st, o);
+    st.orderDocs = st.orderDocs || {};
+    const rec = (st.orderDocs[orderId] = st.orderDocs[orderId] || { generated: {}, consistency: null, checkedAt: null });
+    rec.consistency = status;
+    rec.checkedAt = Date.now();
+    mockSave(st);
+    return apiClone({ orderId, status, checkedAt: rec.checkedAt });
+  }
+};
+
+/* ============================================================
+ * 服务：售后与纠纷（买家申请 → 卖家回复 → 平台仲裁，全程存证）
+ * ============================================================ */
+api.afterSales = {
+  async create({ orderId, type, description, resolution, dispute }) {
+    if (api.config.mode === 'http') return apiRequest('/after-sales', { method: 'POST', body: { orderId, type, description, resolution, dispute } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (!st.user || o.buyerId !== st.user.id) throw new Error('FORBIDDEN');
+    if (!['created', 'complete'].includes(o.status)) throw new Error('INVALID_STATUS');
+    if (!String(description || '').trim() || !String(type || '').trim()) throw new Error('VALIDATION');
+    const rec = {
+      id: 'as' + Date.now(),
+      orderId,
+      buyerId: st.user.id,
+      sellerId: o.sellerId,
+      type: String(type).trim(),
+      description: String(description).trim(),
+      resolution: String(resolution || '').trim(),
+      status: dispute ? 'arbitrating' : 'new',
+      dispute: !!dispute,
+      sellerReply: '',
+      ruling: '',
+      rulingNote: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    st.afterSales = st.afterSales || [];
+    st.afterSales.unshift(rec);
+    mockPushEvidence(st, orderId, dispute ? 'dispute_open' : 'after_sales_create', rec.id, {
+      type: rec.type, description: rec.description, dispute: rec.dispute
+    });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/after-sales');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    let rows = st.afterSales || [];
+    if (st.user) {
+      if (st.user.role === 'admin') rows = rows;
+      else if (st.user.role === 'seller') rows = rows.filter(x => x.sellerId === (st.user.sellerId || st.user.id));
+      else rows = rows.filter(x => x.buyerId === st.user.id);
+    }
+    return apiClone(rows.slice().sort((a, b) => b.updatedAt - a.updatedAt));
+  },
+  async respond(id, { action, reply }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/after-sales/' + encodeURIComponent(id) + '/respond', { method: 'POST', body: { action, reply } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.afterSales || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!st.user || rec.sellerId !== (st.user.sellerId || st.user.id)) throw new Error('FORBIDDEN');
+    if (!['new', 'responded'].includes(rec.status)) throw new Error('INVALID_STATUS');
+    rec.sellerReply = String(reply || '').trim();
+    rec.sellerAction = action === 'accept' ? 'accept' : 'reject';
+    rec.status = action === 'accept' ? 'resolved' : 'responded';
+    rec.updatedAt = Date.now();
+    mockPushEvidence(st, rec.orderId, 'after_sales_reply', rec.id, { action: rec.sellerAction, reply: rec.sellerReply });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async escalate(id) {
+    if (api.config.mode === 'http') return apiRequest('/after-sales/' + encodeURIComponent(id) + '/escalate', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.afterSales || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!st.user || (rec.buyerId !== st.user.id && rec.sellerId !== (st.user.sellerId || st.user.id))) throw new Error('FORBIDDEN');
+    if (!['new', 'responded'].includes(rec.status)) throw new Error('INVALID_STATUS');
+    rec.status = 'arbitrating';
+    rec.dispute = true;
+    rec.updatedAt = Date.now();
+    mockPushEvidence(st, rec.orderId, 'dispute_open', rec.id, { escalate: true });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async arbitrate(id, { ruling, note }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/after-sales/' + encodeURIComponent(id) + '/arbitrate', { method: 'POST', body: { ruling, note } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.afterSales || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!st.user || st.user.role !== 'admin') throw new Error('FORBIDDEN');
+    if (rec.status !== 'arbitrating') throw new Error('INVALID_STATUS');
+    if (!['buyer', 'seller', 'compromise'].includes(ruling)) throw new Error('VALIDATION');
+    rec.ruling = ruling;
+    rec.rulingNote = String(note || '').trim();
+    rec.status = 'resolved';
+    rec.updatedAt = Date.now();
+    mockPushEvidence(st, rec.orderId, 'after_sales_ruling', rec.id, { ruling, note: rec.rulingNote });
+    mockSave(st);
+    return apiClone(rec);
+  }
+};
+
+/* ============================================================
+ * 服务：合规筛查（演示：关键词命中 → 正式版接权威名单 API）
+ * ============================================================ */
+api.compliance = {
+  async screen(text) {
+    if (api.config.mode === 'http') return apiRequest('/compliance/screen', { method: 'POST', body: { text } });
+    await apiDelay();
+    const lower = String(text || '').toLowerCase();
+    const hits = (typeof SANCTION_KEYWORDS !== 'undefined' ? SANCTION_KEYWORDS : [])
+      .filter(kw => lower.includes(String(kw).toLowerCase()));
+    return {
+      text: String(text || ''),
+      hits,
+      clean: hits.length === 0,
+      note: 'demo screening only'
+    };
+  },
+  async screenProduct(productId) {
+    const p = mockFindProduct(productId);
+    if (!p) throw new Error('NOT_FOUND');
+    const text = ((p.en && p.en.title) || '') + ' ' + ((p.en && p.en.desc) || '') + ' ' + ((p.zh && p.zh.title) || '') + ' ' + ((p.zh && p.zh.desc) || '');
+    return api.compliance.screen(text);
+  }
+};
+
+/* ============================================================
+ * 服务：运费估算（演示参考值）
+ * ============================================================ */
+api.logistics = {
+  async estimate({ mode, weight, volume, container, origin, destination } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/logistics/estimate', { method: 'POST', body: { mode, weight, volume, container, origin, destination } });
+    await apiDelay();
+    const w = Math.max(0, Number(weight) || 0);
+    const v = Math.max(0, Number(volume) || 0);
+    const m = ['sea', 'air', 'land', 'courier'].includes(mode) ? mode : 'sea';
+    const chargeable = Math.max(w / 1000, v || 0);
+    let lo = 0, hi = 0;
+    if (m === 'sea') {
+      if (container === '20GP') { lo = 900; hi = 2200; }
+      else if (container === '40GP' || container === '40HQ') { lo = 1500; hi = 4200; }
+      else { lo = Math.round(chargeable * 55); hi = Math.round(chargeable * 120 + 60); }
+    } else if (m === 'air') {
+      lo = Math.round(chargeable * 340); hi = Math.round(chargeable * 620);
+    } else if (m === 'land') {
+      lo = Math.round(chargeable * 130); hi = Math.round(chargeable * 280);
+    } else {
+      lo = Math.max(18, Math.round(chargeable * 700)); hi = Math.max(35, Math.round(chargeable * 1300));
+    }
+    return {
+      mode: m,
+      currency: 'USD',
+      lo: Math.max(0, lo),
+      hi: Math.max(lo, hi),
+      weight: w,
+      volume: v,
+      chargeable,
+      container: container || 'LCL',
+      origin: String(origin || '').trim(),
+      destination: String(destination || '').trim(),
+      note: 'demo estimate only'
+    };
   }
 };
 

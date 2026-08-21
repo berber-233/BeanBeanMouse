@@ -692,6 +692,318 @@ const CUSTOMS_REF = [
     ]
   }
 ];
+
+/* 出口准备：资质与前置手续（正式办理以主管部门最新规定为准） */
+const EXPORT_READINESS_ITEMS = [
+  {
+    id: 'customs-reg', optional: false,
+    zh: {
+      name: '进出口经营权 / 海关备案',
+      what: '具备对外贸易经营者资格，并在海关办理报关单位注册登记（2026 年起由备案改为登记管理）。',
+      who: '商务主管部门 / 海关',
+      when: '首次出口前；未登记无法自行报关',
+      tip: '没有进出口权可委托有资质的外贸公司或报关行代理出口，但责任划分与退税归属要提前书面约定。'
+    },
+    en: {
+      name: 'Import & export rights / customs registration',
+      what: 'Hold foreign-trade operator qualification and register as a customs declaration entity (registration management since 2026).',
+      who: 'Trade authorities / Customs',
+      when: 'Before the first export; required to self-declare',
+      tip: 'You can export through a licensed trading company or broker, but agree on liability and tax-rebate ownership in writing.'
+    }
+  },
+  {
+    id: 'fx-account', optional: false,
+    zh: {
+      name: '出口收汇与外汇账户',
+      what: '开立外汇结算账户并完成贸易外汇收支企业名录登记，出口收汇须如实申报。',
+      who: '银行 + 外汇局',
+      when: '首笔收汇前',
+      tip: '个人账户收汇是外贸高发风险，务必使用公司对公账户，并留存合同与单据备查。'
+    },
+    en: {
+      name: 'Export receipts & FX settlement account',
+      what: 'Open a foreign-exchange settlement account and complete trade FX filing with the exchange authority; report all export receipts truthfully.',
+      who: 'Bank + exchange authority',
+      when: 'Before the first receipt',
+      tip: 'Receiving payment into a personal account is a top export risk. Always use the company account and keep the contract and documents on file.'
+    }
+  },
+  {
+    id: 'tax-rebate', optional: false,
+    zh: {
+      name: '出口退税备案',
+      what: '在电子税务局办理出口退（免）税备案，出口后按规定申报退税并留存单证。',
+      who: '税务机关（电子税务局）',
+      when: '首次申报退税前',
+      tip: '退税申报需要发票、报关单、收汇记录等单证链，从开票环节就要保持一致。'
+    },
+    en: {
+      name: 'Export VAT rebate filing',
+      what: 'File the export tax-rebate registration with the e-tax authority and keep a complete document chain for each claim.',
+      who: 'Tax authority (e-tax portal)',
+      when: 'Before the first rebate claim',
+      tip: 'Rebates require a consistent chain of invoice, customs declaration and receipt records — align them from the invoicing stage.'
+    }
+  },
+  {
+    id: 'export-license', optional: false,
+    zh: {
+      name: '出口许可证（法定许可商品）',
+      what: '属于《出口许可证管理货物目录》（2026 年 43 类）的商品，须先取得出口许可证再申报出口。',
+      who: '商务部发证机关（委托省级商务部门）',
+      when: '签约 / 报关前；先确认商品是否在目录内',
+      tip: '许可证不可转让，品名、数量、目的国必须与报关单一致；两用物项另行办理出口许可。'
+    },
+    en: {
+      name: 'Export licence (controlled goods)',
+      what: 'Goods on the export licensing catalogue (43 categories in 2026) require a licence before declaration.',
+      who: 'Ministry of Commerce licensing office',
+      when: 'Before signing / declaration; check the catalogue first',
+      tip: 'Licences are non-transferable and must match the declaration exactly. Dual-use goods need a separate export licence.'
+    }
+  },
+  {
+    id: 'inspection', optional: false,
+    zh: {
+      name: '法定检验 / 商检（出口法检）',
+      what: '列入法检目录的商品，出口前向海关申报检验，取得合格电子底账后再报关。',
+      who: '海关（原商检职能）',
+      when: '出口申报时，先报检后报关',
+      tip: '法检目录按 HS 编码确定，同一编码不同用途可能不同，务必先核实。'
+    },
+    en: {
+      name: 'Statutory inspection (export CIQ)',
+      what: 'Goods on the statutory inspection catalogue must be inspected by customs before export; obtain the qualified electronic record first.',
+      who: 'Customs (ex-CIQ function)',
+      when: 'Inspect before declaration at export time',
+      tip: 'The catalogue is HS-based and can vary by intended use — verify before you ship.'
+    }
+  },
+  {
+    id: 'co-qualification', optional: false,
+    zh: {
+      name: '原产地证书申领资格',
+      what: '在贸促会或海关完成原产地证申领登记，可申请一般原产地证（CO）、普惠制 FORMA、RCEP 等优惠证书。',
+      who: '贸促会（CCPIT）/ 海关',
+      when: '发货前申请；进口国要求或享关税优惠时必备',
+      tip: 'RCEP 优惠税率需要原产地证书 + 原产地规则核算，别错过降税红利。'
+    },
+    en: {
+      name: 'Certificate of Origin qualification',
+      what: 'Register with CCPIT or customs to issue CO, GSP Form A or RCEP preferential certificates.',
+      who: 'CCPIT / Customs',
+      when: 'Apply before shipment; required for preferential duty or by the importer',
+      tip: 'RCEP savings need the certificate plus an origin-rule calculation — don’t miss the tariff benefit.'
+    }
+  },
+  {
+    id: 'dangerous-goods', optional: true,
+    zh: {
+      name: '危险品 / 特殊货物资质（按品类）',
+      what: '化学品、锂电池、气雾剂等危险品出口需危险特性分类鉴定、MSDS、UN 包装标记与危包证。',
+      who: '检验机构 + 海关',
+      when: '订舱前确认；船公司 / 航司拒收未申报危品',
+      tip: '未如实申报危险品会面临高额罚款与承运人责任，绝不能隐瞒。'
+    },
+    en: {
+      name: 'Dangerous goods qualification (category-based)',
+      what: 'Chemicals, lithium batteries and aerosols need classification, MSDS, UN packaging marks and a dangerous-goods certificate.',
+      who: 'Inspection bodies + Customs',
+      when: 'Confirm before booking; carriers refuse undeclared DG',
+      tip: 'Undeclared dangerous goods lead to heavy fines and carrier liability — never hide them.'
+    }
+  }
+];
+
+/* 物流指南：运输方式对比 */
+const LOGISTICS_MODES = [
+  {
+    id: 'sea',
+    zh: { name: '海运（整柜/拼箱）', speed: '15–40 天', cost: '低（大宗首选）', bestFor: '整柜、大宗货、交期宽松' },
+    en: { name: 'Sea (FCL/LCL)', speed: '15–40 days', cost: 'Low (best for bulk)', bestFor: 'Full-container loads, large orders, flexible lead time' }
+  },
+  {
+    id: 'air',
+    zh: { name: '空运', speed: '3–7 天', cost: '高（按重量/体积）', bestFor: '高价值、紧急补货' },
+    en: { name: 'Air', speed: '3–7 days', cost: 'High (by weight/volume)', bestFor: 'High value, urgent replenishment' }
+  },
+  {
+    id: 'land',
+    zh: { name: '陆运（中欧班列/跨境卡车）', speed: '10–20 天', cost: '中', bestFor: '欧洲方向，兼顾时效与成本' },
+    en: { name: 'Land (China-Europe rail / cross-border truck)', speed: '10–20 days', cost: 'Medium', bestFor: 'Europe routes balancing speed and cost' }
+  },
+  {
+    id: 'courier',
+    zh: { name: '国际快递', speed: '2–5 天', cost: '最高（小件）', bestFor: '样品、小包裹、门到门' },
+    en: { name: 'Courier', speed: '2–5 days', cost: 'Highest (small parcels)', bestFor: 'Samples, small parcels, door-to-door' }
+  }
+];
+
+const CONTAINER_TYPES = [
+  { id: 'LCL', zh: '拼箱（不足整柜）', en: 'LCL (less than container load)' },
+  { id: '20GP', zh: '20 尺整柜（约 28 CBM）', en: '20ft FCL (~28 CBM)' },
+  { id: '40GP', zh: '40 尺整柜（约 58 CBM）', en: '40ft FCL (~58 CBM)' },
+  { id: '40HQ', zh: '40 尺高柜（约 68 CBM）', en: '40ft HQ (~68 CBM)' }
+];
+
+/* 目的港费用参考（示例，正式以承运人/代理报价为准） */
+const PORT_CHARGES = [
+  {
+    code: 'Hamburg', flag: 'DE', zh: '汉堡', en: 'Hamburg',
+    note: '欧洲主流基本港，DTHC 与清关费以德国当地行情为参考。',
+    items: [
+      ['DTHC', 'EUR 95–130 / 柜'],
+      ['文件费', 'EUR 35–60'],
+      ['清关代理费', 'EUR 90–180'],
+      ['查验费（如发生）', 'EUR 80–200'],
+      ['超期仓储费', 'EUR 1–3 / CBM / 天']
+    ]
+  },
+  {
+    code: 'Rotterdam', flag: 'NL', zh: '鹿特丹', en: 'Rotterdam',
+    note: '欧洲第一大港，中欧班列与海运均可衔接。',
+    items: [
+      ['DTHC', 'EUR 90–125 / 柜'],
+      ['文件费', 'EUR 30–55'],
+      ['清关代理费', 'EUR 85–170'],
+      ['查验费（如发生）', 'EUR 75–190'],
+      ['超期仓储费', 'EUR 1–2.5 / CBM / 天']
+    ]
+  },
+  {
+    code: 'New York', flag: 'US', zh: '纽约', en: 'New York',
+    note: '美东基本港；注意 ISF 申报与 CBP 查验。',
+    items: [
+      ['DTHC', 'USD 100–160 / 柜'],
+      ['文件费', 'USD 45–75'],
+      ['清关代理费', 'USD 120–220'],
+      ['ISF 申报', 'USD 25–45'],
+      ['查验费（如发生）', 'USD 90–260']
+    ]
+  },
+  {
+    code: 'Los Angeles', flag: 'US', zh: '洛杉矶', en: 'Los Angeles',
+    note: '美西门户港，电商与快消品常用。',
+    items: [
+      ['DTHC', 'USD 105–170 / 柜'],
+      ['文件费', 'USD 40–70'],
+      ['清关代理费', 'USD 110–210'],
+      ['ISF 申报', 'USD 25–45'],
+      ['查验费（如发生）', 'USD 95–280']
+    ]
+  },
+  {
+    code: 'Dubai', flag: 'AE', zh: '迪拜', en: 'Dubai',
+    note: '中东转口枢纽，转口贸易注意原产地证与再出口申报。',
+    items: [
+      ['DTHC / 港口杂费', 'AED 350–600 / 柜'],
+      ['文件费', 'AED 100–180'],
+      ['清关代理费', 'AED 300–700'],
+      ['查验费（如发生）', 'AED 250–800'],
+      ['仓储费（免费期后）', 'AED 25–60 / 天']
+    ]
+  },
+  {
+    code: 'Singapore', flag: 'SG', zh: '新加坡', en: 'Singapore',
+    note: '亚太中转枢纽，清关效率高，转口贸易活跃。',
+    items: [
+      ['DTHC', 'SGD 90–140 / 柜'],
+      ['文件费', 'SGD 30–55'],
+      ['清关代理费', 'SGD 60–120'],
+      ['查验费（如发生）', 'SGD 60–180'],
+      ['仓储费（免费期后）', 'SGD 1–2.5 / CBM / 天']
+    ]
+  }
+];
+
+/* 合规中心：管制与合规清单（演示参考） */
+const COMPLIANCE_RULES = [
+  {
+    id: 'export-control', icon: '🛃',
+    zh: { name: '出口管制与两用物项', items: [
+      '中国《出口管制法》与两用物项出口管制清单',
+      '美国 EAR（出口管理条例）与实体清单',
+      '欧盟两用物项条例（EU 2021/821）',
+      '联合国安理会禁运决议',
+      '报关单“禁限管制识别码”如实申报'
+    ] },
+    en: { name: 'Export control & dual-use items', items: [
+      'China Export Control Law and dual-use list',
+      'US EAR and Entity List',
+      'EU Dual-use Regulation (EU 2021/821)',
+      'UN Security Council embargo resolutions',
+      'Truthful control-code declaration on export forms'
+    ] }
+  },
+  {
+    id: 'sanctions', icon: '🚫',
+    zh: { name: '制裁与名单筛查', items: [
+      'OFAC SDN（特别指定国民名单）',
+      '美国商务部实体清单（Entity List）',
+      '欧盟 / 英国制裁名单',
+      '中国《反外国制裁法》相关措施',
+      '交易对手、最终收货人与最终用途核查'
+    ] },
+    en: { name: 'Sanctions & list screening', items: [
+      'OFAC SDN list',
+      'US Entity List',
+      'EU / UK sanctions lists',
+      'China Anti-Foreign Sanctions Law measures',
+      'Screening of counterparty, end-user and end-use'
+    ] }
+  },
+  {
+    id: 'trade-remedies', icon: '⚖️',
+    zh: { name: '贸易救济（反倾销 / 反补贴 / 关税）', items: [
+      '美国 Section 301 对华关税（按 HTS 核实）',
+      '欧盟对华反倾销 / 反补贴税（如电动汽车、铝材等）',
+      '印度 BIS 认证与关税壁垒',
+      '目的国海关对低申报价格的审查风险'
+    ] },
+    en: { name: 'Trade remedies (ADD/CVD/tariffs)', items: [
+      'US Section 301 tariffs on China (verify by HTS)',
+      'EU ADD/CVD duties (EVs, aluminium, etc.)',
+      'India BIS certification and tariff barriers',
+      'Risk of low-valuation review by destination customs'
+    ] }
+  },
+  {
+    id: 'product-rules', icon: '🧪',
+    zh: { name: '产品合规与环保法规', items: [
+      '欧盟 CE / RoHS / REACH / WEEE',
+      '美国 FCC / UL / FDA / CPSC',
+      '日本 PSE / 食品卫生法',
+      '化学物质注册（欧盟 REACH、美国 TSCA）',
+      '包装与塑料税（部分国家）',
+      'CBAM 碳边境调节（钢铝水泥化肥氢电）'
+    ] },
+    en: { name: 'Product & environmental rules', items: [
+      'EU CE / RoHS / REACH / WEEE',
+      'US FCC / UL / FDA / CPSC',
+      'Japan PSE / Food Sanitation Law',
+      'Chemical registration (EU REACH, US TSCA)',
+      'Packaging and plastics taxes (select countries)',
+      'CBAM for steel, aluminium, cement, fertiliser, hydrogen, electricity'
+    ] }
+  }
+];
+
+/* 演示用出口管制/制裁关键词（正式版接入权威名单 API） */
+const SANCTION_KEYWORDS = [
+  'military', 'defense', 'defence', 'missile', 'nuclear', 'chemical weapon', 'bioweapon',
+  'drone', 'night vision', 'radar', 'explosive', 'arms', 'ammunition', 'military-grade',
+  '军事', '导弹', '核武器', '生化武器', '无人机', '夜视', '雷达', '炸药', '弹药', '武器级', '军警'
+];
+
+/* 售后与纠纷：问题类型 */
+const AFTER_SALES_TYPES = [
+  { id: 'quality', zh: '质量问题', en: 'Quality issue' },
+  { id: 'quantity', zh: '数量短缺', en: 'Quantity shortage' },
+  { id: 'damage', zh: '运输破损', en: 'Shipping damage' },
+  { id: 'other', zh: '其他', en: 'Other' }
+];
+
 const I18N = {
   zh: {
     home: '首页', marketplace: '产品市场', dashboard: '工作台', login: '登录', logout: '退出登录',
@@ -792,6 +1104,8 @@ const I18N = {
     evReportNote: '本报告由平台依据订单存证链自动生成，仅供双方核对与纠纷举证参考，不构成法律意见。',
     evOrderCreate: '订单创建', evReceiptConfirmed: '买家确认签收', evTipCreate: '小费打赏', evTipCancel: '打赏取消',
     evShipmentCreate: '物流单创建', evShipmentEvent: '物流更新', evManual: '手动快照',
+    evContractCustody: '合同保管', evInsuranceCreate: '投保', evAfterSalesCreate: '售后申请',
+    evAfterSalesReply: '售后回复', evAfterSalesRuling: '平台裁决', evDisputeOpen: '纠纷发起', evDocGenerated: '单证生成',
     tipAlready: '已打赏', tipAgain: '感谢支持！你已打赏，可再次表达感谢或取消。', tipBtnAgain: '再次打赏',
     navCustoms: '清关参考', customsTitle: '清关 / 报关参考', customsSub: '按目的国查看进出口所需单证与官方来源，减少清关延误与罚款',
     customsPick: '选择目的地国家/地区', customsDocs: '常用单证', customsSources: '官方来源', customsNote: '注意事项',
@@ -893,6 +1207,67 @@ const I18N = {
     contractDate: '日期', contractNo: '合同编号', contractId: '订单号', contractQty: '数量', contractUnitPrice: '单价',
     contractTotal: '总金额', contractIncoterm: '贸易术语', contractDelivery: '交货期', contractPayment: '付款方式',
     contractInspection: '检验', contractForceMajeure: '不可抗力', contractDispute: '争议解决', contractTitle2: '国际货物买卖合同草案'
+    ,
+    navExport: '出口准备', navLogistics: '物流指南', navCompliance: '合规中心', navDisputes: '售后纠纷',
+    footerTools: '贸易工具', versionLabel: '版本 0.1（演示）',
+    exportTitle: '出口准备：资质与前置手续', exportSub: '出口不是“下单就发货”。先备齐经营资质、收汇、退税、许可证与商检手续，才能顺利报关、收汇与退税。',
+    exportChecklistTitle: '出口资质清单', exportChecklistSub: '逐项核对你的出口资质；正式办理以主管部门最新规定为准。',
+    exportWhat: '是什么', exportWho: '办理机构', exportWhen: '何时需要', exportTip: '提示',
+    exportReadinessScore: '出口就绪度', exportReadyHigh: '就绪度高，可以放心接单与发布', exportReadyMid: '建议补齐剩余项后再接大额订单',
+    exportReadyLow: '资质缺口较多，建议先补齐再发布/接单', exportMarkDone: '标记完成', exportMarkUndone: '撤销',
+    exportOptional: '（按品类）', exportNoLoginHint: '登录卖家账号后，可在本站内维护并跟踪你的出口资质清单。',
+    exportLoginBtn: '以卖家身份体验', exportGuideNote: '本清单为通用参考，不构成法律意见；请以商务、海关、税务及外汇主管部门最新规定为准。',
+    exportProductHint: '发布产品时，平台会结合品类提示对应的出口资质要求。',
+    logisticsTitle: '物流与订舱指南', logisticsSub: '从运输方式、拼箱整柜、目的港费用到电放提单，掌握订舱与发运的实操要点。',
+    logisticsModeTitle: '运输方式怎么选', logisticsModeNote: '选型依据：货值、体积重量、交期、目的国与成本预算。',
+    logisticsContainerTitle: '拼箱与整柜', logisticsContainerNote: '不足整柜选拼箱（LCL），按 CBM 计费并分摊目的港费用；货量接近整柜时直接订整柜更划算。',
+    logisticsCostTitle: '目的港费用参考', logisticsCostNote: '清关时最常见的费用项，正式以承运人与目的港代理报价为准。',
+    logisticsPortPick: '选择目的港', logisticsTelexTitle: '电放提单（Telex Release）',
+    logisticsTelexNote: '发货后卖家把全套正本单据交回承运人，承运人以电子方式放货给收货人，无需等待纸质提单寄达，可避免压港费。只建议与可信买家配合，并明确货款收讫再电放。',
+    logisticsEstimateTitle: '运费估算器（演示）', logisticsEstimateHint: '输入货量与目的港，快速得到各运输方式的参考运费区间。',
+    logisticsFieldMode: '运输方式', logisticsFieldWeight: '重量（kg）', logisticsFieldVolume: '体积（CBM）',
+    logisticsFieldContainer: '柜型 / 拼箱', logisticsFieldOrigin: '起运地', logisticsFieldDestination: '目的港',
+    logisticsEstimateBtn: '开始估算', logisticsEstimateResult: '估算结果', logisticsEstimateNote: '仅作演示参考，以承运人实际报价为准。',
+    logisticsSpeed: '时效', logisticsCost: '成本', logisticsBestFor: '适合场景',
+    shpContainer: '柜型 / 拼箱', shpPortLoading: '装运港', shpPortDischarge: '目的港', shpVessel: '船名 / 航次', shpBillNo: '提单号',
+    shpTelex: '电放提单', shpFreightTerms: '运费支付', freightPrepaid: '预付', freightCollect: '到付',
+    shpCostEstimate: '费用估算（参考）', shpCostHint: '仅供参考，以承运人报价为准',
+    modeCourier: '快递', shpBooking: '订舱', shpDeclaration: '报关', shpLoadOnBoard: '装船', shpDeparture: '开航', shpArrival: '到港', shpClearance: '清关', shpDelivery: '派送',
+    complianceTitle: '合规中心', complianceSub: '出口管制、制裁名单、反倾销与产品环保法规——发布前先筛查，避免货到海关被扣。',
+    complianceControlTitle: '出口管制与制裁筛查', complianceControlNote: '正式版接入权威名单 API 并自动按 HS 编码/品类核对；当前为演示关键词筛查。',
+    complianceListTitle: '重点管制与合规清单', complianceScreenTitle: '产品合规筛查（演示）',
+    complianceScreenHint: '输入产品名称或描述，或选择下方示例产品，点击“开始筛查”。',
+    complianceScreenBtn: '开始筛查', complianceResultTitle: '筛查结果', complianceClear: '未命中明显管制 / 制裁关键词',
+    complianceHits: '命中关注项（仅演示，需人工复核）', complianceDemoProduct: '示例产品',
+    complianceDisclaimer: '筛查结果仅作演示参考，不构成合规结论；正式出口前请结合 HS 编码、最终用途与目的国法规做人工复核。',
+    compliancePanelTitle: '出口合规筛查', compliancePanelNote: '发布后平台按品名与描述做管制/制裁关键词筛查（演示）。',
+    compliancePassLabel: '未命中风险', complianceFlagLabel: '关注项', complianceMarketTitle: '目标市场合规',
+    complianceScreenDemo: '演示筛查', adminScreenLabel: '出口管制筛查',
+    disputesTitle: '售后与纠纷中心', disputesSub: '订单交付后的质量异议、退换货与平台仲裁都在这里处理，全程自动纳入订单存证链。',
+    afterSalesTitle: '售后与纠纷', afterSalesCreate: '申请售后', afterSalesOpen: '发起纠纷',
+    afterSalesTypeLabel: '问题类型', afterSalesDescLabel: '问题描述', afterSalesResolution: '期望解决方案',
+    afterSalesSubmit: '提交申请', afterSalesTypes: '问题类型',
+    afterSalesNew: '待处理', afterSalesResponded: '卖家已回复', afterSalesArbitrating: '平台仲裁中', afterSalesResolved: '已解决', afterSalesClosed: '已关闭',
+    afterSalesRespond: '回复买家', afterSalesAccept: '接受诉求', afterSalesReject: '拒绝并说明', afterSalesArbitrate: '平台裁决',
+    afterSalesArbitrateTip: '管理员可查看订单存证链后裁决：支持买家 / 支持卖家 / 双方协商。',
+    arbitrateBuyer: '支持买家', arbitrateSeller: '支持卖家', arbitrateCompromise: '双方协商',
+    afterSalesRuling: '裁决结果', afterSalesEmpty: '暂无售后 / 纠纷记录', afterSalesNote: '售后与纠纷的关键节点会自动写入订单存证链，双方与平台均可核验。',
+    afterSalesCaseNo: '案件编号', afterSalesOrder: '关联订单', afterSalesAppliedAt: '申请时间', afterSalesBy: '申请人',
+    afterSalesEvidence: '查看存证', afterSalesNeedLogin: '请先登录，售后与纠纷与你的订单关联。',
+    docCenter: '单据中心', docCenterSub: '按订单生成商业发票、装箱单、原产地证与提单参考件；单证信息必须一致，否则影响清关。',
+    docGenerate: '生成', docGenerated: '已生成', docCI: '商业发票', docPL: '装箱单', docCO: '原产地证（参考）', docBL: '提单（参考件）',
+    docConsistency: '单证一致性检查', docConsistencyCheck: '重新核对', docConsistencyPass: '通过：品名、HS 编码、数量、唛头信息一致',
+    docConsistencyWarn: '需补充：单据信息不完整', docConsistencyFail: '不一致：请修正商品信息后重新生成',
+    docMarks: '唛头', docCartons: '箱数', docGrossWeight: '毛重', docNetWeight: '净重',
+    docConsignee: '收货人', docNotify: '通知方', docVessel: '船名 / 航次', docBillNo: '提单号',
+    docOriginClaim: '原产地声明', docIssue: '签发', docCheckHint: '三单一致（发票、箱单、提单）是清关的基本要求。',
+    docBLHint: '参考件用于演示单据流；真实提单由承运人签发，信息以承运人出具为准。',
+    docCOHint: '参考件用于演示；正式原产地证请向贸促会或海关申领。',
+    docPIHint: '形式发票已支持打印，商业发票为正式结算与清关单据。',
+    exportTab: '出口资质', exportTabHint: '维护你的出口资质清单，平台会在发布产品时提示缺口。',
+    adminAfterSales: '纠纷仲裁', adminAfterSalesHint: '仲裁前可查看订单存证链与双方沟通记录。',
+    adminExportReady: '出口就绪度', asPanelTitle: '售后与纠纷', asApplyBtn: '申请售后', asDisputeBtn: '发起纠纷',
+    asRelatedOrder: '关联订单', asStatusCol: '状态', asMyCases: '我的售后 / 纠纷'
   },
   en: {
     home: 'Home', marketplace: 'Products', dashboard: 'Dashboard', login: 'Sign in', logout: 'Sign out',
@@ -1052,6 +1427,8 @@ const I18N = {
     evReportNote: 'This report is auto-generated from the order evidence chain for verification and dispute reference only; it is not legal advice.',
     evOrderCreate: 'Order created', evReceiptConfirmed: 'Buyer confirmed receipt', evTipCreate: 'Tip sent', evTipCancel: 'Tip cancelled',
     evShipmentCreate: 'Shipment created', evShipmentEvent: 'Tracking update', evManual: 'Manual snapshot',
+    evContractCustody: 'Contract custody', evInsuranceCreate: 'Insurance purchased', evAfterSalesCreate: 'After-sales request',
+    evAfterSalesReply: 'After-sales reply', evAfterSalesRuling: 'Platform ruling', evDisputeOpen: 'Dispute opened', evDocGenerated: 'Document generated',
     tipAlready: 'Tipped', tipAgain: 'Thank you! You already sent a tip - you may send another or cancel it.', tipBtnAgain: 'Tip again',
     navCustoms: 'Customs guide', customsTitle: 'Customs & clearance reference', customsSub: 'Per-country import/export document checklists and official sources to avoid delays and penalties',
     customsPick: 'Select destination country/region', customsDocs: 'Common documents', customsSources: 'Official sources', customsNote: 'Notes',
@@ -1095,6 +1472,67 @@ const I18N = {
     contractDate: 'Date', contractNo: 'Contract No.', contractId: 'Order ID', contractQty: 'Quantity', contractUnitPrice: 'Unit price',
     contractTotal: 'Total', contractIncoterm: 'Incoterm', contractDelivery: 'Delivery', contractPayment: 'Payment',
     contractInspection: 'Inspection', contractForceMajeure: 'Force majeure', contractDispute: 'Dispute resolution', contractTitle2: 'Draft International Sale of Goods Contract'
+    ,
+    navExport: 'Export Readiness', navLogistics: 'Logistics Guide', navCompliance: 'Compliance Center', navDisputes: 'After-sales & Disputes',
+    footerTools: 'Trade tools', versionLabel: 'Version 0.1 (demo)',
+    exportTitle: 'Export Readiness: Qualifications & Formalities', exportSub: 'Exporting is not just "ship after order". Prepare your trading rights, FX receipts, tax rebate, licences and inspection before you can clear customs and get paid.',
+    exportChecklistTitle: 'Export qualification checklist', exportChecklistSub: 'Review each item; always follow the latest rules of the competent authorities.',
+    exportWhat: 'What it is', exportWho: 'Issuing body', exportWhen: 'When needed', exportTip: 'Tip',
+    exportReadinessScore: 'Export readiness', exportReadyHigh: 'High readiness — good to take orders and publish', exportReadyMid: 'Complete the remaining items before taking large orders',
+    exportReadyLow: 'Too many gaps — complete qualifications before publishing', exportMarkDone: 'Mark done', exportMarkUndone: 'Undo',
+    exportOptional: '(category-based)', exportNoLoginHint: 'Sign in as a seller to maintain your own export readiness checklist.',
+    exportLoginBtn: 'Try as seller', exportGuideNote: 'This checklist is general reference only and not legal advice; follow the latest rules of trade, customs, tax and FX authorities.',
+    exportProductHint: 'When publishing, the platform suggests export requirements by category.',
+    logisticsTitle: 'Logistics & Booking Guide', logisticsSub: 'From transport modes, LCL/FCL and destination charges to telex release — master the practical side of booking and shipping.',
+    logisticsModeTitle: 'Choosing a transport mode', logisticsModeNote: 'Base the choice on value, weight/volume, lead time, destination and budget.',
+    logisticsContainerTitle: 'LCL vs FCL', logisticsContainerNote: 'Use LCL when below a full container (billed by CBM, destination costs shared); near a full load, book FCL for better economics.',
+    logisticsCostTitle: 'Destination charges reference', logisticsCostNote: 'The most common clearance fees; final figures follow the carrier and destination agent quotation.',
+    logisticsPortPick: 'Select destination port', logisticsTelexTitle: 'Telex Release',
+    logisticsTelexNote: 'After shipment the seller returns the original documents to the carrier, who releases the cargo electronically — no waiting for paper B/Ls and no port demurrage. Use only with trusted buyers and confirm payment before release.',
+    logisticsEstimateTitle: 'Freight estimator (demo)', logisticsEstimateHint: 'Enter cargo details and destination to get indicative freight ranges per mode.',
+    logisticsFieldMode: 'Transport mode', logisticsFieldWeight: 'Weight (kg)', logisticsFieldVolume: 'Volume (CBM)',
+    logisticsFieldContainer: 'Container / LCL', logisticsFieldOrigin: 'Origin', logisticsFieldDestination: 'Destination port',
+    logisticsEstimateBtn: 'Estimate', logisticsEstimateResult: 'Estimate result', logisticsEstimateNote: 'Demo only; the carrier quotation prevails.',
+    logisticsSpeed: 'Lead time', logisticsCost: 'Cost', logisticsBestFor: 'Best for',
+    shpContainer: 'Container / LCL', shpPortLoading: 'Port of loading', shpPortDischarge: 'Port of discharge', shpVessel: 'Vessel / Voyage', shpBillNo: 'B/L no.',
+    shpTelex: 'Telex release', shpFreightTerms: 'Freight terms', freightPrepaid: 'Prepaid', freightCollect: 'Collect',
+    shpCostEstimate: 'Cost estimate (reference)', shpCostHint: 'For reference only; carrier quotation prevails',
+    modeCourier: 'Courier', shpBooking: 'Booking', shpDeclaration: 'Customs declaration', shpLoadOnBoard: 'Loaded on board', shpDeparture: 'Departure', shpArrival: 'Arrival', shpClearance: 'Customs clearance', shpDelivery: 'Delivery',
+    complianceTitle: 'Compliance Center', complianceSub: 'Export control, sanctions, anti-dumping and product environmental rules — screen before you publish so goods are not held at customs.',
+    complianceControlTitle: 'Export control & sanctions screening', complianceControlNote: 'Production will connect to authoritative list APIs keyed by HS code/category; the current version is a demo keyword screen.',
+    complianceListTitle: 'Key restrictions & compliance list', complianceScreenTitle: 'Product screening (demo)',
+    complianceScreenHint: 'Type a product name/description or pick a demo product below, then run the screening.',
+    complianceScreenBtn: 'Run screening', complianceResultTitle: 'Screening result', complianceClear: 'No obvious control / sanctions keyword matches',
+    complianceHits: 'Flags found (demo only — verify manually)', complianceDemoProduct: 'Demo products',
+    complianceDisclaimer: 'Screening results are demo reference only and not a compliance conclusion. Verify by HS code, end use and destination regulations before exporting.',
+    compliancePanelTitle: 'Export compliance screening', compliancePanelNote: 'After publishing, the platform screens title & description against control/sanctions keywords (demo).',
+    compliancePassLabel: 'No flags', complianceFlagLabel: 'Flags', complianceMarketTitle: 'Target market compliance',
+    complianceScreenDemo: 'Demo screening', adminScreenLabel: 'Export-control screening',
+    disputesTitle: 'After-sales & Disputes Center', disputesSub: 'Quality claims, returns and platform arbitration after delivery are handled here; every milestone is sealed into the order evidence chain.',
+    afterSalesTitle: 'After-sales & disputes', afterSalesCreate: 'Request after-sales', afterSalesOpen: 'Open dispute',
+    afterSalesTypeLabel: 'Issue type', afterSalesDescLabel: 'Description', afterSalesResolution: 'Expected resolution',
+    afterSalesSubmit: 'Submit request', afterSalesTypes: 'Issue types',
+    afterSalesNew: 'Pending', afterSalesResponded: 'Seller replied', afterSalesArbitrating: 'Platform arbitrating', afterSalesResolved: 'Resolved', afterSalesClosed: 'Closed',
+    afterSalesRespond: 'Reply to buyer', afterSalesAccept: 'Accept request', afterSalesReject: 'Reject with reason', afterSalesArbitrate: 'Platform ruling',
+    afterSalesArbitrateTip: 'Admins may review the order evidence chain before ruling: for buyer / for seller / compromise.',
+    arbitrateBuyer: 'In favor of buyer', arbitrateSeller: 'In favor of seller', arbitrateCompromise: 'Compromise',
+    afterSalesRuling: 'Ruling', afterSalesEmpty: 'No after-sales / dispute records', afterSalesNote: 'Key after-sales milestones are sealed into the order evidence chain, verifiable by both parties and the platform.',
+    afterSalesCaseNo: 'Case no.', afterSalesOrder: 'Related order', afterSalesAppliedAt: 'Applied at', afterSalesBy: 'Filed by',
+    afterSalesEvidence: 'View evidence', afterSalesNeedLogin: 'Please sign in — after-sales and disputes are linked to your orders.',
+    docCenter: 'Document center', docCenterSub: 'Generate commercial invoice, packing list, certificate of origin and B/L reference per order. Consistent documents are the basis for smooth clearance.',
+    docGenerate: 'Generate', docGenerated: 'Generated', docCI: 'Commercial Invoice', docPL: 'Packing List', docCO: 'Certificate of Origin (reference)', docBL: 'Bill of Lading (reference)',
+    docConsistency: 'Document consistency check', docConsistencyCheck: 'Re-check', docConsistencyPass: 'Pass: item name, HS code, quantity and shipping marks are consistent',
+    docConsistencyWarn: 'Attention: document info incomplete', docConsistencyFail: 'Inconsistent: correct the product info and regenerate',
+    docMarks: 'Shipping marks', docCartons: 'Cartons', docGrossWeight: 'Gross weight', docNetWeight: 'Net weight',
+    docConsignee: 'Consignee', docNotify: 'Notify party', docVessel: 'Vessel / Voyage', docBillNo: 'B/L no.',
+    docOriginClaim: 'Origin claim', docIssue: 'Issued by', docCheckHint: 'Three-way consistency (invoice, packing list, B/L) is a clearance basic.',
+    docBLHint: 'Reference only; the real B/L is issued by the carrier and its terms prevail.',
+    docCOHint: 'Reference only; apply for the official CO from CCPIT or customs.',
+    docPIHint: 'Proforma invoices are printable; the commercial invoice is the settlement and clearance document.',
+    exportTab: 'Export readiness', exportTabHint: 'Maintain your export qualification checklist; the platform flags gaps when you publish.',
+    adminAfterSales: 'Dispute arbitration', adminAfterSalesHint: 'Review the order evidence chain and party communication before ruling.',
+    adminExportReady: 'Export readiness', asPanelTitle: 'After-sales & disputes', asApplyBtn: 'Request after-sales', asDisputeBtn: 'Open dispute',
+    asRelatedOrder: 'Related order', asStatusCol: 'Status', asMyCases: 'My after-sales & disputes'
   }
 };
 
@@ -1276,7 +1714,8 @@ function seedDemoData() {
     orders: [
       {
         id: 'o1', inquiryId: 'i1', productId: 'p1', buyerId: 'u-buyer', sellerId: 's1',
-        status: 'complete', total: 13500, currency: 'USD',
+        status: 'complete', total: 13500, currency: 'USD', quantity: 2, unit: 'set',
+        shippingMarks: 'BBM / NINGBO→HAMBURG / C/NO.1-2',
         createdAt: now - 26 * 864e5, receiptConfirmedAt: now - 4 * 864e5,
         tips: [
           { id: 't1', orderId: 'o1', fromUserId: 'u-buyer', toUserId: 's1', amount: 25, currency: 'USD', note: 'Great service!', status: 'active', createdAt: now - 3 * 864e5, cancelledAt: null }
