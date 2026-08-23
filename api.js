@@ -73,11 +73,11 @@ function mockSave(st) { apiStorage.setState(st); apiStorage.notifyChanged(); }
  * 服务：账号与认证
  * ============================================================ */
 api.auth = {
-  async register({ email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope } = {}) {
+  async register({ email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName } = {}) {
     if (api.config.mode === 'http') {
       return apiRequest('/auth/register', {
         method: 'POST',
-        body: { email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope }
+        body: { email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName }
       });
     }
     await apiDelay();
@@ -91,7 +91,14 @@ api.auth = {
     if ((st.users || []).some(u => String(u.email || '').toLowerCase() === lower)) throw new Error('EMAIL_EXISTS');
     if (role === 'seller' && (!String(companyName || '').trim() || !String(country || '').trim())) throw new Error('VALIDATION');
     const id = 'u-' + Date.now();
-    const user = { id, email: lower, name: String(name).trim(), role, status: 'active', emailVerified: true, sellerId: role === 'seller' ? 's-' + Date.now() : undefined, joinedAt: Date.now() };
+    const user = {
+      id, email: lower, name: String(name).trim(), role, status: 'active', emailVerified: true,
+      sellerId: role === 'seller' ? 's-' + Date.now() : undefined,
+      accountType: accountType === 'individual' ? 'individual' : 'company',
+      jobTitle: String(jobTitle || '').trim(),
+      bizName: String(bizName || '').trim(),
+      joinedAt: Date.now()
+    };
     st.users = st.users || [];
     st.users.push(user);
     if (role === 'seller') {
@@ -574,8 +581,10 @@ api.inquiries = {
     await apiDelay();
     return apiClone(mockState().inquiries || []);
   },
-  async create({ productId, qty, unit, message, name, email, company, country, payment } = {}) {
-    if (api.config.mode === 'http') return apiRequest('/inquiries', { method: 'POST', body: { productId, qty, unit, message, name, email, company, country, payment } });
+  async create({ productId, qty, unit, message, name, email, company, country, payment, attachments, buyerType, jobTitle, card, cardName } = {}) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/inquiries', { method: 'POST', body: { productId, qty, unit, message, name, email, company, country, payment, attachments, buyerType, jobTitle, card, cardName } });
+    }
     await apiDelay();
     if (!productId || !qty || !message) throw new Error('REQUIRED_FIELDS');
     const st = mockState();
@@ -592,6 +601,11 @@ api.inquiries = {
       unit: unit || 'pcs',
       payment: payment || null,
       message: message,
+      attachments: Array.isArray(attachments) ? attachments.slice(0, 8) : [],
+      buyerType: buyerType || null,
+      jobTitle: jobTitle || '',
+      card: card || null,
+      cardName: cardName || '',
       createdAt: Date.now(),
       status: 'new',
       reply: ''
@@ -607,6 +621,7 @@ api.inquiries = {
     const i = st.inquiries.find(x => x.id === inquiryId);
     if (!i) throw new Error('NOT_FOUND');
     i.quote = apiClone(quote);
+    if (Array.isArray(quote.replyAttachments)) i.replyAttachments = quote.replyAttachments.slice(0, 8);
     i.status = 'quoted';
     mockSave(st);
     return apiClone(i);
@@ -1102,6 +1117,114 @@ api.logistics = {
       destination: String(destination || '').trim(),
       note: 'demo estimate only'
     };
+  }
+};
+
+/* ============================================================
+ * 服务：优化建议收集（公开提交 -> 管理员跟进）
+ * ============================================================ */
+api.suggestions = {
+  async create({ type, content, contact } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/suggestions', { method: 'POST', body: { type, content, contact } });
+    await apiDelay();
+    if (!String(content || '').trim()) throw new Error('VALIDATION');
+    const st = mockState();
+    const rec = {
+      id: 'fb' + Date.now(),
+      userId: st.user ? st.user.id : null,
+      type: String(type || 'other').trim(),
+      content: String(content).trim(),
+      contact: String(contact || '').trim(),
+      status: 'new',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    st.suggestions = st.suggestions || [];
+    st.suggestions.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/suggestions');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    let rows = st.suggestions || [];
+    if (st.user && st.user.role !== 'admin') rows = rows.filter(x => x.userId === st.user.id);
+    return apiClone(rows.slice().sort((a, b) => b.updatedAt - a.updatedAt));
+  },
+  async setStatus(id, { status } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/suggestions/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } });
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.suggestions || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!['new', 'seen', 'done'].includes(status)) throw new Error('VALIDATION');
+    rec.status = status;
+    rec.updatedAt = Date.now();
+    mockSave(st);
+    return apiClone(rec);
+  }
+};
+
+/* ============================================================
+ * 服务：个人信息与名片（个体户 / 公司代表）
+ * ============================================================ */
+api.profile = {
+  async get() {
+    if (api.config.mode === 'http') return apiRequest('/profile');
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('NOT_FOUND');
+    const p = (st.profiles || {})[u.id] || {};
+    const card = u.businessCard || p.businessCard || null;
+    const fields = {
+      name: p.name != null ? p.name : (u.name || ''),
+      accountType: p.accountType != null ? p.accountType : (u.accountType || 'company'),
+      jobTitle: p.jobTitle != null ? p.jobTitle : (u.jobTitle || ''),
+      company: p.company != null ? p.company : (u.company || u.buyerCompany || ''),
+      country: p.country != null ? p.country : (u.country || u.buyerCountry || ''),
+      contact: p.contact != null ? p.contact : (u.contact || u.email || ''),
+      bio: p.bio || '',
+      bizName: p.bizName != null ? p.bizName : (u.bizName || '')
+    };
+    const keys = ['name', 'accountType', 'jobTitle', 'company', 'country', 'contact', 'bio'];
+    const filled = keys.filter(k => String(fields[k] || '').trim()).length;
+    const completeness = Math.round(filled / keys.length * 100);
+    return { userId: u.id, fields: apiClone(fields), card, cardName: u.businessCardName || p.businessCardName || '', completeness };
+  },
+  async save(payload = {}) {
+    if (api.config.mode === 'http') return apiRequest('/profile', { method: 'PUT', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('NOT_FOUND');
+    st.profiles = st.profiles || {};
+    const p = (st.profiles[u.id] = st.profiles[u.id] || {});
+    ['name', 'accountType', 'jobTitle', 'company', 'country', 'contact', 'bio', 'bizName'].forEach(k => {
+      if (payload[k] !== undefined) p[k] = String(payload[k] || '').trim();
+    });
+    if (payload.businessCard !== undefined) {
+      if (payload.businessCard) {
+        u.businessCard = String(payload.businessCard);
+        u.businessCardName = String(payload.businessCardName || 'business-card').trim();
+        p.businessCard = u.businessCard;
+        p.businessCardName = u.businessCardName;
+      } else {
+        delete u.businessCard;
+        delete u.businessCardName;
+        delete p.businessCard;
+        delete p.businessCardName;
+      }
+    }
+    if (u.role === 'buyer') u.buyerCompany = p.company || u.buyerCompany || '';
+    else u.company = p.company || u.company || '';
+    if (p.country) u.buyerCountry = p.country;
+    mockSave(st);
+    return api.profile.get();
   }
 };
 

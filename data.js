@@ -43,6 +43,30 @@ const CATEGORIES = [
     { id: 'tires', zh: '轮胎', en: 'Tires', hs: '4011' },
     { id: 'auto-lighting', zh: '车灯与电子', en: 'Lighting & Electronics', hs: '8512' },
     { id: 'accessories', zh: '内外饰与用品', en: 'Interior & Accessories', hs: '8707, 8709' }
+  ]},
+  { id: 'sports', zh: '运动户外', en: 'Sports & Outdoors', hue: 130, subs: [
+    { id: 'camping', zh: '露营与户外装备', en: 'Camping & Outdoor Gear', hs: '6306, 7326' },
+    { id: 'fitness', zh: '健身与瑜伽', en: 'Fitness & Yoga', hs: '9506' },
+    { id: 'fishing', zh: '渔具', en: 'Fishing Gear', hs: '9507' },
+    { id: 'cycling', zh: '骑行配件', en: 'Cycling Accessories', hs: '8714' }
+  ]},
+  { id: 'gifts', zh: '礼品工艺品', en: 'Gifts & Crafts', hue: 350, subs: [
+    { id: 'music-box', zh: '音乐盒与八音盒', en: 'Music Boxes', hs: '9208' },
+    { id: 'ceramics', zh: '陶瓷与餐具礼盒', en: 'Ceramics & Tableware Sets', hs: '6912-6913' },
+    { id: 'plush', zh: '毛绒玩具', en: 'Plush Toys', hs: '9503' },
+    { id: 'candles', zh: '香薰与蜡烛', en: 'Scented Candles', hs: '3406' }
+  ]},
+  { id: 'hardware', zh: '五金工具', en: 'Hardware & Tools', hue: 24, subs: [
+    { id: 'hand-tools', zh: '手动工具', en: 'Hand Tools', hs: '8201-8207' },
+    { id: 'power-tools', zh: '电动工具', en: 'Power Tools', hs: '8467' },
+    { id: 'fasteners', zh: '紧固件与五金件', en: 'Fasteners & Hardware', hs: '7318' },
+    { id: 'locks', zh: '锁具与安防五金', en: 'Locks & Security Hardware', hs: '8301' }
+  ]},
+  { id: 'pet', zh: '宠物用品', en: 'Pet Supplies', hue: 280, subs: [
+    { id: 'pet-feeders', zh: '喂食器与饮水器', en: 'Feeders & Waterers', hs: '3924, 7326' },
+    { id: 'pet-toys', zh: '宠物玩具', en: 'Pet Toys', hs: '9503' },
+    { id: 'pet-grooming', zh: '洗护用品', en: 'Grooming Supplies', hs: '3307, 9615' },
+    { id: 'pet-furniture', zh: '宠物窝与家具', en: 'Pet Beds & Furniture', hs: '9403' }
   ]}
 ];
 
@@ -324,19 +348,139 @@ const PRODUCTS = [
       desc: '商用锥刀咖啡研磨机，产能 60kg/h，无级调节研磨度，低噪音电机，适用于烘焙厂、咖啡馆与商超。',
       features: ['60kg/h 产能', '无级研磨调节', '低噪音电机', '不锈钢磨盘']
     }
+  },
+  {
+    id: 'p17', sellerId: 's3', cat: 'sports', country: 'VN', featured: true,
+    priceMin: 7.5, priceMax: 12, moq: 200, unit: 'pcs', leadTime: 25,
+    terms: ['FOB', 'CIF'], certs: ['EN71', 'ISO9001'], rating: 4.6, orders: 4200, hue: 128,
+    en: {
+      title: 'Folding Camping Chair with Cup Holder',
+      desc: 'Portable folding camping chair with steel frame, 120kg load capacity, side cup holder and carry bag. Quick one-second fold for outdoor, fishing and travel.',
+      features: ['120kg load capacity', '1-second quick fold', 'Side cup holder', 'Carry bag included']
+    },
+    zh: {
+      title: '折叠露营椅（带杯架）',
+      desc: '便携折叠露营椅，加粗钢管框架，承重 120kg，侧边杯架与收纳袋，一秒折叠，适合户外、钓鱼与旅行。',
+      features: ['承重 120kg', '一秒快速折叠', '侧边杯架', '附收纳袋']
+    }
+  },
+  {
+    id: 'p18', sellerId: 's5', cat: 'sports', country: 'IN',
+    priceMin: 3.2, priceMax: 5.5, moq: 500, unit: 'pcs', leadTime: 18,
+    terms: ['FOB', 'CIF'], certs: ['SGS'], rating: 4.4, orders: 7600, hue: 145,
+    en: {
+      title: 'TPE Yoga Mat Non-Slip 6mm',
+      desc: 'Eco-friendly TPE yoga mat, 6mm thickness with double-sided non-slip texture, free of latex and PVC. 24 colors with custom logo printing available.',
+      features: ['6mm double-sided non-slip', 'Latex & PVC free', '24 colors', 'Custom logo printing']
+    },
+    zh: {
+      title: 'TPE 瑜伽垫 6mm 防滑',
+      desc: '环保 TPE 瑜伽垫，6mm 厚度，双面防滑纹理，不含乳胶与 PVC，24 色可选，支持定制 LOGO。',
+      features: ['6mm 双面防滑', '不含乳胶/PVC', '24 色可选', '支持定制 LOGO']
+    }
+  },
+  {
+    id: 'p19', sellerId: 's4', cat: 'gifts', country: 'TR',
+    priceMin: 9.8, priceMax: 16, moq: 100, unit: 'pcs', leadTime: 28,
+    terms: ['FOB', 'EXW'], certs: ['CE'], rating: 4.7, orders: 2900, hue: 350,
+    en: {
+      title: 'Classic Wooden Music Box Engraved',
+      desc: 'Hand-finished wooden music box with 30-tune movement, velvet interior and custom laser engraving. Ideal as a keepsake or corporate gift.',
+      features: ['30-tune movement', 'Velvet interior', 'Custom laser engraving', 'Gift box packaging']
+    },
+    zh: {
+      title: '经典木质音乐盒（可定制刻字）',
+      desc: '手工打磨木质音乐盒，30 音机芯，内衬绒布，支持激光刻字定制，适合纪念品与企业礼赠。',
+      features: ['30 音机芯', '绒布内衬', '激光刻字定制', '礼盒包装']
+    }
+  },
+  {
+    id: 'p20', sellerId: 's4', cat: 'gifts', country: 'TR',
+    priceMin: 6.5, priceMax: 11, moq: 300, unit: 'set', leadTime: 22,
+    terms: ['FOB', 'CIF'], certs: ['FDA'], rating: 4.5, orders: 5100, hue: 15,
+    en: {
+      title: 'Ceramic Mug Gift Set 2-Piece',
+      desc: 'Food-safe ceramic mug gift set with bamboo lid and spoon, double-wall keep-warm design. Six pastel colors with custom box printing.',
+      features: ['Food-safe ceramic', 'Bamboo lid & spoon', 'Double-wall keep-warm', 'Custom gift box']
+    },
+    zh: {
+      title: '陶瓷马克杯礼盒（2 件套）',
+      desc: '食品级陶瓷马克杯礼盒，配竹盖与勺子，双层保温设计，六色马卡龙配色，支持定制礼盒印刷。',
+      features: ['食品级陶瓷', '竹盖+勺子', '双层保温', '定制礼盒']
+    }
+  },
+  {
+    id: 'p21', sellerId: 's1', cat: 'hardware', country: 'CN', hot: true,
+    priceMin: 18, priceMax: 29, moq: 100, unit: 'set', leadTime: 20,
+    terms: ['FOB', 'CIF'], certs: ['CE', 'GS'], rating: 4.8, orders: 9400, hue: 30,
+    en: {
+      title: 'Cordless Screwdriver Kit 21-in-1',
+      desc: 'USB-C rechargeable cordless screwdriver with 21 S2 steel bits, 4V motor, LED light and magnetic tray. Compact ABS case for home and workshop.',
+      features: ['USB-C rechargeable', '21 S2 steel bits', 'LED work light', 'Magnetic bit tray']
+    },
+    zh: {
+      title: '电动螺丝刀套装 21 合 1',
+      desc: 'USB-C 充电电动螺丝刀，21 支 S2 合金批头，4V 电机，带 LED 照明与磁吸收纳盘，ABS 收纳盒，家用与维修两相宜。',
+      features: ['USB-C 充电', '21 支 S2 批头', 'LED 照明', '磁吸收纳盘']
+    }
+  },
+  {
+    id: 'p22', sellerId: 's1', cat: 'hardware', country: 'CN',
+    priceMin: 32, priceMax: 48, moq: 50, unit: 'set', leadTime: 25,
+    terms: ['FOB', 'CIF'], certs: ['ISO9001'], rating: 4.6, orders: 3300, hue: 24,
+    en: {
+      title: 'Stainless Steel Tool Box 16in',
+      desc: 'Heavy-duty stainless steel toolbox with full-extension drawers, lockable lid and reinforced edges. Water-resistant for workshop and field use.',
+      features: ['304 stainless steel', 'Full-extension drawers', 'Lockable lid', 'Water-resistant']
+    },
+    zh: {
+      title: '不锈钢工具箱 16 寸',
+      desc: '加厚不锈钢工具箱，全拉出抽屉，可上锁，边缘加固防撞，防水耐候，适合车间与户外作业。',
+      features: ['304 不锈钢', '全拉出抽屉', '可上锁', '防水耐候']
+    }
+  },
+  {
+    id: 'p23', sellerId: 's2', cat: 'pet', country: 'CN', hot: true,
+    priceMin: 24, priceMax: 39, moq: 200, unit: 'pcs', leadTime: 15,
+    terms: ['FOB', 'CIF'], certs: ['CE', 'RoHS'], rating: 4.7, orders: 8200, hue: 285,
+    en: {
+      title: 'Pet Automatic Feeder 4L WiFi',
+      desc: 'WiFi smart pet feeder with 4L capacity, scheduled portions, voice recording for feeding calls and low-food alert. Works with App for remote control.',
+      features: ['4L sealed bin', 'Schedule & portions', 'Voice recording call', 'Low-food alert']
+    },
+    zh: {
+      title: '宠物自动喂食器 4L WiFi',
+      desc: 'WiFi 智能宠物喂食器，4L 密封粮桶，定时定量出粮，支持录音呼唤进食与余粮不足提醒，App 远程控制。',
+      features: ['4L 密封粮桶', '定时定量', '录音呼唤', '余粮提醒']
+    }
+  },
+  {
+    id: 'p24', sellerId: 's4', cat: 'pet', country: 'TR',
+    priceMin: 12, priceMax: 18, moq: 150, unit: 'pcs', leadTime: 24,
+    terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.5, orders: 2100, hue: 275,
+    en: {
+      title: 'Cat Scratcher House with Tunnel',
+      desc: 'Corrugated cardboard cat scratcher house with tunnel and toy ball, 60x30x30cm. Eco-friendly and recyclable, perfect for scratching and sleeping.',
+      features: ['Corrugated eco cardboard', 'Built-in tunnel & ball', '60x30x30cm', 'Recyclable']
+    },
+    zh: {
+      title: '猫抓板窝（带隧道）',
+      desc: '瓦楞纸猫抓板窝，自带隧道与逗猫球，60×30×30cm，环保可回收，可抓可睡，保护家具。',
+      features: ['环保瓦楞纸', '内置隧道+球', '60×30×30cm', '可回收']
+    }
   }
 ].concat(pendingSeedProducts());
 
 const DEMO_USERS = {
-  seller: { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 's1' },
-  buyer:  { id: 'u-buyer',  role: 'buyer',  name: 'Thomas Müller', email: 'buyer@demo.com', buyerCompany: 'Müller GmbH', buyerCountry: 'DE' },
-  admin:  { id: 'u-admin',  role: 'admin',  name: '平台管理员', email: 'admin@demo.com' }
+  seller: { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 's1', accountType: 'company', jobTitle: '外贸经理', company: '杭州云帆机械有限公司' },
+  buyer:  { id: 'u-buyer',  role: 'buyer',  name: 'Thomas Müller', email: 'buyer@demo.com', buyerCompany: 'Müller GmbH', buyerCountry: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager' },
+  admin:  { id: 'u-admin',  role: 'admin',  name: '平台管理员', email: 'admin@demo.com', accountType: 'company', jobTitle: '平台运营' }
 };
 
 const UNITS = ['set', 'pcs', 'kg', 'ton', 'L'];
 const CERT_LIST = ['CE', 'FCC', 'RoHS', 'ISO9001', 'SGS', 'OEKO-TEX', 'GOTS', 'FSC', 'TÜV'];
 const TERM_LIST = ['FOB', 'CIF', 'EXW', 'DDP'];
-const HS_BY_CAT = { machinery: '8456.11', electronics: '8504.40', textiles: '5208.12', furniture: '9403.60', chemicals: '2918.14', auto: '8504.50' };
+const HS_BY_CAT = { machinery: '8456.11', electronics: '8504.40', textiles: '5208.12', furniture: '9403.60', chemicals: '2918.14', auto: '8504.50', sports: '9506.91', gifts: '9208.10', hardware: '8467.29', pet: '9503.00' };
 const FX_RATES = { date: '2026-08-10', USD_CNY: 7.25, USD_EUR: 0.92, USD_JPY: 152, USD_GBP: 0.79 };
 const PAYMENT_TERMS = [
   { zh: 'T/T（电汇）', en: 'T/T (bank transfer)' },
@@ -383,7 +527,9 @@ const MARKETS_BY_PRODUCT = {
   p1: ['CN', 'EU', 'US'], p2: ['CN', 'ASIA'], p3: ['EU', 'US'], p4: ['EU', 'ASIA'],
   p5: ['US', 'EU'], p6: ['EU', 'US'], p7: ['EU', 'AU'], p8: ['US', 'EU'],
   p9: ['ASIA', 'US'], p10: ['EU', 'US'], p11: ['EU', 'US'], p12: ['ASIA'],
-  p13: ['EU', 'US'], p14: ['EU'], p15: ['EU'], p16: ['EU', 'US']
+  p13: ['EU', 'US'], p14: ['EU'], p15: ['EU'], p16: ['EU', 'US'],
+  p17: ['EU', 'US', 'ASIA'], p18: ['EU', 'US'], p19: ['EU', 'US'], p20: ['US', 'EU'],
+  p21: ['EU', 'US', 'ASIA'], p22: ['US', 'EU'], p23: ['EU', 'US', 'ASIA'], p24: ['EU', 'US']
 };
 
 /* 演示用中英短语翻译库（正式版接入 AI 翻译服务） */
@@ -527,14 +673,14 @@ const COUNTRY_NAMES = {
 
 function buildUsers(now) {
   return [
-    { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: '豆豆鼠运营部', country: 'CN', joinedAt: now - 864e5 * 220, status: 'active' },
-    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', joinedAt: now - 864e5 * 180, status: 'active' },
-    { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', company: 'Müller GmbH', country: 'DE', joinedAt: now - 864e5 * 90, status: 'active' },
-    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', joinedAt: now - 864e5 * 150, status: 'active' },
-    { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', joinedAt: now - 864e5 * 60, status: 'active' },
-    { id: 'u6', role: 'buyer', name: 'Maria Garcia', email: 'maria@iberia-sourcing.es', company: 'Iberia Sourcing', country: 'ES', joinedAt: now - 864e5 * 40, status: 'active' },
-    { id: 'u7', role: 'buyer', name: '田中一郎', email: 'tanaka@tokyo-trading.jp', company: 'Tokyo Trading', country: 'JP', joinedAt: now - 864e5 * 25, status: 'active' },
-    { id: 'u8', role: 'buyer', name: 'Ahmed Al Farsi', email: 'ahmed@gulf-imports.ae', company: 'Gulf Imports', country: 'AE', joinedAt: now - 864e5 * 8, status: 'active' }
+    { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: '豆豆鼠运营部', country: 'CN', accountType: 'company', jobTitle: '平台运营', joinedAt: now - 864e5 * 220, status: 'active' },
+    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
+    { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', company: 'Müller GmbH', country: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager', joinedAt: now - 864e5 * 90, status: 'active' },
+    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
+    { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', accountType: 'company', jobTitle: 'Export Manager', joinedAt: now - 864e5 * 60, status: 'active' },
+    { id: 'u6', role: 'buyer', name: 'Maria Garcia', email: 'maria@iberia-sourcing.es', company: 'Iberia Sourcing', country: 'ES', accountType: 'individual', jobTitle: '店主', joinedAt: now - 864e5 * 40, status: 'active' },
+    { id: 'u7', role: 'buyer', name: '田中一郎', email: 'tanaka@tokyo-trading.jp', company: 'Tokyo Trading', country: 'JP', accountType: 'company', jobTitle: '采购课长', joinedAt: now - 864e5 * 25, status: 'active' },
+    { id: 'u8', role: 'buyer', name: 'Ahmed Al Farsi', email: 'ahmed@gulf-imports.ae', company: 'Gulf Imports', country: 'AE', accountType: 'company', jobTitle: 'Buyer', joinedAt: now - 864e5 * 8, status: 'active' }
   ];
 }
 
@@ -1209,7 +1355,7 @@ const I18N = {
     contractInspection: '检验', contractForceMajeure: '不可抗力', contractDispute: '争议解决', contractTitle2: '国际货物买卖合同草案'
     ,
     navExport: '出口准备', navLogistics: '物流指南', navCompliance: '合规中心', navDisputes: '售后纠纷',
-    footerTools: '贸易工具', versionLabel: '版本 0.1（演示）',
+    footerTools: '贸易工具', versionLabel: '版本 0.2（演示）',
     exportTitle: '出口准备：资质与前置手续', exportSub: '出口不是“下单就发货”。先备齐经营资质、收汇、退税、许可证与商检手续，才能顺利报关、收汇与退税。',
     exportChecklistTitle: '出口资质清单', exportChecklistSub: '逐项核对你的出口资质；正式办理以主管部门最新规定为准。',
     exportWhat: '是什么', exportWho: '办理机构', exportWhen: '何时需要', exportTip: '提示',
@@ -1268,6 +1414,33 @@ const I18N = {
     adminAfterSales: '纠纷仲裁', adminAfterSalesHint: '仲裁前可查看订单存证链与双方沟通记录。',
     adminExportReady: '出口就绪度', asPanelTitle: '售后与纠纷', asApplyBtn: '申请售后', asDisputeBtn: '发起纠纷',
     asRelatedOrder: '关联订单', asStatusCol: '状态', asMyCases: '我的售后 / 纠纷'
+    ,
+    searchBtn: '搜索', searchSuggestTitle: '热门搜索', searchBarPlaceholder: '搜索产品 / 品类 / HS 编码，例如：折叠椅、螺丝刀…',
+    catStripTitle: '品类速览', catStripSub: '轻扫查看全部行业', viewAllCats: '查看全部',
+    relatedTitle: '相关推荐', relatedSub: '没有找到完全匹配的商品，为你推荐以下相关商品',
+    profileTab: '个人信息', profileTitle: '个人信息与名片', profileSub: '完善资料会显示在询盘与订单中，帮助对方更快信任你。',
+    businessCard: '名片',
+    cardWatermarkNote: '对方展示与下载的名片带轻量水印，防止被冒用。',
+    profileCompleteness: '资料完整度', profileSave: '保存资料', profileSaved: '资料已保存',
+    accountTypeLabel: '主体类型', accountTypeIndividual: '个体户 / 个人', accountTypeCompany: '公司代表',
+    jobTitle: '职务 / 头衔', profileContact: '联系方式', profileBio: '简介 / 业务范围',
+    cardUploadBtn: '上传名片', cardReplaceBtn: '更换名片', cardRemoveBtn: '移除名片', cardUploadHint: '支持 JPG / PNG，单个不超过 4MB',
+    cardPreviewLabel: '我的名片', cardNoCard: '尚未上传名片', cardAttachHint: '发送询盘时可选择附上名片，让对方直接认识你。',
+    identityLabel: '询盘身份', identityPublic: '身份对卖家可见', identityHidden: '匿名询盘（不显示身份）',
+    sendCard: '随询盘发送名片', viewCard: '查看名片', downloadCard: '下载名片', cardSentTag: '已附名片',
+    attachLabel: '附件（图片 / 压缩包）', attachHint: '支持 JPG / PNG / GIF / WebP 图片与 ZIP / RAR / 7Z 压缩包，单个不超过 4MB',
+    attachPick: '选择文件', attachList: '已选附件', attachRemove: '移除', attachSizeTooBig: '单个附件不能超过 4MB',
+    attachTypeNotAllowed: '仅支持图片与 ZIP / RAR / 7Z 压缩包', attachmentCount: '个附件', attachmentLabel: '附件',
+    exportConv: '导出对话', exportTxt: '导出 TXT', exportHtml: '导出 HTML（含图片）', exportConvHint: '导出询盘往来记录与附件清单，便于归档与留证。',
+    regAccountType: '主体类型 *', regIndividual: '个体户 / 个人', regCompany: '公司代表', regBizName: '经营者 / 字号', regJobTitle: '职务（如：采购经理）',
+    regRoleHint: '买家与卖家均可选择主体类型；向对方发送询盘时会显示你的身份标注。',
+    feedbackTitle: '优化建议收集', feedbackSub: '页面、功能、内容或体验上的任何建议都可以告诉我们，运营团队会定期整理并回复。',
+    feedbackType: '建议类型', feedbackTypePage: '页面 / 视觉', feedbackTypeFeature: '功能', feedbackTypeContent: '内容 / 信息', feedbackTypeUx: '体验 / 流程', feedbackTypeOther: '其他',
+    feedbackContent: '建议内容 *', feedbackContact: '联系方式（可选）', feedbackSubmit: '提交建议', feedbackThanks: '感谢你的建议',
+    feedbackThanksDesc: '我们已经收到，运营团队会定期整理并纳入优化清单。', feedbackPrivacy: '除你主动填写的联系方式外，我们不会收集其他个人信息。',
+    navFeedback: '建议反馈', adminFeedback: '优化建议', feedbackNew: '新建议', feedbackSeen: '已读', feedbackDone: '已采纳',
+    feedbackStatus: '状态', feedbackMarkSeen: '标记已读', feedbackMarkDone: '标记已采纳', feedbackEmpty: '暂无建议',
+    feedbackMarkSeenDone: '已标记'
   },
   en: {
     home: 'Home', marketplace: 'Products', dashboard: 'Dashboard', login: 'Sign in', logout: 'Sign out',
@@ -1474,7 +1647,7 @@ const I18N = {
     contractInspection: 'Inspection', contractForceMajeure: 'Force majeure', contractDispute: 'Dispute resolution', contractTitle2: 'Draft International Sale of Goods Contract'
     ,
     navExport: 'Export Readiness', navLogistics: 'Logistics Guide', navCompliance: 'Compliance Center', navDisputes: 'After-sales & Disputes',
-    footerTools: 'Trade tools', versionLabel: 'Version 0.1 (demo)',
+    footerTools: 'Trade tools', versionLabel: 'Version 0.2 (demo)',
     exportTitle: 'Export Readiness: Qualifications & Formalities', exportSub: 'Exporting is not just "ship after order". Prepare your trading rights, FX receipts, tax rebate, licences and inspection before you can clear customs and get paid.',
     exportChecklistTitle: 'Export qualification checklist', exportChecklistSub: 'Review each item; always follow the latest rules of the competent authorities.',
     exportWhat: 'What it is', exportWho: 'Issuing body', exportWhen: 'When needed', exportTip: 'Tip',
@@ -1533,6 +1706,33 @@ const I18N = {
     adminAfterSales: 'Dispute arbitration', adminAfterSalesHint: 'Review the order evidence chain and party communication before ruling.',
     adminExportReady: 'Export readiness', asPanelTitle: 'After-sales & disputes', asApplyBtn: 'Request after-sales', asDisputeBtn: 'Open dispute',
     asRelatedOrder: 'Related order', asStatusCol: 'Status', asMyCases: 'My after-sales & disputes'
+    ,
+    searchBtn: 'Search', searchSuggestTitle: 'Popular searches', searchBarPlaceholder: 'Search products / categories / HS codes, e.g. chair, screwdriver…',
+    catStripTitle: 'Categories', catStripSub: 'Swipe to browse all industries', viewAllCats: 'View all',
+    relatedTitle: 'Related products', relatedSub: 'No exact matches found. Here are related products you may like:',
+    profileTab: 'My profile', profileTitle: 'Profile & business card', profileSub: 'A complete profile builds trust in inquiries and orders.',
+    businessCard: 'Business card',
+    cardWatermarkNote: 'Cards shown and downloaded by the other party carry a subtle anti-misuse watermark.',
+    profileCompleteness: 'Profile completeness', profileSave: 'Save profile', profileSaved: 'Profile saved',
+    accountTypeLabel: 'Account type', accountTypeIndividual: 'Individual / Sole proprietor', accountTypeCompany: 'Company representative',
+    jobTitle: 'Job title', profileContact: 'Contact', profileBio: 'Bio / business scope',
+    cardUploadBtn: 'Upload business card', cardReplaceBtn: 'Replace card', cardRemoveBtn: 'Remove card', cardUploadHint: 'JPG / PNG, up to 4MB',
+    cardPreviewLabel: 'My business card', cardNoCard: 'No business card yet', cardAttachHint: 'You can attach your card to inquiries so the other party knows you instantly.',
+    identityLabel: 'Inquiry identity', identityPublic: 'Identity visible to seller', identityHidden: 'Anonymous inquiry (identity hidden)',
+    sendCard: 'Attach business card', viewCard: 'View card', downloadCard: 'Download card', cardSentTag: 'Card attached',
+    attachLabel: 'Attachments (images / archives)', attachHint: 'JPG / PNG / GIF / WebP images or ZIP / RAR / 7Z archives, up to 4MB each',
+    attachPick: 'Choose files', attachList: 'Selected files', attachRemove: 'Remove', attachSizeTooBig: 'Each file must be under 4MB',
+    attachTypeNotAllowed: 'Only images and ZIP / RAR / 7Z archives are allowed', attachmentCount: 'attachments', attachmentLabel: 'Attachment',
+    exportConv: 'Export conversation', exportTxt: 'Export TXT', exportHtml: 'Export HTML (with images)', exportConvHint: 'Export inquiry thread and attachment list for your records.',
+    regAccountType: 'Account type *', regIndividual: 'Individual / Sole proprietor', regCompany: 'Company representative', regBizName: 'Business name', regJobTitle: 'Job title (e.g. Purchasing Manager)',
+    regRoleHint: 'Both buyers and sellers can choose an account type; it will be shown when you send inquiries.',
+    feedbackTitle: 'Feedback & suggestions', feedbackSub: 'Tell us about pages, features, content or experience — our team reviews and responds periodically.',
+    feedbackType: 'Suggestion type', feedbackTypePage: 'Page / visual', feedbackTypeFeature: 'Feature', feedbackTypeContent: 'Content / info', feedbackTypeUx: 'Experience / flow', feedbackTypeOther: 'Other',
+    feedbackContent: 'Your suggestion *', feedbackContact: 'Contact (optional)', feedbackSubmit: 'Submit', feedbackThanks: 'Thank you!',
+    feedbackThanksDesc: 'Your suggestion is received and will be reviewed by our operations team.', feedbackPrivacy: 'We only collect the contact you voluntarily provide.',
+    navFeedback: 'Feedback', adminFeedback: 'Suggestions', feedbackNew: 'New', feedbackSeen: 'Seen', feedbackDone: 'Adopted',
+    feedbackStatus: 'Status', feedbackMarkSeen: 'Mark seen', feedbackMarkDone: 'Mark adopted', feedbackEmpty: 'No suggestions yet',
+    feedbackMarkSeenDone: 'Marked'
   }
 };
 

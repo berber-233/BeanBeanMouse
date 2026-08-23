@@ -46,12 +46,13 @@ let page;
   check('help: widget button visible', await page.locator('.help-btn').count() === 1);
   await page.click('[data-action="toggle-help"]');
   await page.waitForTimeout(150);
-  check('help: panel opens with 14 items', await page.locator('#helpPanel:visible .help-item').count() === 14);
+  check('help: panel opens with 17 items', await page.locator('#helpPanel:visible .help-item').count() === 17);
   await page.click('[data-action="close-help"]');
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
   check('home: deals ticker placeholder', await page.locator('.hero-deals').count() === 1);
   check('home: 6 categories', await page.locator('.cat-card').count() === 6);
+  check('home: category strip all 10', await page.locator('.cat-pill').count() === 10);
   check('home: product cards >= 4', await page.locator('.product-card').count() >= 4);
   check('home: simplified (no steps section)', await page.locator('.steps').count() === 0);
   check('home: simplified (no trust section)', await page.locator('.trust-grid').count() === 0);
@@ -65,6 +66,8 @@ let page;
   const allCount = await page.locator('.product-card').count();
   check('products: grid > 0', allCount > 0);
   check('products: filter panel visible', await page.locator('#filterPanel').isVisible());
+  check('products: search bar present', await page.locator('.products-search').count() === 1);
+  check('products: category filter covers all', await page.locator('#filterPanel input[name="cat"]').count() >= 10);
   check('products: no horizontal overflow', await noOverflow());
 
   await page.evaluate(() => { location.hash = '#/products?cat=machinery'; });
@@ -75,6 +78,9 @@ let page;
   await page.evaluate(() => { location.hash = '#/products?kw=charger'; });
   await page.waitForTimeout(300);
   check('products: keyword search works', await page.locator('.product-card').count() > 0);
+  await page.evaluate(() => { location.hash = '#/products?kw=fiber%20cutter'; });
+  await page.waitForTimeout(300);
+  check('products: no-result shows related recommendations', await page.locator('.related-section .product-card').count() > 0);
 
   // ---- 贸易资讯 ----
   await page.evaluate(() => { location.hash = '#/news'; });
@@ -147,8 +153,19 @@ let page;
   check('recruit: CTA present', await page.locator('.recruit-cta [data-nav="/login"]').count() === 1);
   check('footer: customs & recruit links', await page.locator('[data-nav="/customs"]').count() >= 1 && await page.locator('[data-nav="/recruit"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
-  check('footer: version 0.1 shown', /0\.1/.test(await page.locator('.version-line').textContent()));
+  check('footer: version 0.2 shown', /0\.2/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
+  check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
+
+  await page.evaluate(() => { location.hash = '#/feedback'; });
+  await page.waitForTimeout(300);
+  check('feedback: page renders form', await page.locator('form[data-form="feedback-form"]').isVisible());
+  await page.selectOption('form[data-form="feedback-form"] select[name="type"]', 'ux');
+  await page.fill('form[data-form="feedback-form"] textarea[name="content"]', 'Please add dark mode and a better mobile nav.');
+  await page.fill('form[data-form="feedback-form"] input[name="contact"]', 'tester@beanbeanmouse.com');
+  await page.click('form[data-form="feedback-form"] button[type="submit"]');
+  await page.waitForTimeout(500);
+  check('feedback: submit shows thanks', await page.locator('#feedbackResult .screen-verdict.ok').isVisible());
 
   await page.evaluate(() => { location.hash = '#/news?cat=tariff'; });
   await page.waitForTimeout(300);
@@ -212,6 +229,12 @@ let page;
   check('inquiry: modal opens', await page.locator('form[data-form="inquiry-form"]').isVisible());
   check('inquiry: real translation preview', await page.locator('.trans-preview').count() >= 1);
   check('inquiry: translation disclaimer shown', await page.locator('.trans-preview .trans-note').isVisible());
+  await page.setInputFiles('form[data-form="inquiry-form"] input[name="attachments"]', {
+    name: 'sample.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+  });
+  await page.waitForTimeout(300);
+  check('inquiry: attachment preview added', await page.locator('form[data-form="inquiry-form"] .attach-preview .attach-chip').count() === 1);
   await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', '您好，我对产品很感兴趣，请报价。');
   const transText = await waitForTranslated(page.locator('form[data-form="inquiry-form"] [data-trans-target="msg"]'), 20000);
   check('inquiry: live translation updates (remote or offline fallback)', /please quote|quote/i.test(transText || '') && (transText || '').indexOf('翻译中') === -1);
@@ -260,12 +283,19 @@ let page;
   await page.locator('[data-action="export-toggle"]').first().click();
   await page.waitForTimeout(400);
   check('seller: export item toggles done', await page.locator('.exp-item.done').count() >= 1);
+  await page.evaluate(() => { location.hash = '#/login'; });
+  await page.waitForTimeout(200);
+  await page.click('[data-action="show-register"]');
+  await page.waitForTimeout(200);
+  check('register: account type options shown', await page.locator('input[name="accountType"]').count() === 2 && await page.locator('#companyFields').isVisible());
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
 
   await page.evaluate(() => { location.hash = '#/dashboard/publish'; });
   await page.waitForTimeout(300);
   check('seller: target market checkboxes', await page.locator('input[name="markets"]').count() === 6);
   check('seller: product source language field', await page.locator('select[name="srcLang"]').count() === 1);
-  check('seller: subcategory select with HS options', await page.locator('select[name="sub"] optgroup').count() === 6);
+  check('seller: subcategory select with HS options', await page.locator('select[name="sub"] optgroup').count() >= 6);
   await page.click('form[data-form="product-form"] button[type="submit"]');
   await page.waitForTimeout(300);
   check('validation: empty publish shows inline errors', await page.locator('.field-error').count() >= 4);
@@ -326,6 +356,50 @@ let page;
   check('buyer: message translation toggle', await page.locator('.trans-msg').count() >= 1);
   const transMsgText = await waitForTranslated(page.locator('.trans-msg p').first(), 20000);
   check('buyer: translation filled (not pending)', (transMsgText || '').length > 1 && (transMsgText || '').indexOf('翻译中') === -1);
+
+  // ---- 个人信息、名片、附件与对话导出 ----
+  await page.evaluate(() => { location.hash = '#/dashboard/profile'; });
+  await page.waitForTimeout(300);
+  check('buyer: profile form renders', await page.locator('form[data-form="profile-form"]').isVisible());
+  check('buyer: completeness level shown', await page.locator('.exp-level').count() >= 1);
+  await page.selectOption('form[data-form="profile-form"] select[name="accountType"]', 'company');
+  await page.fill('form[data-form="profile-form"] input[name="jobTitle"]', 'Purchasing Manager');
+  await page.fill('form[data-form="profile-form"] textarea[name="bio"]', 'Kitchenware & home imports');
+  await page.click('form[data-form="profile-form"] button[type="submit"]');
+  await page.waitForTimeout(400);
+  await page.setInputFiles('input[name="card"]', {
+    name: 'card.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+  });
+  await page.waitForTimeout(500);
+  check('buyer: business card uploaded', await page.locator('.card-preview-box img').count() === 1);
+
+  await page.evaluate(() => { location.hash = '#/dashboard'; });
+  await page.waitForTimeout(300);
+  const dlPromise = page.waitForEvent('download');
+  await page.locator('[data-action="export-conv"][data-format="txt"]').first().click();
+  const dl = await dlPromise;
+  check('buyer: conversation exported as txt', (dl.suggestedFilename() || '').indexOf('.txt') > 0);
+
+  await page.evaluate(() => { location.hash = '#/product/p1'; });
+  await page.waitForTimeout(300);
+  await page.click('[data-action="open-inquiry"]');
+  await page.waitForTimeout(300);
+  check('buyer: identity section in inquiry modal', await page.locator('.identity-box').count() === 1);
+  check('buyer: send-card option shown', await page.locator('input[name="sendCard"]').count() === 1);
+  await page.setInputFiles('form[data-form="inquiry-form"] input[name="attachments"]', {
+    name: 'specs.zip', mimeType: 'application/zip',
+    buffer: Buffer.from([0x50, 0x4B, 0x03, 0x04, 0, 0, 0, 0, 0, 0])
+  });
+  await page.waitForTimeout(300);
+  await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', 'Hello, we are interested in TPE yoga mats. Please quote FOB for 1,000 pcs.');
+  await page.click('form[data-form="inquiry-form"] button[type="submit"]');
+  await page.waitForTimeout(300);
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { location.hash = '#/dashboard'; });
+  await page.waitForTimeout(300);
+  check('buyer: attachments visible on own inquiry', await page.locator('.attach-list').count() >= 1);
 
   // ---- 交易达成：下单 → 确认签收 → 小费打赏（可选） ----
   const createBtn = page.locator('[data-action="order-create"]').first();
@@ -483,6 +557,25 @@ let page;
   await page.waitForTimeout(400);
   check('seller: accepted case resolved', await page.locator('.status-pill.done').count() >= 1);
 
+  // ---- 卖家查看买家身份与名片 ----
+  await page.evaluate(() => { location.hash = '#/dashboard/inquiries'; });
+  await page.waitForTimeout(300);
+  check('seller: inquiry identity badge shown', await page.locator('.identity-chip').count() >= 1);
+  check('seller: buyer attachments visible', await page.locator('.attach-list').count() >= 1);
+  check('seller: business card viewable', await page.locator('[data-action="view-card"]').count() >= 1);
+  const cardSrc = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    const inq = s.inquiries.find(x => x.card);
+    return inq ? inq.card : '';
+  });
+  await page.locator('[data-action="view-card"]').first().click();
+  await page.waitForTimeout(300);
+  check('seller: business card modal opens', await page.locator('.attach-view img').count() === 1);
+  const wmSrc = await page.locator('#cardViewImg').getAttribute('src');
+  check('seller: business card watermarked', !!wmSrc && wmSrc.length > (cardSrc || '').length && wmSrc.indexOf(cardSrc) === -1);
+  await page.click('[data-action="close-modal"]');
+  await page.waitForTimeout(200);
+
   // ---- 平台管理员后台 ----
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
@@ -508,6 +601,13 @@ let page;
   await page.click('form[data-form="aftersales-arbitrate-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('admin: ruling recorded on case', await page.locator('.arbitration-box').count() >= 1);
+
+  await page.evaluate(() => { location.hash = '#/dashboard/feedback'; });
+  await page.waitForTimeout(300);
+  check('admin: feedback list shows suggestions', await page.locator('.as-card').count() >= 1);
+  await page.locator('[data-action="feedback-status"][data-status="done"]').first().click();
+  await page.waitForTimeout(400);
+  check('admin: feedback marked adopted', await page.locator('.status-pill.done').count() >= 1);
 
   await page.evaluate(() => { location.hash = '#/dashboard/review'; });
   await page.waitForTimeout(300);
@@ -638,6 +738,12 @@ let page;
   await page.evaluate(() => { location.hash = '#/disputes'; });
   await page.waitForTimeout(300);
   check('mobile: disputes no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/feedback'; });
+  await page.waitForTimeout(300);
+  check('mobile: feedback no overflow', await noOverflow());
+  await page.evaluate(() => { location.hash = '#/dashboard/profile'; });
+  await page.waitForTimeout(300);
+  check('mobile: profile no overflow', await noOverflow());
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForTimeout(300);
   check('mobile: home no horizontal overflow', await noOverflow());

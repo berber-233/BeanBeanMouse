@@ -3,6 +3,8 @@
 > 2026-08-21 随版本 0.1 上线。本文记录「出口准备 / 单据中心 / 物流落地 / 合规中心 / 售后纠纷」
 > 五个模块的设计与落地位置，供前端维护、后端补端点和后续迭代使用。
 
+> 2026-08-23 追加 v0.2 模块说明（品类 / 搜索推荐 / 附件导出 / 身份名片 / 建议收集），见第 8–12 节。
+
 ## 1. 出口准备（Export Readiness）
 
 - 页面：`#/export`（公开指南）；卖家工作台 `#/dashboard/export`（交互清单）。
@@ -59,3 +61,38 @@
   `docs/payments-compliance-roadmap.md`。
 - 后端补端点：exports / documents / after-sales / compliance / logistics 当前为前端 mock，
   接入真实后端时同步更新 `docs/openapi.yaml` 与 `docs/er-diagram.md`。
+
+## 8. 品类与搜索推荐（v0.2）
+
+- 品类：`CATEGORIES` 扩至 10 类（新增 sports / gifts / hardware / pet，含子类与 HS 参考），
+  示例商品 p17–p24；首页「品类速览」横向滚动条 + 6 大热门行业卡片。
+- 搜索：`renderProducts` 顶部搜索栏（datalist 联想）；精确过滤保留原逻辑。
+- 相关推荐：`productRelevance` 对品名/描述/子类/品类/供应商做分词加权；
+  无精确结果时 `relatedProducts` 取 Top 8 展示「相关推荐」区块（零命中不展示）。
+
+## 9. 对话导出与附件（v0.2）
+
+- 附件：`pendingFiles`（询盘 / 报价两套暂存）→ 提交写入 `inquiry.attachments` /
+  `inquiry.replyAttachments`；允许图片（JPG/PNG/GIF/WebP）与 ZIP/RAR/7Z，单个 ≤4MB，
+  内容以 dataURL 存 localStorage（演示；正式版接对象存储）。
+- 导出：`exportConversation(inquiryId, format)` 生成 TXT 或 HTML（HTML 内嵌图片）并触发下载。
+- 权限：买卖双方在其询盘列表均可查看附件与导出对话。
+
+## 10. 身份与名片（v0.2）
+
+- 注册：`accountType`（individual / company）+ `jobTitle` + `bizName`，存入用户与公司资料。
+- 资料：`api.profile.get/save`，`state.profiles[userId]` 覆盖式合并；资料完整度按 7 项计算。
+- 名片：`user.businessCard`（dataURL + name）；`openInquiryModal` 可选择「随询盘发送名片」，
+  询盘记录写入 `buyerType / jobTitle / card / cardName`，卖家列表展示身份徽标与「查看名片」。
+- 水印：对方查看 / 下载名片时 `watermarkImage` 在 Canvas 上叠加斜纹轻水印
+  （含持卡人姓名，白色 14–24% 透明度 + 阴影），本人预览保持原图。
+
+## 11. 建议收集（v0.2）
+
+- 页面：`#/feedback`（公开提交，类型 / 内容 / 联系方式）；`api.suggestions` mock 服务。
+- 管理：管理后台「优化建议」标签，状态流转 new → seen → done。
+
+## 12. 测试与版本（v0.2）
+
+- `test/api-smoke.cjs`：30 项；`test/verify.cjs`：226 项；后端 107 项；零页面报错。
+- 版本：页脚与 `package.json` 0.2.0。

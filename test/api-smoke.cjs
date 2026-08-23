@@ -199,6 +199,45 @@ const { chromium } = require('playwright-core');
       return r.currency === 'USD' && r.lo > 0 && r.hi >= r.lo;
     }));
 
+  await run('profile.save + completeness', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      s.user = { id: 'u-buyer', role: 'buyer', name: 'Thomas', email: 'buyer@demo.com', accountType: 'company' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+      const r = await api.profile.save({ jobTitle: 'Purchasing Manager', company: 'Müller GmbH', country: 'DE', bio: 'Importers of kitchenware' });
+      return r.fields.jobTitle === 'Purchasing Manager' && r.completeness > 0;
+    }));
+
+  await run('profile.save business card', async () =>
+    page.evaluate(async () => {
+      const r = await api.profile.save({ businessCard: 'data:image/png;base64,AAAA', businessCardName: 'card.png' });
+      return r.card === 'data:image/png;base64,AAAA' && r.cardName === 'card.png';
+    }));
+
+  await run('inquiries.create with attachments + identity', async () =>
+    page.evaluate(async () => {
+      const inq = await api.inquiries.create({
+        productId: 'p3', qty: 100, unit: 'pcs', message: 'hello', name: 'T', email: 't@t.com',
+        buyerType: 'company', jobTitle: 'Buyer', card: 'data:image/png;base64,BB',
+        attachments: [{ id: 'a1', name: 'pic.png', type: 'image/png', size: 10, dataUrl: 'data:image/png;base64,CC' }]
+      });
+      return inq.buyerType === 'company' && inq.attachments.length === 1 && inq.cardName === '';
+    }));
+
+  await run('suggestions create/list/status', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      s.user = { id: 'u-buyer', role: 'buyer', name: 'B' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+      const r = await api.suggestions.create({ type: 'ux', content: 'Please add dark mode', contact: 'b@b.com' });
+      const admin = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      admin.user = { id: 'u-admin', role: 'admin', name: 'A' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(admin));
+      const list = await api.suggestions.list();
+      const updated = await api.suggestions.setStatus(r.id, { status: 'done' });
+      return list.some(x => x.id === r.id) && updated.status === 'done';
+    }));
+
   console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
   const failed = results.filter(([, ok]) => !ok).length;
   console.log('PAGE ERRORS: ' + JSON.stringify(errors));
