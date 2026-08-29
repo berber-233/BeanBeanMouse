@@ -32,7 +32,12 @@ const apiStorage = {
     } catch (e) { return null; }
   },
   setState(s) {
-    try { localStorage.setItem(API_STORE_KEY, JSON.stringify(s)); } catch (e) { /* 忽略 */ }
+    try {
+      localStorage.setItem(API_STORE_KEY, JSON.stringify(s));
+      api.storage.full = false;
+    } catch (e) {
+      api.storage.full = true;
+    }
   },
   /* 通知应用层数据已变化（应用层监听后重载并重绘） */
   notifyChanged() {
@@ -635,11 +640,31 @@ api.messages = {
   async list(conversationId) {
     if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/messages');
     await apiDelay();
-    return []; // TODO: 阶段2 实现消息表与 WebSocket
+    const st = mockState();
+    const conv = (st.conversations || {})[conversationId];
+    return apiClone(conv ? conv.messages : []);
   },
   async send(conversationId, text) {
     if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/messages', { method: 'POST', body: { text } });
-    throw new Error('NOT_IMPLEMENTED_YET');
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('UNAUTHORIZED');
+    if (!String(text || '').trim()) throw new Error('VALIDATION');
+    st.conversations = st.conversations || {};
+    const conv = (st.conversations[conversationId] = st.conversations[conversationId] || { id: conversationId, messages: [] });
+    const msg = {
+      id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5),
+      conversationId,
+      fromUserId: u.id,
+      fromName: u.name || '',
+      text: String(text).trim().slice(0, 2000),
+      attachments: [],
+      at: Date.now()
+    };
+    conv.messages.push(msg);
+    mockSave(st);
+    return apiClone(msg);
   }
 };
 
@@ -704,7 +729,33 @@ api.notifications = {
   async list() {
     if (api.config.mode === 'http') return apiRequest('/notifications');
     await apiDelay();
-    return []; // TODO: 阶段2 实现站内通知
+    const st = mockState();
+    const u = st.user;
+    let rows = st.notifications || [];
+    if (u && u.role !== 'admin') rows = rows.filter(n => n.toUserId === u.id);
+    return apiClone(rows.slice().sort((a, b) => b.createdAt - a.createdAt));
+  },
+  async unreadCount() {
+    const rows = await api.notifications.list();
+    return rows.filter(n => !n.read).length;
+  },
+  async markRead(id) {
+    if (api.config.mode === 'http') return apiRequest('/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const n = (st.notifications || []).find(x => x.id === id);
+    if (!n) throw new Error('NOT_FOUND');
+    n.read = true;
+    mockSave(st);
+    return apiClone(n);
+  },
+  async markAllRead() {
+    if (api.config.mode === 'http') return apiRequest('/notifications/read-all', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    (st.notifications || []).forEach(n => { if (!n.read) n.read = true; });
+    mockSave(st);
+    return { ok: true };
   }
 };
 
@@ -736,7 +787,41 @@ api.files = {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
     }
-    throw new Error('NOT_IMPLEMENTED_YET');
+    await apiDelay();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error('READ_ERROR'));
+      r.readAsDataURL(file);
+    });
+    const st = mockState();
+    st.files = st.files || {};
+    const id = 'f' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const rec = {
+      id, name: String(file.name || 'file'), type: file.type || '',
+      size: file.size || 0, dataUrl, createdAt: Date.now()
+    };
+    st.files[id] = rec;
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/files/' + encodeURIComponent(id));
+    await apiDelay();
+    const f = (mockState().files || {})[id];
+    if (!f) throw new Error('NOT_FOUND');
+    return apiClone(f);
+  },
+  async del(id) {
+    if (api.config.mode === 'http') return apiRequest('/files/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    if (st.files && st.files[id]) {
+      delete st.files[id];
+      mockSave(st);
+      return { ok: true };
+    }
+    throw new Error('NOT_FOUND');
   }
 };
 

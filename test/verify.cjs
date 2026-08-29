@@ -576,7 +576,7 @@ let page;
   });
   await page.locator('[data-action="view-card"]').first().click();
   await page.waitForTimeout(300);
-  check('seller: business card modal opens', await page.locator('.attach-view img').count() === 1);
+  check('seller: business card modal opens', await page.locator('#cardViewImg').count() === 1);
   const wmSrc = await page.locator('#cardViewImg').getAttribute('src');
   check('seller: business card watermarked', !!wmSrc && wmSrc !== cardSrc && wmSrc.indexOf('data:image/') === 0);
   await page.click('[data-action="close-modal"]');

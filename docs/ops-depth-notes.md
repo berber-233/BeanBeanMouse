@@ -106,3 +106,32 @@
   对方查看 / 下载仍走 `watermarkImage` 水印流程。
 - 自定义：沿用「上传自己的名片图片」路径（Logo / 配色 / 字体 / 排版自由）。
 - 选型图：`screenshots/business-card-templates.png`（5 套 + 自定义预览）。
+
+## 14. 整体优化四件套（2026-08-29）
+
+### 14.1 代码组织与文案（第 1 项）
+- `app.js` 拆分为 `app-core.js`（工具/状态/事件委托/弹窗/顶栏）、`app-pages.js`（页面与渲染）、
+  `app.js`（启动与杂项）；`index.html` 与 `scripts/build-site.mjs` 已同步加载顺序。
+- 28 处硬编码 `state.lang==='zh'` UI 文案收编进 `data.js` I18N（保留 4 处逻辑判断与内容数据）。
+
+### 14.2 后端对齐（第 2 项）
+- 新增表：`profiles / suggestions / after_sales / order_documents / export_readiness`
+  （SQLite + Postgres 双 schema，含索引）。
+- 新增接口：`/profile`（GET/PUT，含名片）、`/suggestions`（GET/POST + 管理员状态）、
+  `/after-sales`（CRUD + respond/escalate/arbitrate，自动存证）、`/orders/{id}/documents`、
+  `/exports/readiness`、`/card-templates`、`/compliance/screen`、`/logistics/estimate`。
+- 后端测试 107 → 124 项；`docs/openapi.yaml` 与 `docs/er-diagram.md` 同步。
+
+### 14.3 存储与水印（第 3 项）
+- `api.files.upload/get/del`：mock 落 `state.files`，http 分支对接 `/files`；附件记录新增
+  `fileId / storage` 字段，展示/导出/预览统一走 `attachUrl()` 解析（兼容旧内联 dataUrl）。
+- 后端 `/files/{id}?watermark=name` 对 SVG 注入服务端文本水印；栅格图水印保持前端 Canvas
+  （正式版：R2/S3 + 边缘处理合成水印，前端仅存 `fileId`）。
+
+### 14.4 站内消息与通知（第 4 项）
+- 前端：`api.messages.list/send`、`api.notifications.list/markRead/markAllRead` mock 实现；
+  买家 / 卖家「消息」页（会话列表 + 聊天 + 未读角标），会话由询盘自动生成。
+- 通知：顶栏铃铛（未读徽标 + 下拉面板 + 全部已读）；新询盘 / 报价 / 售后进展 / 建议处理
+  自动推送 `state.notifications`。
+- 实时性：后端 REST `/conversations/{id}/messages` 与 `WS /ws` 已就绪，前端切 `http` 模式即用；
+  已读回执与 WS 推送待联调。

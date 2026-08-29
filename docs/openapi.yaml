@@ -776,6 +776,244 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: 返回新增/失败数量 }
+  /profile:
+    get:
+      tags: [v0.2]
+      summary: 获取个人资料、名片与完整度
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: { userId, fields, card, cardName, completeness } }
+    put:
+      tags: [v0.2]
+      summary: 保存个人资料 / 上传或移除名片（businessCard 传 null 移除）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accountType: { type: string, enum: [company, individual] }
+                jobTitle: { type: string }
+                company: { type: string }
+                country: { type: string }
+                contact: { type: string }
+                bio: { type: string }
+                businessCard: { type: string, nullable: true }
+                businessCardName: { type: string }
+      responses:
+        '200': { description: 保存成功 }
+  /suggestions:
+    get:
+      tags: [v0.2]
+      summary: 我的建议（管理员可见全部）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 分页列表 }
+    post:
+      tags: [v0.2]
+      summary: 提交优化建议
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                type: { type: string, default: other }
+                content: { type: string }
+                contact: { type: string }
+      responses:
+        '201': { description: 建议已创建 }
+  /suggestions/{id}/status:
+    post:
+      tags: [v0.2]
+      summary: 管理员标记已读 / 已采纳
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [new, seen, done] }
+      responses:
+        '200': { description: 状态已更新 }
+  /after-sales:
+    get:
+      tags: [v0.2]
+      summary: 售后与纠纷列表（按角色过滤）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 分页列表 }
+    post:
+      tags: [v0.2]
+      summary: 买家申请售后 / 发起纠纷（dispute=true 直接进入仲裁）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, description]
+              properties:
+                orderId: { type: string }
+                type: { type: string, default: other }
+                description: { type: string }
+                resolution: { type: string }
+                dispute: { type: boolean }
+      responses:
+        '201': { description: 售后记录已创建，自动存证 }
+  /after-sales/{id}/respond:
+    post:
+      tags: [v0.2]
+      summary: 卖家回复（接受 / 拒绝并说明）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [accept, reject] }
+                reply: { type: string }
+      responses:
+        '200': { description: 回复已保存，接受即结案 }
+  /after-sales/{id}/escalate:
+    post:
+      tags: [v0.2]
+      summary: 买卖双方升级为平台仲裁
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 已进入仲裁，自动存证 }
+  /after-sales/{id}/arbitrate:
+    post:
+      tags: [v0.2]
+      summary: 管理员裁决（支持买家 / 卖家 / 双方协商）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ruling]
+              properties:
+                ruling: { type: string, enum: [buyer, seller, compromise] }
+                note: { type: string }
+      responses:
+        '200': { description: 裁决已记录，自动存证 }
+  /orders/{id}/documents:
+    get:
+      tags: [v0.2]
+      summary: 订单单据生成记录
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: 单据列表 }
+    post:
+      tags: [v0.2]
+      summary: 生成单据（CI/PL/CO/BL，自动存证）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: string, enum: [CI, PL, CO, BL] }
+      responses:
+        '201': { description: 单据列表 }
+  /exports/readiness:
+    get:
+      tags: [v0.2]
+      summary: 当前卖家出口资质清单与就绪度
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: { sellerId, score, coreDone, coreTotal, items } }
+    put:
+      tags: [v0.2]
+      summary: 标记出口资质项完成 / 撤销
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId, done]
+              properties:
+                itemId: { type: string }
+                done: { type: boolean }
+      responses:
+        '200': { description: 更新后的清单 }
+  /card-templates:
+    get:
+      tags: [v0.2]
+      summary: 名片模板列表（5 套预设 + 自定义）
+      responses:
+        '200': { description: 模板数组 }
+  /compliance/screen:
+    post:
+      tags: [v0.2]
+      summary: 出口管制 / 制裁关键词演示筛查
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string }
+      responses:
+        '200': { description: { text, hits, clean } }
+  /logistics/estimate:
+    post:
+      tags: [v0.2]
+      summary: 运费估算（演示参考值）
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [sea, air, land, courier] }
+                weight: { type: number }
+                volume: { type: number }
+                container: { type: string }
+                origin: { type: string }
+                destination: { type: string }
+      responses:
+        '200': { description: 运费区间 }
 components:
   securitySchemes:
     bearerAuth:

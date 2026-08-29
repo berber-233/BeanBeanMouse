@@ -73,6 +73,14 @@
   可一键用个人资料生成，也可上传自己的图片自定义（Logo / 配色 / 排版）。
 - **建议收集窗口**：新增 `#/feedback` 建议收集页（页脚入口），管理后台新增「优化建议」
   标签，支持标记已读 / 已采纳。
+- **站内消息与通知**：买家 / 卖家工作台新增「消息」页（询盘会话 + 聊天 + 未读角标），
+  顶栏通知铃铛支持全部已读；新询盘 / 报价 / 售后进展 / 建议处理结果自动推送站内通知。
+- **后端对齐（v0.2 模块）**：`profile / suggestions / after-sales / orders/{id}/documents /
+  exports/readiness / card-templates / compliance/screen / logistics/estimate` 接口与数据表落地
+  （SQLite + Postgres 双 schema），后端测试 124 项全绿，OpenAPI 与 ER 图同步。
+- **存储与水印**：`api.files` 上传服务（mock 落库 + http 分支），附件记录预留 `fileId/storage`
+  字段（对象存储就绪形态）；后端 `/files` 支持 SVG 服务端水印，栅格图水印仍由前端 Canvas 合成
+  （正式版接 R2/边缘处理后改为服务端合成）。
 - 版本：页脚与 `package.json` 升级为 **0.2.0**；测试 `verify` 228 项、`api-smoke` 31 项全绿。
 
 ## v0.1 新增（2026-08-21）
@@ -132,7 +140,7 @@
 - 前端数据层 [api.js](api.js)：页面统一通过 `window.api` 访问数据，
   当前为 mock（localStorage 模拟），接真实后端时改 `API_CONFIG.mode='http'` 即可
 
-验证：`test/api-smoke.cjs`（31 项断言）+ `test/verify.cjs`（228 项页面回归）；后端 `backend/test/api.test.mjs`（107 项断言）。
+验证：`test/api-smoke.cjs`（31 项断言）+ `test/verify.cjs`（228 项页面回归）；后端 `backend/test/api.test.mjs`（124 项断言）。
 
 ## 说明
 

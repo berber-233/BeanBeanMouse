@@ -581,6 +581,55 @@ let catReqId;
   if (savedUrl) process.env.DEEPL_API_URL = savedUrl; else delete process.env.DEEPL_API_URL;
 }
 
+/* ---- v0.2 模块：资料/名片、建议、售后、单据、出口资质、模板、合规、物流 ---- */
+{
+  const r = await req('/profile', { method: 'PUT', token: buyerToken, body: { accountType: 'company', jobTitle: 'Purchasing Manager', company: 'Müller GmbH', country: 'DE', bio: 'Kitchenware imports' } });
+  check('profile PUT -> 200', r.status === 200 && r.data.ok === true);
+  const g = await req('/profile', { method: 'GET', token: buyerToken });
+  check('profile GET -> fields + completeness', g.status === 200 && g.data.fields.jobTitle === 'Purchasing Manager' && g.data.completeness > 0);
+  const c = await req('/profile', { method: 'PUT', token: buyerToken, body: { businessCard: 'data:image/png;base64,AAAA', businessCardName: 'card.png' } });
+  const g2 = await req('/profile', { method: 'GET', token: buyerToken });
+  check('profile business card saved', c.status === 200 && g2.data.card === 'data:image/png;base64,AAAA' && g2.data.cardName === 'card.png');
+}
+{
+  const r = await req('/suggestions', { method: 'POST', token: buyerToken, body: { type: 'ux', content: 'Please add dark mode', contact: 'b@b.com' } });
+  check('suggestions create -> 201', r.status === 201 && r.data.status === 'new');
+  const list = await req('/suggestions', { method: 'GET', token: buyerToken });
+  check('suggestions list (buyer own)', list.status === 200 && list.data.items.some(x => x.id === r.data.id));
+  const st = await req('/suggestions/' + r.data.id + '/status', { method: 'POST', token: adminToken, body: { status: 'done' } });
+  check('suggestions admin status -> done', st.status === 200 && st.data.status === 'done');
+}
+{
+  const r = await req('/after-sales', { method: 'POST', token: buyerToken, body: { orderId: orderId, type: 'quality', description: 'broken hinge', resolution: 'reship parts' } });
+  check('after-sales create -> 201 new', r.status === 201 && r.data.status === 'new' && !!r.data.id);
+  const resp = await req('/after-sales/' + r.data.id + '/respond', { method: 'POST', token: sellerToken, body: { action: 'accept', reply: 'will reship' } });
+  check('after-sales seller accept -> resolved', resp.status === 200 && resp.data.status === 'resolved');
+  const d = await req('/after-sales', { method: 'POST', token: buyerToken, body: { orderId: orderId, type: 'other', description: 'delay claim', dispute: true } });
+  check('after-sales dispute -> arbitrating', d.status === 201 && d.data.status === 'arbitrating' && d.data.dispute === 1);
+  const ar = await req('/after-sales/' + d.data.id + '/arbitrate', { method: 'POST', token: adminToken, body: { ruling: 'buyer', note: 'per evidence' } });
+  check('after-sales admin arbitrate -> resolved', ar.status === 200 && ar.data.ruling === 'buyer' && ar.data.status === 'resolved');
+}
+{
+  const r = await req('/orders/' + orderId + '/documents', { method: 'POST', token: buyerToken, body: { type: 'CI' } });
+  check('order documents generate -> 201', r.status === 201 && r.data.items.some(x => x.doc_type === 'CI'));
+  const g = await req('/orders/' + orderId + '/documents', { method: 'GET', token: sellerToken });
+  check('order documents list (both sides)', g.status === 200 && g.data.items.length >= 1);
+}
+{
+  const r = await req('/exports/readiness', { method: 'GET', token: sellerToken });
+  check('exports readiness GET -> score', r.status === 200 && r.data.items.length >= 7);
+  const u = await req('/exports/readiness', { method: 'PUT', token: sellerToken, body: { itemId: 'customs-reg', done: true } });
+  check('exports readiness PUT -> updated', u.status === 200 && u.data.items.find(x => x.id === 'customs-reg').done === true);
+}
+{
+  const r = await req('/card-templates', { method: 'GET' });
+  check('card-templates -> 5 presets', r.status === 200 && Array.isArray(r.data) && r.data.length === 5);
+  const s = await req('/compliance/screen', { method: 'POST', body: { text: 'Military drone with night vision' } });
+  check('compliance screen -> flags', s.status === 200 && s.data.clean === false && s.data.hits.length >= 3);
+  const e = await req('/logistics/estimate', { method: 'POST', body: { mode: 'sea', weight: 500, volume: 3, container: 'LCL' } });
+  check('logistics estimate -> ranges', e.status === 200 && e.data.currency === 'USD' && e.data.lo > 0 && e.data.hi >= e.data.lo);
+}
+
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
 const failed = results.filter(([, ok]) => !ok).length;
 console.log(failed === 0 ? 'ALL BACKEND TESTS PASSED (' + results.length + ')' : failed + ' CHECKS FAILED');

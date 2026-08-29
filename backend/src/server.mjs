@@ -370,6 +370,33 @@ function verifyEvidenceChain(orderId) {
   return { total: rows.length, valid: broken.length === 0, broken };
 }
 
+/* ---------- v0.2 模块静态数据 ---------- */
+const EXPORT_ITEMS = ['customs-reg', 'fx-account', 'tax-rebate', 'export-license', 'inspection', 'co-qualification', 'dangerous-goods'];
+const CARD_TEMPLATES = [
+  { id: 'classic-gold', zh: '经典暖金', en: 'Classic Gold', swatch: 'linear-gradient(135deg,#FFF6E0,#FBEBC9)' },
+  { id: 'luxe-ink', zh: '低调奢华', en: 'Luxe Ink', swatch: 'linear-gradient(135deg,#20242E,#14171E)' },
+  { id: 'minimal-white', zh: '简约留白', en: 'Minimal White', swatch: 'linear-gradient(135deg,#FFFFFF,#F2F2F2)' },
+  { id: 'modern-blue', zh: '现代科技', en: 'Modern Tech', swatch: 'linear-gradient(135deg,#123060,#0A1730)' },
+  { id: 'oriental-ink', zh: '东方雅韵', en: 'Oriental Ink', swatch: 'linear-gradient(135deg,#F7F1E3,#EAE0C8)' }
+];
+const SANCTION_KEYWORDS = [
+  'military', 'defense', 'defence', 'missile', 'nuclear', 'chemical weapon', 'bioweapon',
+  'drone', 'night vision', 'radar', 'explosive', 'arms', 'ammunition', 'military-grade',
+  '军事', '导弹', '核武器', '生化武器', '无人机', '夜视', '雷达', '炸药', '弹药', '武器级', '军警'
+];
+
+/* 服务端水印：当前支持 SVG 文本水印（栅格图由前端 Canvas 合成，正式版接对象存储边缘处理） */
+function watermarkSvg(buf, name) {
+  try {
+    let svg = buf.toString('utf8');
+    if (!/<\s*svg/i.test(svg)) return buf;
+    const safe = String(name || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const text = '<text x="50%" y="50%" fill="rgba(120,110,90,0.16)" font-size="24" font-family="Georgia,serif" text-anchor="middle" transform="rotate(-30 50% 50%)">BeanBeanMouse · ' + safe + '</text>';
+    if (/<svg[^>]*>/i.test(svg)) svg = svg.replace(/<svg([^>]*)>/i, '<svg$1>' + text);
+    return Buffer.from(svg, 'utf8');
+  } catch (e) { return buf; }
+}
+
 /* ---------- Routes ---------- */
 async function route(m, segs, q, req, res) {
   const [a, b, c, d, e] = segs;
@@ -1225,8 +1252,10 @@ async function route(m, segs, q, req, res) {
     if (b && m === 'GET') {
       const row = get('SELECT * FROM files WHERE id = ?', b);
       if (!row) return fail(res, 404, 'NOT_FOUND', '文件不存在');
-      const buf = getFile(row.bucket_key);
+      let buf = getFile(row.bucket_key);
       if (!buf) return fail(res, 404, 'NOT_FOUND', '文件不存在');
+      const wm = q.get('watermark') ? String(q.get('watermark')).slice(0, 80) : '';
+      if (wm && /svg/i.test(row.mime)) buf = watermarkSvg(buf, wm);
       return sendBytes(res, 200, buf, row.mime, { 'Content-Disposition': 'inline' });
     }
   }
@@ -1341,6 +1370,221 @@ async function route(m, segs, q, req, res) {
       if (!u) return;
       return send(res, 200, paginate(all('SELECT * FROM audit_logs ORDER BY created_at DESC'), q));
     }
+  }
+
+  /* v0.2 模块：个人资料与名片 */
+  if (a === 'profile') {
+    const u = requireAuth(res, req);
+    if (!u) return;
+    const p = get('SELECT * FROM profiles WHERE user_id = ?', u.id) || null;
+    if (m === 'GET') {
+      const fields = {
+        name: u.name || '',
+        accountType: p ? p.account_type : 'company',
+        jobTitle: p ? p.job_title : '',
+        company: p ? p.company : '',
+        country: p ? p.country : '',
+        contact: p ? p.contact : (u.email || ''),
+        bio: p ? p.bio : '',
+        bizName: p ? p.biz_name : ''
+      };
+      const keys = ['name', 'accountType', 'jobTitle', 'company', 'country', 'contact', 'bio'];
+      const completeness = Math.round(keys.filter(k => String(fields[k] || '').trim()).length / keys.length * 100);
+      return send(res, 200, { userId: u.id, fields, card: p ? p.business_card : '', cardName: p ? p.business_card_name : '', completeness });
+    }
+    if (m === 'PUT') {
+      const body = await readBody(req);
+      const accountType = body.accountType === 'individual' ? 'individual' : (p ? p.account_type : 'company');
+      const vals = {
+        account_type: accountType,
+        job_title: String(body.jobTitle != null ? body.jobTitle : (p ? p.job_title : '')).slice(0, 120),
+        company: String(body.company != null ? body.company : (p ? p.company : '')).slice(0, 200),
+        country: String(body.country != null ? body.country : (p ? p.country : '')).slice(0, 40),
+        contact: String(body.contact != null ? body.contact : (p ? p.contact : '')).slice(0, 200),
+        bio: String(body.bio != null ? body.bio : (p ? p.bio : '')).slice(0, 1000),
+        biz_name: String(body.bizName != null ? body.bizName : (p ? p.biz_name : '')).slice(0, 200),
+        business_card: body.businessCard === null ? '' : String(body.businessCard != null ? body.businessCard : (p ? p.business_card : '')).slice(0, 2000000),
+        business_card_name: body.businessCard === null ? '' : String(body.businessCardName != null ? body.businessCardName : (p ? p.business_card_name : '')).slice(0, 200)
+      };
+      if (p) {
+        run('UPDATE profiles SET account_type=?, job_title=?, company=?, country=?, contact=?, bio=?, biz_name=?, business_card=?, business_card_name=?, updated_at=? WHERE user_id=?',
+          vals.account_type, vals.job_title, vals.company, vals.country, vals.contact, vals.bio, vals.biz_name, vals.business_card, vals.business_card_name, Date.now(), u.id);
+      } else {
+        run('INSERT INTO profiles (user_id, account_type, job_title, company, country, contact, bio, biz_name, business_card, business_card_name, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          u.id, vals.account_type, vals.job_title, vals.company, vals.country, vals.contact, vals.bio, vals.biz_name, vals.business_card, vals.business_card_name, Date.now());
+      }
+      return send(res, 200, { ok: true });
+    }
+  }
+
+  /* v0.2 模块：优化建议 */
+  if (a === 'suggestions') {
+    const u = requireAuth(res, req);
+    if (!u) return;
+    if (b === undefined && m === 'GET') {
+      const rows = u.role === 'admin'
+        ? all('SELECT * FROM suggestions ORDER BY updated_at DESC')
+        : all('SELECT * FROM suggestions WHERE user_id = ? ORDER BY updated_at DESC', u.id);
+      return send(res, 200, paginate(rows, q));
+    }
+    if (b === undefined && m === 'POST') {
+      const body = await readBody(req);
+      const content = String(body.content || '').trim();
+      if (!content) return fail(res, 400, 'VALIDATION', '建议内容不能为空');
+      const id = randomUUID();
+      run('INSERT INTO suggestions (id, user_id, type, content, contact, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+        id, u.id, String(body.type || 'other').slice(0, 20), content.slice(0, 2000), String(body.contact || '').slice(0, 200), 'new', Date.now(), Date.now());
+      return send(res, 201, get('SELECT * FROM suggestions WHERE id = ?', id));
+    }
+    if (b && c === 'status' && m === 'POST') {
+      const admin = requireAuth(res, req, ['admin']);
+      if (!admin) return;
+      const rec = get('SELECT * FROM suggestions WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '建议不存在');
+      const body = await readBody(req);
+      if (!['new', 'seen', 'done'].includes(body.status)) return fail(res, 400, 'VALIDATION', '状态非法');
+      run('UPDATE suggestions SET status = ?, updated_at = ? WHERE id = ?', body.status, Date.now(), b);
+      return send(res, 200, get('SELECT * FROM suggestions WHERE id = ?', b));
+    }
+  }
+
+  /* v0.2 模块：售后与纠纷 */
+  if (a === 'after-sales') {
+    const u = requireAuth(res, req);
+    if (!u) return;
+    if (b === undefined && m === 'GET') {
+      const rows = u.role === 'admin'
+        ? all('SELECT * FROM after_sales ORDER BY updated_at DESC')
+        : u.role === 'seller'
+          ? all('SELECT * FROM after_sales WHERE seller_id = ? ORDER BY updated_at DESC', u.id)
+          : all('SELECT * FROM after_sales WHERE buyer_id = ? ORDER BY updated_at DESC', u.id);
+      return send(res, 200, paginate(rows, q));
+    }
+    if (b === undefined && m === 'POST') {
+      const body = await readBody(req);
+      const o = get('SELECT * FROM orders WHERE id = ?', body.orderId);
+      if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+      if (o.buyer_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能对本人订单申请售后');
+      if (!['created', 'complete'].includes(o.status)) return fail(res, 400, 'INVALID_STATUS', '当前订单状态不可申请售后');
+      const desc = String(body.description || '').trim();
+      if (!desc) return fail(res, 400, 'VALIDATION', '请描述问题');
+      const dispute = !!body.dispute;
+      const id = randomUUID();
+      run('INSERT INTO after_sales (id, order_id, buyer_id, seller_id, type, description, resolution, status, dispute, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        id, o.id, u.id, o.seller_id, String(body.type || 'other').slice(0, 40), desc.slice(0, 1000),
+        String(body.resolution || '').slice(0, 500), dispute ? 'arbitrating' : 'new', dispute ? 1 : 0, Date.now(), Date.now());
+      addEvidence(o.id, u.id, dispute ? 'dispute_open' : 'after_sales_create', id, { type: body.type || 'other', description: desc.slice(0, 200) });
+      return send(res, 201, get('SELECT * FROM after_sales WHERE id = ?', id));
+    }
+    if (b && c === 'respond' && m === 'POST') {
+      const rec = get('SELECT * FROM after_sales WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '售后记录不存在');
+      if (rec.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '仅卖家可回复');
+      if (!['new', 'responded'].includes(rec.status)) return fail(res, 400, 'INVALID_STATUS', '当前状态不可回复');
+      const body = await readBody(req);
+      const action = body.action === 'accept' ? 'accept' : 'reject';
+      const reply = String(body.reply || '').slice(0, 600);
+      run('UPDATE after_sales SET seller_reply = ?, seller_action = ?, status = ?, updated_at = ? WHERE id = ?',
+        reply, action, action === 'accept' ? 'resolved' : 'responded', Date.now(), b);
+      addEvidence(rec.order_id, u.id, 'after_sales_reply', b, { action, reply: reply.slice(0, 200) });
+      return send(res, 200, get('SELECT * FROM after_sales WHERE id = ?', b));
+    }
+    if (b && c === 'escalate' && m === 'POST') {
+      const rec = get('SELECT * FROM after_sales WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '售后记录不存在');
+      if (rec.buyer_id !== u.id && rec.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权操作');
+      if (!['new', 'responded'].includes(rec.status)) return fail(res, 400, 'INVALID_STATUS', '当前状态不可升级');
+      run('UPDATE after_sales SET status = ?, dispute = 1, updated_at = ? WHERE id = ?', 'arbitrating', Date.now(), b);
+      addEvidence(rec.order_id, u.id, 'dispute_open', b, { escalate: true });
+      return send(res, 200, get('SELECT * FROM after_sales WHERE id = ?', b));
+    }
+    if (b && c === 'arbitrate' && m === 'POST') {
+      const admin = requireAuth(res, req, ['admin']);
+      if (!admin) return;
+      const rec = get('SELECT * FROM after_sales WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '售后记录不存在');
+      if (rec.status !== 'arbitrating') return fail(res, 400, 'INVALID_STATUS', '仅仲裁中的案件可裁决');
+      const body = await readBody(req);
+      if (!['buyer', 'seller', 'compromise'].includes(body.ruling)) return fail(res, 400, 'VALIDATION', '裁决结果非法');
+      run('UPDATE after_sales SET ruling = ?, ruling_note = ?, status = ?, updated_at = ? WHERE id = ?',
+        body.ruling, String(body.note || '').slice(0, 600), 'resolved', Date.now(), b);
+      addEvidence(rec.order_id, admin.id, 'after_sales_ruling', b, { ruling: body.ruling });
+      return send(res, 200, get('SELECT * FROM after_sales WHERE id = ?', b));
+    }
+  }
+
+  /* v0.2 模块：订单单据生成记录 */
+  if (a === 'orders' && b && c === 'documents') {
+    const u = requireAuth(res, req);
+    if (!u) return;
+    const o = get('SELECT * FROM orders WHERE id = ?', b);
+    if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
+    if (u.role !== 'admin' && o.buyer_id !== u.id && o.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '无权查看该订单');
+    if (m === 'GET') {
+      return send(res, 200, { orderId: b, items: all('SELECT * FROM order_documents WHERE order_id = ? ORDER BY created_at ASC', b) });
+    }
+    if (m === 'POST') {
+      const body = await readBody(req);
+      if (!['CI', 'PL', 'CO', 'BL'].includes(body.type)) return fail(res, 400, 'VALIDATION', '单据类型非法');
+      run('INSERT OR IGNORE INTO order_documents (id, order_id, doc_type, created_by, created_at) VALUES (?,?,?,?,?)',
+        randomUUID(), b, body.type, u.id, Date.now());
+      addEvidence(b, u.id, 'document_generated', body.type, { docType: body.type });
+      return send(res, 201, { orderId: b, items: all('SELECT * FROM order_documents WHERE order_id = ? ORDER BY created_at ASC', b) });
+    }
+  }
+
+  /* v0.2 模块：出口资质清单 */
+  if (a === 'exports' && b === 'readiness') {
+    const u = requireAuth(res, req);
+    if (!u) return;
+    const sid = c || u.id;
+    if (m === 'GET') {
+      const doneMap = Object.fromEntries(all('SELECT item_id, done FROM export_readiness WHERE seller_id = ?', sid).map(r => [r.item_id, !!r.done]));
+      const items = EXPORT_ITEMS.map(id => ({ id, done: !!doneMap[id] }));
+      const done = items.filter(i => i.done).length;
+      return send(res, 200, { sellerId: sid, score: items.length ? Math.round(done / items.length * 100) : 0, coreDone: done, coreTotal: items.length, items });
+    }
+    if (m === 'PUT') {
+      const body = await readBody(req);
+      if (!EXPORT_ITEMS.includes(body.itemId)) return fail(res, 400, 'VALIDATION', '清单项非法');
+      run('INSERT INTO export_readiness (seller_id, item_id, done, updated_at) VALUES (?,?,?,?) ON CONFLICT(seller_id, item_id) DO UPDATE SET done = excluded.done, updated_at = excluded.updated_at',
+        sid, body.itemId, body.done ? 1 : 0, Date.now());
+      const doneMap = Object.fromEntries(all('SELECT item_id, done FROM export_readiness WHERE seller_id = ?', sid).map(r => [r.item_id, !!r.done]));
+      const items = EXPORT_ITEMS.map(id => ({ id, done: !!doneMap[id] }));
+      const done = items.filter(i => i.done).length;
+      return send(res, 200, { sellerId: sid, score: items.length ? Math.round(done / items.length * 100) : 0, coreDone: done, coreTotal: items.length, items });
+    }
+  }
+
+  /* v0.2 模块：名片模板 / 合规筛查 / 物流估算 */
+  if (a === 'card-templates' && m === 'GET') {
+    return send(res, 200, CARD_TEMPLATES);
+  }
+  if (a === 'compliance' && b === 'screen' && m === 'POST') {
+    const body = await readBody(req);
+    const text = String(body.text || '');
+    const lower = text.toLowerCase();
+    const hits = SANCTION_KEYWORDS.filter(k => lower.includes(String(k).toLowerCase()));
+    return send(res, 200, { text, hits, clean: hits.length === 0, note: 'keyword screening' });
+  }
+  if (a === 'logistics' && b === 'estimate' && m === 'POST') {
+    const body = await readBody(req);
+    const w = Math.max(0, Number(body.weight) || 0);
+    const v = Math.max(0, Number(body.volume) || 0);
+    const mode = ['sea', 'air', 'land', 'courier'].includes(body.mode) ? body.mode : 'sea';
+    const chargeable = Math.max(w / 1000, v || 0);
+    let lo = 0, hi = 0;
+    if (mode === 'sea') {
+      if (body.container === '20GP') { lo = 900; hi = 2200; }
+      else if (body.container === '40GP' || body.container === '40HQ') { lo = 1500; hi = 4200; }
+      else { lo = Math.round(chargeable * 55); hi = Math.round(chargeable * 120 + 60); }
+    } else if (mode === 'air') { lo = Math.round(chargeable * 340); hi = Math.round(chargeable * 620); }
+    else if (mode === 'land') { lo = Math.round(chargeable * 130); hi = Math.round(chargeable * 280); }
+    else { lo = Math.max(18, Math.round(chargeable * 700)); hi = Math.max(35, Math.round(chargeable * 1300)); }
+    return send(res, 200, {
+      mode, currency: 'USD', lo: Math.max(0, lo), hi: Math.max(lo, hi), weight: w, volume: v, chargeable,
+      container: body.container || 'LCL', origin: String(body.origin || '').trim(), destination: String(body.destination || '').trim(), note: 'demo estimate only'
+    });
   }
 
   return fail(res, 404, 'NOT_FOUND', '接口不存在');

@@ -351,6 +351,71 @@ CREATE TABLE IF NOT EXISTS contract_custodies (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 用户个人资料与名片（个体户 / 公司代表，v0.2）
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id UUID PRIMARY KEY REFERENCES users(id),
+  account_type TEXT NOT NULL DEFAULT 'company' CHECK (account_type IN ('company','individual')),
+  job_title TEXT NOT NULL DEFAULT '',
+  company TEXT NOT NULL DEFAULT '',
+  country TEXT NOT NULL DEFAULT '',
+  contact TEXT NOT NULL DEFAULT '',
+  bio TEXT NOT NULL DEFAULT '',
+  biz_name TEXT NOT NULL DEFAULT '',
+  business_card TEXT NOT NULL DEFAULT '',
+  business_card_name TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 优化建议（v0.2）
+CREATE TABLE IF NOT EXISTS suggestions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  type TEXT NOT NULL DEFAULT 'other',
+  content TEXT NOT NULL,
+  contact TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','seen','done')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 售后与纠纷（v0.2）
+CREATE TABLE IF NOT EXISTS after_sales (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  buyer_id UUID NOT NULL,
+  seller_id UUID NOT NULL,
+  type TEXT NOT NULL DEFAULT 'other',
+  description TEXT NOT NULL,
+  resolution TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','responded','arbitrating','resolved','closed')),
+  dispute BOOLEAN NOT NULL DEFAULT FALSE,
+  seller_reply TEXT NOT NULL DEFAULT '',
+  seller_action TEXT NOT NULL DEFAULT '',
+  ruling TEXT NOT NULL DEFAULT '',
+  ruling_note TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 订单单据生成记录（v0.2）
+CREATE TABLE IF NOT EXISTS order_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  doc_type TEXT NOT NULL CHECK (doc_type IN ('CI','PL','CO','BL')),
+  created_by UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (order_id, doc_type)
+);
+
+-- 出口资质清单（v0.2）
+CREATE TABLE IF NOT EXISTS export_readiness (
+  seller_id UUID NOT NULL,
+  item_id TEXT NOT NULL,
+  done BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (seller_id, item_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
@@ -362,3 +427,6 @@ CREATE INDEX IF NOT EXISTS idx_shipment_events_shipment ON shipment_events(shipm
 CREATE INDEX IF NOT EXISTS idx_promo_product ON promotion_requests(product_id, status);
 CREATE INDEX IF NOT EXISTS idx_insurances_order ON insurances(order_id);
 CREATE INDEX IF NOT EXISTS idx_contract_custody_order ON contract_custodies(order_id);
+CREATE INDEX IF NOT EXISTS idx_after_sales_order ON after_sales(order_id, status);
+CREATE INDEX IF NOT EXISTS idx_suggestions_status ON suggestions(status);
+CREATE INDEX IF NOT EXISTS idx_export_readiness_seller ON export_readiness(seller_id);

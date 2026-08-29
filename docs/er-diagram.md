@@ -277,3 +277,70 @@ erDiagram
 - `SHIPMENTS` 与 `SHIPMENT_EVENTS` 支撑买卖双方共享的实时物流时间线；
 - `TIPS` 仅交易达成后可打赏，双方可见、未结算前可取消，并自动存证。
 - `PROMOTION_REQUESTS` 支撑卖家推广：审核通过后产品标记 `promoted`，进入首页精选与搜索推荐。
+
+## 增补：v0.2 模块（2026-08-29）
+
+```mermaid
+erDiagram
+  PROFILES {
+    uuid user_id PK "FK users.id"
+    string account_type "company / individual"
+    string job_title
+    string company
+    string country
+    string contact
+    text bio
+    string biz_name
+    text business_card "dataURL 或对象存储 key"
+    string business_card_name
+    timestamp updated_at
+  }
+  SUGGESTIONS {
+    uuid id PK
+    uuid user_id FK
+    string type
+    text content
+    string contact
+    string status "new / seen / done"
+    timestamp created_at
+    timestamp updated_at
+  }
+  AFTER_SALES {
+    uuid id PK
+    uuid order_id FK
+    uuid buyer_id FK
+    uuid seller_id FK
+    string type
+    text description
+    text resolution
+    string status "new / responded / arbitrating / resolved / closed"
+    bool dispute
+    text seller_reply
+    string seller_action "accept / reject"
+    string ruling "buyer / seller / compromise"
+    text ruling_note
+    timestamp created_at
+    timestamp updated_at
+  }
+  ORDER_DOCUMENTS {
+    uuid id PK
+    uuid order_id FK
+    string doc_type "CI / PL / CO / BL"
+    uuid created_by FK
+    timestamp created_at
+  }
+  EXPORT_READINESS {
+    uuid seller_id PK "FK users.id"
+    string item_id PK
+    bool done
+    timestamp updated_at
+  }
+```
+
+要点：
+
+- `PROFILES` 支撑「个体户 / 公司代表」资料完整度与名片上传；`business_card` 在演示版存 dataURL，正式版应改为对象存储 key；
+- `AFTER_SALES` 与订单存证链联动（创建 / 回复 / 升级 / 裁决均自动存证）；
+- `ORDER_DOCUMENTS` 记录单据生成动作（CI/PL/CO/BL），打印内容由前端按订单数据生成；
+- `EXPORT_READINESS` 以 `(seller_id, item_id)` 为主键，支撑卖家出口资质清单与就绪度评分；
+- `SUGGESTIONS` 状态流 new → seen → done，管理员跟进。
