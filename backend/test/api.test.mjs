@@ -636,6 +636,12 @@ let catReqId;
   const readers = await req('/conversations/conv-read-1/read', { method: 'GET', token: buyerToken });
   check('conversation readers list', readers.status === 200 && Array.isArray(readers.data.readers) && readers.data.readers.length >= 1);
 }
+{
+  const r = await req('/verify-turnstile', { method: 'POST', body: { token: 'x' } });
+  check('verify-turnstile disabled without secret -> ok', r.status === 200 && r.data.ok === true && r.data.disabled === true);
+  const reg = await req('/auth/register', { method: 'POST', body: { email: 'ts@test.com', password: 'Passw0rd', role: 'buyer', name: 'TS User', turnstileToken: 'x' } });
+  check('register with turnstile token (secret off) -> 201', reg.status === 201);
+}
 
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
 const failed = results.filter(([, ok]) => !ok).length;

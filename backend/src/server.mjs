@@ -8,7 +8,7 @@ import { hashPassword, verifyPassword, signToken, verifyToken } from './auth.mjs
 import { translateText, translateError } from './translate.mjs';
 import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE } from './storage.mjs';
 import { sendMail, notifyUser } from './mailer.mjs';
-import { handleWsUpgrade } from './ws.mjs';
+import { handleWsUpgrade, wsBroadcast } from './ws.mjs';
 
 const PORT = Number(process.env.PORT || 8787);
 seedIfEmpty();
@@ -385,6 +385,23 @@ const SANCTION_KEYWORDS = [
   '军事', '导弹', '核武器', '生化武器', '无人机', '夜视', '雷达', '炸药', '弹药', '武器级', '军警'
 ];
 
+async function verifyTurnstile(token) {
+  const secret = process.env.TURNSTILE_SECRET || '';
+  if (!secret) return { ok: true, disabled: true };
+  if (!token) return { ok: false, error: ['missing-input-response'] };
+  try {
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, response: String(token) })
+    });
+    const j = await r.json();
+    return { ok: !!j.success, error: j['error-codes'] || [] };
+  } catch (e) {
+    return { ok: false, error: ['network-error'] };
+  }
+}
+
 /* 服务端水印：当前支持 SVG 文本水印（栅格图由前端 Canvas 合成，正式版接对象存储边缘处理） */
 function watermarkSvg(buf, name) {
   try {
@@ -411,6 +428,8 @@ async function route(m, segs, q, req, res) {
       if (String(body.homepage || '').trim() !== '') {
         return fail(res, 400, 'BOT_DETECTED', '检测到异常注册行为');
       }
+      const ts = await verifyTurnstile(body.turnstileToken);
+      if (!ts.ok) return fail(res, 400, 'TURNSTILE_FAILED', '人机验证未通过，请重试');
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       const role = body.role;
@@ -970,7 +989,9 @@ async function route(m, segs, q, req, res) {
         'INSERT INTO messages (id, conversation_id, sender_id, content, created_at) VALUES (?,?,?,?,?)',
         id, b, u.id, body.text, Date.now()
       );
-      return send(res, 201, get('SELECT * FROM messages WHERE id = ?', id));
+      const created = get('SELECT * FROM messages WHERE id = ?', id);
+      wsBroadcast(b, { type: 'message', id, conversationId: b, senderId: u.id, text: body.text, createdAt: created.created_at });
+      return send(res, 201, created);
     }
   }
 
@@ -991,6 +1012,7 @@ async function route(m, segs, q, req, res) {
       const lastReadAt = body.lastReadAt ? Number(body.lastReadAt) : Date.now();
       run('INSERT INTO conversation_reads (conversation_id, user_id, last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at',
         b, u.id, lastReadAt);
+      wsBroadcast(b, { type: 'read', conversationId: b, userId: u.id, lastReadAt });
       return send(res, 200, { conversationId: b, userId: u.id, lastReadAt });
     }
   }
@@ -1262,7 +1284,7 @@ async function route(m, segs, q, req, res) {
       if (error) return fail(res, error.status, error.code, error.message);
       const id = randomUUID();
       const key = id + '.' + ext;
-      putFile(key, data);
+      await putFile(key, data);
       run(
         'INSERT INTO files (id, owner_id, bucket_key, mime, size, status, created_at) VALUES (?,?,?,?,?,?,?)',
         id, u.id, key, mime, data.length, 'active', Date.now()
@@ -1273,7 +1295,7 @@ async function route(m, segs, q, req, res) {
     if (b && m === 'GET') {
       const row = get('SELECT * FROM files WHERE id = ?', b);
       if (!row) return fail(res, 404, 'NOT_FOUND', '文件不存在');
-      let buf = getFile(row.bucket_key);
+      let buf = await getFile(row.bucket_key);
       if (!buf) return fail(res, 404, 'NOT_FOUND', '文件不存在');
       const wm = q.get('watermark') ? String(q.get('watermark')).slice(0, 80) : '';
       if (wm && /svg/i.test(row.mime)) buf = watermarkSvg(buf, wm);
@@ -1606,6 +1628,10 @@ async function route(m, segs, q, req, res) {
       mode, currency: 'USD', lo: Math.max(0, lo), hi: Math.max(lo, hi), weight: w, volume: v, chargeable,
       container: body.container || 'LCL', origin: String(body.origin || '').trim(), destination: String(body.destination || '').trim(), note: 'demo estimate only'
     });
+  }
+  if (a === 'verify-turnstile' && m === 'POST') {
+    const body = await readBody(req);
+    return send(res, 200, await verifyTurnstile(body.token));
   }
 
   return fail(res, 404, 'NOT_FOUND', '接口不存在');

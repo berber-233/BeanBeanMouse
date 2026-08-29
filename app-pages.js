@@ -634,7 +634,7 @@ function renderDetail(pid) {
     + '<div class="tip-box">' + icon('shield') + ' <b>' + t('complianceTip') + '</b><p>' + t('complianceTipText') + '</p></div>'
     + '<div class="seller-card">'
     + '<span class="avatar" style="width:38px;height:38px;font-size:14px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
-    + '<div class="info"><div class="name">' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('shield') + '<span style="color:var(--success);font-size:12px">' + t('verified') + '</span>' : '') + '</div>'
+    + '<div class="info"><div class="name">' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('shield') + '<span style="color:#126A33;font-size:12px">' + t('verified') + '</span>' : '') + '</div>'
     + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('responseRate') + ' ' + seller.responseRate + '%</div></div>'
     + '</div>'
     + '<div class="detail-actions">'
@@ -836,6 +836,21 @@ document.addEventListener('change', e => {
     if (company) company.hidden = el.value !== 'company';
     if (individual) individual.hidden = el.value !== 'individual';
   }
+});
+
+/* 名片模板自定义：Logo 上传 */
+document.addEventListener('change', e => {
+  const input = e.target;
+  if (!input || !input.dataset.cardOpt) return;
+  const f = input.files && input.files[0];
+  if (!f) return;
+  if (!ATTACH_IMAGE_TYPES.includes(f.type)) { toast(t('attachTypeNotAllowed')); return; }
+  readAttachFile(f).then(att => {
+    saveCardOpts({ logo: att.dataUrl, logoName: att.name });
+    toast('✓ ' + t('cardLogoUpload'));
+    renderPage();
+  }).catch(() => toast(t('attachSizeTooBig')));
+  input.value = '';
 });
 
 function attachUrl(a) {
@@ -1164,11 +1179,51 @@ function rr(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
-function renderCardTemplate(tplId, fields) {
+function hexMix(hex, target, p) {
+  const n = s => parseInt(String(s).slice(0, 2), 16);
+  const h = String(hex || '#C8860B').replace('#', '');
+  const t = String(target).replace('#', '');
+  if (h.length !== 6 || t.length !== 6) return String(hex || '#C8860B');
+  return '#' + [0, 2, 4].map(i => Math.round(n(h.slice(i)) + (n(t.slice(i)) - n(h.slice(i))) * p).toString(16).padStart(2, '0')).join('');
+}
+function hexA(hex, a) {
+  const h = String(hex || '#000000').replace('#', '');
+  if (h.length !== 6) return 'rgba(0,0,0,' + a + ')';
+  return 'rgba(' + [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)).join(',') + ',' + a + ')';
+}
+function drawLogoImage(ctx, dataUrl, cx, cy, r) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+        ctx.restore();
+      } catch (e) { /* 忽略 */ }
+      resolve();
+    };
+    img.onerror = () => resolve();
+    img.src = dataUrl;
+  });
+}
+function cardOptsOf(u) {
+  return ((state.profiles || {})[u.id] || {}).cardOpts || {};
+}
+function saveCardOpts(patch) {
+  const u = state.user;
+  if (!u) return;
+  state.profiles = state.profiles || {};
+  state.profiles[u.id] = state.profiles[u.id] || {};
+  state.profiles[u.id].cardOpts = Object.assign({}, state.profiles[u.id].cardOpts || {}, patch || {});
+  saveState();
+}
+async function renderCardTemplate(tplId, fields, opts) {
   const W = 1050, H = 600;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
+  const o = opts || {};
   const name = String(fields.name || '').trim() || 'YOUR NAME';
   const title = String(fields.jobTitle || '').trim() || 'BUSINESS';
   const company = String(fields.company || '').trim() || String(fields.bizName || '').trim();
@@ -1177,6 +1232,11 @@ function renderCardTemplate(tplId, fields) {
   const email = state.user ? state.user.email || '' : '';
   const address = fields.country ? countryName(fields.country) : '';
   const brand = 'BeanBeanMouse · beanbeanmouse.com';
+  const accent = o.accent || (tplId === 'luxe-ink' || tplId === 'minimal-white' ? '#C8A25B' : tplId === 'modern-blue' ? '#4E9BFF' : tplId === 'oriental-ink' ? '#B3402A' : '#C8860B');
+  const accentDark = hexMix(accent, '#000000', 0.35);
+  const accentLight = hexMix(accent, '#FFFFFF', 0.55);
+  const defFace = (tplId === 'luxe-ink' || tplId === 'oriental-ink') ? '"KaiTi","STKaiti",serif' : '"Microsoft YaHei","Segoe UI",Arial';
+  const nf = o.font === 'kai' ? '"KaiTi","STKaiti",serif' : o.font === 'serif' ? 'Georgia, "Times New Roman", serif' : o.font === 'sans' ? '"Microsoft YaHei","Segoe UI",Arial' : defFace;
   const yh = (str, x, y, size, weight, color, family) => {
     ctx.font = weight + ' ' + size + 'px ' + family;
     ctx.fillStyle = color;
@@ -1187,20 +1247,20 @@ function renderCardTemplate(tplId, fields) {
     g.addColorStop(0, '#FFFDF6'); g.addColorStop(0.6, '#FFF6E0'); g.addColorStop(1, '#FBEBC9');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     const band = ctx.createLinearGradient(0, 0, 0, H);
-    band.addColorStop(0, '#E8A33D'); band.addColorStop(1, '#8A5A0B');
+    band.addColorStop(0, accentLight); band.addColorStop(1, accentDark);
     ctx.fillStyle = band; ctx.fillRect(0, 0, 14, H);
     const lg = ctx.createLinearGradient(70, 54, 130, 114);
-    lg.addColorStop(0, '#C8860B'); lg.addColorStop(1, '#8A5A0B');
+    lg.addColorStop(0, accent); lg.addColorStop(1, accentDark);
     ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(100, 84, 34, 0, Math.PI * 2); ctx.fill();
-    yh('YF', 100, 90, 22, '700', '#FFFFFF', '"Segoe UI", Arial');
+    if (!o.logo) yh('YF', 100, 90, 22, '700', '#FFFFFF', '"Segoe UI", Arial');
     yh(company || 'COMPANY', 152, 78, 26, '700', '#4A2E08', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 152, 102, 13, '500', '#8A7654', 'Georgia, serif');
     yh(name, 84, 230, 52, '700', '#2E1F0A', '"Microsoft YaHei","Segoe UI"');
-    yh(title, 84 + ctx.measureText(name).width + 28, 228, 18, '600', '#C8860B', '"Microsoft YaHei","Segoe UI"');
-    ctx.strokeStyle = 'rgba(200,134,11,.55)'; ctx.lineWidth = 1.5;
+    yh(title, 84 + ctx.measureText(name).width + 28, 228, 18, '600', accent, nf);
+    ctx.strokeStyle = hexA(accent, .55); ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(84, 272); ctx.lineTo(560, 272); ctx.stroke();
     ['E  ' + (email || '—'), 'T  ' + (contact || '—'), 'W  www.beanbeanmouse.com', 'A  ' + (address || '—')].forEach((t, i) => yh(t, 84, 312 + i * 38, 16, '500', '#5A4A2E', '"Segoe UI", Arial'));
-    ctx.strokeStyle = 'rgba(200,134,11,.25)';
+    ctx.strokeStyle = hexA(accent, .25);
     ctx.beginPath(); ctx.moveTo(84, 540); ctx.lineTo(966, 540); ctx.stroke();
     yh(brand, 84, 566, 13, '500', '#8A7654', 'Georgia, serif');
   } else if (tplId === 'luxe-ink') {
@@ -1210,38 +1270,38 @@ function renderCardTemplate(tplId, fields) {
     const glow = ctx.createRadialGradient(W * 0.85, -40, 40, W * 0.85, -40, 620);
     glow.addColorStop(0, 'rgba(232,211,160,.10)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(200,162,91,.45)'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = hexA(accent, .45); ctx.lineWidth = 1.5;
     rr(ctx, 8, 8, W - 16, H - 16, 12); ctx.stroke();
-    ctx.strokeStyle = 'rgba(200,162,91,.08)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = hexA(accent, .08); ctx.lineWidth = 1;
     rr(ctx, 18, 18, W - 36, H - 36, 10); ctx.stroke();
-    ctx.strokeStyle = 'rgba(200,162,91,.75)'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = hexA(accent, .75); ctx.lineWidth = 1.5;
     rr(ctx, 84, 66, 46, 46, 6); ctx.stroke();
-    yh('云', 107, 97, 28, '600', '#D6B476', '"KaiTi","STKaiti",serif');
+    if (!o.logo) yh('云', 107, 97, 28, '600', accentLight, '"KaiTi","STKaiti",serif');
     ctx.save(); ctx.letterSpacing = '4px';
-    yh('BEANBEANMOUSE', 910, 92, 13, '500', '#C8A25B', 'Georgia, serif');
+    yh('BEANBEANMOUSE', 910, 92, 13, '500', accent, 'Georgia, serif');
     ctx.restore();
     const ng = ctx.createLinearGradient(84, 200, 700, 290);
-    ng.addColorStop(0, '#F6E9C8'); ng.addColorStop(0.4, '#D8B877'); ng.addColorStop(0.7, '#8A6A2F'); ng.addColorStop(1, '#E8D3A0');
-    ctx.font = '600 66px "KaiTi","STKaiti",serif';
+    ng.addColorStop(0, hexMix(accent, '#FFFFFF', .6)); ng.addColorStop(0.4, accent); ng.addColorStop(0.7, accentDark); ng.addColorStop(1, hexMix(accent, '#FFFFFF', .35));
+    ctx.font = '600 66px ' + nf;
     ctx.fillStyle = ng; ctx.fillText(name, 84, 258);
     ctx.save(); ctx.letterSpacing = '5px';
     yh((title || '').toUpperCase(), 84, 296, 12, '500', '#A99F8C', 'Georgia, serif');
     ctx.restore();
     const rg = ctx.createLinearGradient(84, 0, 700, 0);
-    rg.addColorStop(0, 'rgba(200,162,91,.75)'); rg.addColorStop(1, 'rgba(200,162,91,0)');
+    rg.addColorStop(0, hexA(accent, .75)); rg.addColorStop(1, hexA(accent, 0));
     ctx.strokeStyle = rg; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(84, 330); ctx.lineTo(700, 330); ctx.stroke();
     yh(company || 'COMPANY', 84, 378, 22, '600', '#EFE8D6', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 84, 404, 11, '400', '#8E8574', 'Georgia, serif');
     yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 470, 13, '400', '#C9C0AC', '"Segoe UI", Arial');
-    ctx.strokeStyle = 'rgba(200,162,91,.25)';
+    ctx.strokeStyle = hexA(accent, .25);
     ctx.beginPath(); ctx.moveTo(84, 528); ctx.lineTo(966, 528); ctx.stroke();
     yh(brand, 84, 556, 11, '400', '#7D7566', 'Georgia, serif');
   } else if (tplId === 'minimal-white') {
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
     yh('BEANBEANMOUSE', 84, 84, 12, '500', '#9A9A9A', 'Georgia, serif');
-    ctx.fillStyle = '#C8A25B'; ctx.beginPath(); ctx.arc(966, 78, 7, 0, Math.PI * 2); ctx.fill();
-    yh(name, 84, 226, 52, '600', '#161616', '"Microsoft YaHei","Segoe UI"');
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(966, 78, 7, 0, Math.PI * 2); ctx.fill();
+    yh(name, 84, 226, 52, '600', '#161616', nf);
     ctx.save(); ctx.letterSpacing = '4px';
     yh((title || '').toUpperCase(), 84, 260, 12, '500', '#A5A5A5', 'Georgia, serif');
     ctx.restore();
@@ -1265,10 +1325,10 @@ function renderCardTemplate(tplId, fields) {
     const glow = ctx.createRadialGradient(W * 0.9, -30, 30, W * 0.9, -30, 560);
     glow.addColorStop(0, 'rgba(64,150,255,.22)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#2E6FD8'; rr(ctx, 84, 60, 56, 30, 6); ctx.fill();
+    ctx.fillStyle = accent; rr(ctx, 84, 60, 56, 30, 6); ctx.fill();
     yh('BBM', 112, 81, 14, '700', '#FFFFFF', '"Segoe UI", Arial');
     yh('BEANBEANMOUSE', 966, 81, 12, '500', '#9CC4FF', 'Georgia, serif');
-    yh(name, 84, 228, 56, '700', '#FFFFFF', '"Microsoft YaHei","Segoe UI"');
+    yh(name, 84, 228, 56, '700', '#FFFFFF', nf);
     ctx.save(); ctx.letterSpacing = '3px';
     yh((title || '').toUpperCase(), 84, 262, 12, '500', '#9CC4FF', 'Georgia, serif');
     ctx.restore();
@@ -1283,31 +1343,35 @@ function renderCardTemplate(tplId, fields) {
     const g = ctx.createLinearGradient(0, 0, W, H);
     g.addColorStop(0, '#F7F1E3'); g.addColorStop(0.55, '#F1E8D5'); g.addColorStop(1, '#EAE0C8');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#B3402A';
+    ctx.fillStyle = accent;
     ctx.save(); ctx.translate(914, 84); ctx.rotate(-0.03);
     ctx.fillRect(-26, -26, 52, 52);
     yh('印', 0, 12, 30, '600', '#F7F1E3', '"KaiTi","STKaiti",serif');
     ctx.restore();
     yh('杭州云帆', 84, 92, 20, '600', '#6B5544', '"KaiTi","STKaiti",serif');
-    yh(name, 84, 246, 58, '600', '#241D15', '"KaiTi","STKaiti",serif');
+    yh(name, 84, 246, 58, '600', '#241D15', nf);
     ctx.save(); ctx.letterSpacing = '3px';
     yh((title || '').toUpperCase(), 84, 282, 11, '500', '#8A7A66', 'Georgia, serif');
     ctx.restore();
     const rg = ctx.createLinearGradient(84, 0, 560, 0);
-    rg.addColorStop(0, '#B3402A'); rg.addColorStop(1, 'rgba(179,64,42,0)');
+    rg.addColorStop(0, accent); rg.addColorStop(1, hexA(accent, 0));
     ctx.strokeStyle = rg; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(84, 320); ctx.lineTo(560, 320); ctx.stroke();
     yh(company || 'COMPANY', 84, 368, 20, '600', '#2E2620', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 84, 394, 11, '400', '#8A7A66', 'Georgia, serif');
     yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 456, 14, '400', '#6B5544', '"Segoe UI", Arial');
-    ctx.strokeStyle = 'rgba(179,64,42,.2)';
+    ctx.strokeStyle = hexA(accent, .2);
     ctx.beginPath(); ctx.moveTo(84, 528); ctx.lineTo(966, 528); ctx.stroke();
     yh(brand + ' · 精工致远', 84, 556, 11, '400', '#9C8B74', 'Georgia, serif');
   } else {
     ctx.fillStyle = '#F4F1EC'; ctx.fillRect(0, 0, W, H);
     yh('BeanBeanMouse', 84, 90, 22, '600', '#3D2E1A', 'Georgia, serif');
-    yh(name, 84, 260, 56, '700', '#1F1F1F', '"Microsoft YaHei","Segoe UI"');
+    yh(name, 84, 260, 56, '700', '#1F1F1F', nf);
     yh(company || 'COMPANY', 84, 340, 20, '600', '#3D2E1A', '"Microsoft YaHei","Segoe UI"');
+  }
+  if (o.logo) {
+    const pos = tplId === 'classic-gold' ? [100, 84, 34] : [56, 56, 26];
+    await drawLogoImage(ctx, o.logo, pos[0], pos[1], pos[2]);
   }
   return c.toDataURL('image/png');
 }
@@ -1315,7 +1379,9 @@ async function applyCardTemplate(tplId) {
   const u = state.user;
   if (!u) return;
   const f = profileFieldsOf(u);
-  const dataUrl = renderCardTemplate(tplId, f);
+  const opts = cardOptsOf(u);
+  const dataUrl = await renderCardTemplate(tplId, f, opts);
+  saveCardOpts({ lastTpl: tplId });
   try {
     await api.profile.save({ businessCard: dataUrl, businessCardName: 'card-' + tplId + '.png' });
     toast('✓ ' + t('cardTemplateApplied'));
@@ -1328,6 +1394,10 @@ function renderProfileBody() {
   const f = profileFieldsOf(u);
   const pct = profileCompletenessOf(u);
   const level = pct >= 80 ? 'ok' : pct >= 50 ? 'mid' : 'low';
+  const opts = cardOptsOf(u);
+  const accentVal = opts.accent || '#8F5E0A';
+  const fontVal = opts.font || 'kai';
+  const logoName = opts.logoName || '';
   const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (f.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('');
   const card = businessCardOf();
   const cardPreviewHtml = card
@@ -1335,8 +1405,10 @@ function renderProfileBody() {
       + '<div class="flex gap-10"><a class="btn btn-sm" href="' + card + '" download="' + esc((state.user && state.user.businessCardName) || 'business-card') + '">' + t('downloadCard') + '</a>'
       + '<button type="button" class="btn btn-sm" data-action="card-remove">' + t('cardRemoveBtn') + '</button></div></div>'
     : '<p class="small muted">' + t('cardNoCard') + '</p>';
-  return '<div class="card panel"><div class="panel-head"><h2>👤 ' + t('profileTitle') + '</h2><span class="small muted">' + t('profileSub') + '</span></div>'
-    + '<div class="exp-level ' + level + '"><b>' + t('profileCompleteness') + '：' + pct + '%</b><span>' + (pct >= 80 ? t('exportReadyHigh') : pct >= 50 ? t('exportReadyMid') : t('exportReadyLow')) + '</span></div>'
+  return '<div class="profile-layout">'
+    + '<div class="card panel"><div class="panel-head"><h2>👤 ' + t('profileTitle') + '</h2></div>'
+    + '<div class="exp-level ' + level + '"><b>' + t('profileCompleteness') + '：' + pct + '%</b><span>' + (pct >= 80 ? t('exportReadyHigh') : pct >= 50 ? t('exportReadyMid') : t('exportReadyLow')) + '</span>'
+    + '<div class="profile-progress"><i style="width:' + pct + '%"></i></div></div>'
     + '<form data-form="profile-form" novalidate>'
     + '<div class="form-grid">'
     + '<div class="field"><label>' + t('contactName') + ' *</label><input class="input" name="name" value="' + esc(f.name) + '" required maxlength="80"></div>'
@@ -1351,7 +1423,8 @@ function renderProfileBody() {
     + '</div>'
     + '<button type="submit" class="btn btn-primary">' + t('profileSave') + '</button>'
     + '</form></div>'
-    + '<div class="card panel mt-20"><div class="panel-head"><h2>🪪 ' + t('cardUploadBtn') + '</h2><span class="small muted">' + t('cardAttachHint') + '</span></div>'
+    + '<div>'
+    + '<div class="card panel"><div class="panel-head"><h2>🪪 ' + t('cardUploadBtn') + '</h2><span class="small muted">' + t('cardAttachHint') + '</span></div>'
     + '<div class="field attach-field">'
     + '<input type="file" name="card" accept="image/jpeg,image/png,image/webp" data-attach-store="card">'
     + '<div class="card-preview">' + cardPreviewHtml + '</div>'
@@ -1365,7 +1438,23 @@ function renderProfileBody() {
     ).join('')
     + '<div class="tpl-card custom"><span class="tpl-swatch custom">✦</span><b>' + t('cardCustomTitle') + '</b>'
     + '<span class="small muted">' + t('cardCustomHint') + '</span></div>'
-    + '</div></div>';
+    + '</div>'
+    + '<div class="card-customize"><h4>🎛️ ' + t('cardCustomizeTitle') + '</h4>'
+    + '<div class="form-grid">'
+    + '<div class="field"><label>' + t('cardAccentColor') + '</label><input type="color" class="input" name="cardAccent" value="' + accentVal + '"></div>'
+    + '<div class="field"><label>' + t('cardFont') + '</label><select class="select" name="cardFont">'
+    + '<option value="kai"' + (fontVal === 'kai' ? ' selected' : '') + '>' + t('cardFontKai') + '</option>'
+    + '<option value="serif"' + (fontVal === 'serif' ? ' selected' : '') + '>' + t('cardFontSerif') + '</option>'
+    + '<option value="sans"' + (fontVal === 'sans' ? ' selected' : '') + '>' + t('cardFontSans') + '</option></select></div>'
+    + '<div class="field"><label>' + t('cardLogoUpload') + '</label><input type="file" class="input" accept="image/png,image/jpeg,image/webp" data-card-opt="logo"></div>'
+    + '</div>'
+    + '<div class="flex gap-10" style="flex-wrap:wrap;align-items:center">'
+    + '<button type="button" class="btn btn-primary" data-action="card-apply-custom">' + t('cardApplyCustom') + '</button>'
+    + (logoName ? '<span class="small muted">🖼️ ' + esc(logoName) + '</span>' : '')
+    + '</div></div>'
+    + '</div></div>'
+    + '</div>'
+    + '</div>';
 }
 const card3d = { rx: -6, ry: 0, flipped: false };
 function card3dTransform() {
@@ -1463,6 +1552,9 @@ function registerFormHtml() {
   return '<div class="modal-head"><h3>' + t('regTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body"><form data-form="register-form" class="full" novalidate>'
     + '<input type="text" name="homepage" style="position:absolute;left:-9999px;opacity:0" tabindex="-1" autocomplete="off">'
+    + (window.__TURNSTILE_KEY__
+      ? '<div class="field"><div class="cf-turnstile" data-sitekey="' + esc(window.__TURNSTILE_KEY__) + '"></div><input type="hidden" name="turnstileToken"></div>'
+      : '')
     + '<div class="field"><label>' + t('regName') + ' *</label><input class="input" name="name" required maxlength="80"></div>'
     + '<div class="field"><label>' + t('regEmail') + ' *</label><input class="input" type="email" name="email" required></div>'
     + '<div class="field"><label>' + t('regPassword') + ' *</label><input class="input" type="password" name="password" required minlength="8"></div>'
@@ -1900,7 +1992,8 @@ async function submitRegister(form) {
     businessScope: String(fd.get('businessScope') || '').trim(),
     accountType: fd.get('accountType') === 'individual' ? 'individual' : 'company',
     jobTitle: String(fd.get('jobTitle') || '').trim(),
-    bizName: String(fd.get('bizName') || '').trim()
+    bizName: String(fd.get('bizName') || '').trim(),
+    turnstileToken: String(fd.get('turnstileToken') || '')
   };
   try {
     const r = await api.auth.register(payload);
@@ -3015,6 +3108,17 @@ function orderAfterSalesPanel(o) {
 /* ---------- 卖家推广 / 管理员推广审核 ---------- */
 /* ---------- 站内消息与通知（v0.2） ---------- */
 const convAutoReplied = {};
+let chatLiveUnsub = null;
+function bindChatLive(convId) {
+  if (api.config.mode !== 'http') return;
+  if (chatLiveUnsub) chatLiveUnsub();
+  chatLiveUnsub = api.messages.live(convId, ev => {
+    if (ev && (ev.type === 'message' || ev.type === 'read') && ev.conversationId === convId) {
+      refreshConvReaders(convId);
+      renderPage();
+    }
+  });
+}
 function pushNotification({ toUserId, title, body, link }) {
   if (!toUserId) return;
   state.notifications = state.notifications || [];
@@ -3118,6 +3222,7 @@ function renderMessagesBody(convId) {
       api.messages.markRead(active.id, last).catch(() => {});
     }
     refreshConvReaders(active.id);
+    bindChatLive(active.id);
   }
   const listHtml = convs.length
     ? convs.map(c => {
@@ -3269,7 +3374,9 @@ async function reviewPromotion(id, action) {
 
 function renderLogin() {
   document.title = t('login') + ' · BeanBeanMouse';
-  return '<div class="container"><div class="login-wrap">'
+  return '<div class="container login-page"><div class="login-card">'
+    + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-vector.png" alt="BeanBeanMouse">'
+    + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
     + '<h1>' + t('loginTitle') + '</h1>'
     + '<p class="sub">' + t('loginDesc') + '</p>'
     + '<div class="role-cards">'
@@ -3277,20 +3384,24 @@ function renderLogin() {
     + '<div class="role-ico" style="background:linear-gradient(135deg,#2563EB,#7C3AED)">🛒</div>'
     + '<h3>' + t('asBuyer') + '</h3>'
     + '<p>' + t('asBuyerDesc') + '</p>'
+    + '<span class="role-arrow">→</span>'
     + '</div>'
     + '<div class="role-card" data-action="login-role" data-role="seller">'
     + '<div class="role-ico" style="background:linear-gradient(135deg,#F59E0B,#DC2626)">🏭</div>'
     + '<h3>' + t('asSeller') + '</h3>'
     + '<p>' + t('asSellerDesc') + '</p>'
+    + '<span class="role-arrow">→</span>'
     + '</div>'
     + '<div class="role-card" data-action="login-role" data-role="admin">'
     + '<div class="role-ico" style="background:linear-gradient(135deg,#0F2145,#1D4ED8)">🛡️</div>'
     + '<h3>' + t('asAdmin') + '</h3>'
     + '<p>' + t('adminDesc') + '</p>'
+    + '<span class="role-arrow">→</span>'
     + '</div>'
     + '</div>'
     + '<button type="button" class="btn btn-lg guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
-    + '<button type="button" class="btn btn-lg" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
+    + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
+    + '<div class="login-trust"><span>🔒 ' + t('loginTrust1') + '</span><span>🌐 ' + t('loginTrust2') + '</span><span>🛡️ ' + t('loginTrust3') + '</span></div>'
     + '<div class="login-note">💡 ' + t('loginNote') + '</div>'
     + '</div></div>';
 }
@@ -3306,8 +3417,12 @@ function renderDashboard(path) {
 }
 
 function sideNav(items, activeTab) {
+  const u = state.user;
   return '<aside class="card dash-side">'
-    + '<div class="side-user"><div class="name">' + esc(state.user.name) + '</div><div class="sub">' + esc((state.user.role === 'seller' ? langObj(sellerById(state.user.sellerId)).company : state.user.buyerCompany || state.user.email)) + '</div></div>'
+    + '<div class="side-user"><span class="side-avatar">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span>'
+    + '<div class="side-user-txt"><div class="name">' + esc(u.name) + '</div>'
+    + '<div class="sub">' + esc((u.role === 'seller' ? langObj(sellerById(u.sellerId)).company : u.buyerCompany || u.email)) + '</div></div>'
+    + '<span class="side-role">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span></div>'
     + '<nav class="side-nav">'
     + items.map(it =>
       '<a href="#/dashboard/' + it.tab + '" data-nav="/dashboard/' + it.tab + '" class="' + (activeTab === it.tab ? 'active' : '') + '">' + icon(it.icon) + it.label + (it.count ? '<span class="badge-dot">' + it.count + '</span>' : '') + '</a>'
@@ -3432,7 +3547,18 @@ function renderAdminDash(path) {
   else if (activeTab === 'users') body = adminUsersBody();
   else if (activeTab === 'logs') body = adminLogsBody();
   else body = adminOverviewBody();
-  return '<div class="container page"><div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
+  const summary = [
+    [t('pendingLabel'), pendingCount, 'pend'],
+    [t('pendingVerify'), verifyCount, 'new'],
+    [t('adminAfterSales'), (state.afterSales || []).filter(c => c.status === 'arbitrating').length, 'new'],
+    [t('adminFeedback'), (state.suggestions || []).filter(s => s.status === 'new').length, 'pend']
+  ];
+  return '<div class="container page"><div class="page-head admin-head">'
+    + '<div><h1>🛡️ ' + t('adminPanel') + '</h1><p class="sub">' + t('adminDesc') + ' · ' + new Date().toLocaleDateString(uiLocale()) + '</p></div>'
+    + '<div class="admin-summary">' + summary.map(([label, n, cls]) =>
+      '<span class="admin-summary-chip"><b>' + n + '</b> ' + esc(label) + (n ? ' <i class="dot ' + cls + '"></i>' : '') + '</span>').join('') + '</div>'
+    + '</div>'
+    + '<div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
 }
 
 function adminStatCard(cls, iconName, n, label) {

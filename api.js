@@ -78,11 +78,11 @@ function mockSave(st) { apiStorage.setState(st); apiStorage.notifyChanged(); }
  * 服务：账号与认证
  * ============================================================ */
 api.auth = {
-  async register({ email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName } = {}) {
+  async register({ email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName, turnstileToken } = {}) {
     if (api.config.mode === 'http') {
       return apiRequest('/auth/register', {
         method: 'POST',
-        body: { email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName }
+        body: { email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName, turnstileToken }
       });
     }
     await apiDelay();
@@ -688,6 +688,34 @@ api.messages = {
     st.convReadAt[conversationId][u.id] = lastReadAt || Date.now();
     mockSave(st);
     return apiClone({ conversationId, userId: u.id, lastReadAt: st.convReadAt[conversationId][u.id] });
+  },
+  /* 实时订阅：http 模式经 WS 接收新消息 / 已读事件（mock 模式返回空订阅） */
+  live(conversationId, handler) {
+    if (api.config.mode !== 'http' || typeof WebSocket === 'undefined') return () => {};
+    const base = String(api.config.baseUrl || '').replace(/\/+$/, '').replace(/^http/, 'ws');
+    const st = mockState();
+    const token = st.token || (st.user && st.user.token) || '';
+    let ws;
+    try {
+      ws = new WebSocket(base + '/ws?token=' + encodeURIComponent(token));
+    } catch (e) { return () => {}; }
+    let opened = false;
+    ws.onopen = () => {
+      opened = true;
+      try { ws.send(JSON.stringify({ type: 'join', conversationId })); } catch (e) { /* 忽略 */ }
+    };
+    ws.onmessage = e => {
+      try {
+        const m = JSON.parse(e.data);
+        if (handler) handler(m);
+      } catch (err) { /* 忽略非 JSON 帧 */ }
+    };
+    return () => {
+      try {
+        if (opened) ws.send(JSON.stringify({ type: 'join', conversationId: '' }));
+        ws.close();
+      } catch (e) { /* 忽略 */ }
+    };
   }
 };
 

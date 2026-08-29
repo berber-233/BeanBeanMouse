@@ -756,7 +756,7 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   await page.click('[data-role="buyer"]');
   await page.waitForTimeout(300);
-  check('admin: frozen user login blocked', await page.locator('.login-wrap').isVisible());
+  check('admin: frozen user login blocked', await page.locator('.login-card').isVisible());
 
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));

@@ -2,6 +2,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { s3Enabled, putFile as s3Put, getFile as s3Get, deleteFile as s3Del } from './storage-s3.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -43,12 +44,22 @@ export function validateFile(mime, buf) {
   return { ext };
 }
 
-export function putFile(key, buf) {
+export async function putFile(key, buf) {
+  if (s3Enabled) return s3Put(key, buf);
   writeFileSync(path.join(UPLOAD_DIR, key), buf);
+  return true;
 }
 
-export function getFile(key) {
+export async function getFile(key) {
+  if (s3Enabled) return s3Get(key);
   const p = path.join(UPLOAD_DIR, key);
   if (!existsSync(p)) return null;
   return readFileSync(p);
+}
+
+export async function deleteFile(key) {
+  if (s3Enabled) return s3Del(key);
+  const p = path.join(UPLOAD_DIR, key);
+  if (existsSync(p)) writeFileSync(p, Buffer.alloc(0)); // 本地驱动：置空占位，避免误删
+  return true;
 }

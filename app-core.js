@@ -673,6 +673,14 @@ function handleAction(el) {
     }
     case 'card-remove': runBusy(el, removeBusinessCard); break;
     case 'card-template': runBusy(el, () => applyCardTemplate(el.dataset.tpl)); break;
+    case 'card-apply-custom': {
+      const color = document.querySelector('input[name="cardAccent"]');
+      const font = document.querySelector('select[name="cardFont"]');
+      saveCardOpts({ accent: color ? color.value : '', font: font ? font.value : '' });
+      const o = cardOptsOf(state.user);
+      runBusy(el, () => applyCardTemplate(o.lastTpl || 'luxe-ink'));
+      break;
+    }
     case 'feedback-status': runBusy(el, () => api.suggestions.setStatus(id, { status: el.dataset.status }).then(() => {
       const sug = (state.suggestions || []).find(s => s.id === id);
       if (sug && sug.userId) pushNotification({ toUserId: sug.userId, title: t('notifFeedback'), body: t('feedbackDone'), link: '/feedback' });

@@ -88,8 +88,19 @@
   修复了 RTL（阿拉伯语）下跳转链接导致全站横向溢出的问题。
 - **CI 前端回归**：`playwright-core` 加入 devDependencies，测试脚本浏览器路径改为
   环境变量可覆盖 + 多系统回退；GitHub Actions 新增 `frontend-tests` job（ubuntu 自带 Chrome）。
+- **实时消息**：后端 WS `read` 广播 + REST 消息/已读广播；前端 http 模式 WS 客户端联调完成
+  （`api.messages.live`，切 `http` 模式即用）。
+- **无障碍**：WCAG 对比度令牌修正（主色/危险色/弱化色加深、按钮与角标对比达标）、
+  聚焦可见性、RTL 修复。
+- **对象存储**：零依赖 S3/R2 适配器（`backend/src/storage-s3.mjs`，SigV4 + 驱动切换，
+  填齐 `S3_*` 即启用）；`backend/.env.example` 已含全部凭据位。
+- **名片自定义**：模板生成支持主色 / 姓名三种字体 / Logo 上传（Canvas 合成），
+  个人中心「自定义设置」面板一键生成。
+- **Turnstile / 部署 / SEO**：注册人机验证接口与前端占位（`TURNSTILE_SECRET` 就绪即生效）；
+  `docs/deploy-backend.md` 部署手册（VPS/Docker + Pages Functions 路线）；
+  `scripts/gen-sitemap.mjs` 生成 sitemap + `docs/seo-submission.md` 收录清单。
 - 版本：页脚与 `package.json` 保持 **0.2.0**；测试 `verify` 237 项、`api-smoke` 32 项、
-  后端 126 项全绿。
+  后端 128 项全绿。
 
 ## v0.1 新增（2026-08-21）
 
@@ -148,7 +159,7 @@
 - 前端数据层 [api.js](api.js)：页面统一通过 `window.api` 访问数据，
   当前为 mock（localStorage 模拟），接真实后端时改 `API_CONFIG.mode='http'` 即可
 
-验证：`test/api-smoke.cjs`（32 项断言）+ `test/verify.cjs`（237 项页面回归）；后端 `backend/test/api.test.mjs`（126 项断言）。
+验证：`test/api-smoke.cjs`（32 项断言）+ `test/verify.cjs`（237 项页面回归）；后端 `backend/test/api.test.mjs`（128 项断言）。
 
 ## 说明
 

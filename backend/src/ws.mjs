@@ -7,6 +7,13 @@ import { verifyToken } from './auth.mjs';
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const clients = new Map(); // socket -> { userId, conversationId }
 
+export function wsBroadcast(conversationId, payload) {
+  const out = JSON.stringify(payload);
+  for (const [s, m] of clients) {
+    if (m.conversationId === conversationId) s.write(encodeFrame(0x1, out));
+  }
+}
+
 function acceptKey(key) {
   return createHash('sha1').update(key + WS_GUID).digest('base64');
 }
@@ -124,12 +131,8 @@ function handleFrame(socket, meta, frame) {
       'INSERT INTO messages (id, conversation_id, sender_id, content, created_at) VALUES (?,?,?,?,?)',
       id, convId, meta.userId, String(msg.text), Date.now()
     );
-    const out = JSON.stringify({ type: 'message', id, conversationId: convId, senderId: meta.userId, text: String(msg.text), createdAt: Date.now() });
-    for (const [s, m] of clients) {
-      if (s !== socket && m.conversationId === convId) {
-        s.write(encodeFrame(0x1, out));
-      }
-    }
-    socket.write(encodeFrame(0x1, out)); // 回执给发送者
+    const payload = { type: 'message', id, conversationId: convId, senderId: meta.userId, text: String(msg.text), createdAt: Date.now() };
+    wsBroadcast(convId, payload);
+    socket.write(encodeFrame(0x1, JSON.stringify(payload))); // 回执给发送者
   }
 }

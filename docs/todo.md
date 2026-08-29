@@ -145,5 +145,33 @@
 - [x] 测试：前端 verify 237 项、API 冒烟 32 项、后端 126 项全绿。
 
 ### 待办
-- [ ] 前端 http 模式 WS 推送客户端联调（当前已读/消息走 REST，实时推送待接）。
-- [ ] WCAG 完整对比度审计与焦点可见性抽查。
+- [x] 前端 http 模式 WS 推送客户端联调（`api.messages.live`，2026-08-30 完成）。
+- [x] WCAG 对比度令牌修正与焦点可见性（2026-08-30 完成；完整 AAA 级审计可后续做）。
+
+## 九、2026-08-30（前 4 项解决 + 6/7/10 就绪）
+
+### 已完成
+- [x] **消息实时性（第 1 项）**：后端 REST 消息/已读广播 + WS `read` 广播；
+  前端 `api.messages.live` WS 客户端，切 `http` 模式即用。
+- [x] **无障碍（第 2 项）**：WCAG 对比度令牌修正（`--primary #8F5E0A`、`--danger #B03535`、
+  `--muted #6F5C3E`、成功绿文字 #126A33、页脚灰字、帮助角标），聚焦可见性保留。
+- [x] **对象存储（第 3 项）**：`storage-s3.mjs` 零依赖 SigV4 适配器 + 驱动切换
+  （`STORAGE_DRIVER` 由 `S3_*` 环境变量自动启用）；上传/读取改 async。
+- [x] **名片模板自定义（第 4 项）**：主色 / 楷体·衬线·无衬线字体 / Logo 上传，
+  `renderCardTemplate(tplId, fields, opts)` 支持自定义，个人中心一键生成。
+- [x] **Turnstile（第 6 项就绪）**：`/verify-turnstile` + 注册强制校验 +
+  前端占位（无密钥时自动跳过）；`TURNSTILE_SECRET` 填上即生效。
+- [x] **部署手册（第 7 项就绪）**：`docs/deploy-backend.md`（VPS/Docker + Pages Functions 路线 +
+  环境清单 + systemd 示例）。
+- [x] **SEO 收录（第 10 项就绪）**：`scripts/gen-sitemap.mjs`（33 条 URL）+ 
+  `docs/seo-submission.md`（Google/Bing/百度提交流程与注意点）。
+- [x] 测试：前端 verify 237、API 冒烟 32、后端 128 全绿。
+
+### 剩余待办
+- 支付 / 收汇与佣金结算（完成度 98% 后 + 收款主体）。
+- 真实 SMTP / DeepL / Turnstile / R2 上线：凭据填好后按手册走一遍联调。
+- 后端正式部署（按 `docs/deploy-backend.md` 执行）。
+- 真实保险商、合同模板法务审定、电子签章。
+- 商标检索、海外主体、冷启动选品。
+- 搜索引擎收录提交（按 `docs/seo-submission.md` 执行）。
+- 名片水印正式版服务端合成（对象存储边缘）。
