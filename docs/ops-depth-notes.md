@@ -94,5 +94,15 @@
 
 ## 12. 测试与版本（v0.2）
 
-- `test/api-smoke.cjs`：30 项；`test/verify.cjs`：226 项；后端 107 项；零页面报错。
+- `test/api-smoke.cjs`：31 项；`test/verify.cjs`：228 项；后端 107 项；零页面报错。
 - 版本：页脚与 `package.json` 0.2.0。
+
+## 13. 名片模板（v0.2 追加）
+
+- 预设：`CARD_TEMPLATES`（classic-gold / luxe-ink / minimal-white / modern-blue / oriental-ink），
+  个人中心「名片模板」区展示 5 套 + 自定义。
+- 生成：`renderCardTemplate(tplId, profileFields)` 用 Canvas 按模板绘制 1050×600 名片
+  （含金色渐变、印章、网格等细节），`api.profile.save` 落库为 `businessCard`；
+  对方查看 / 下载仍走 `watermarkImage` 水印流程。
+- 自定义：沿用「上传自己的名片图片」路径（Logo / 配色 / 字体 / 排版自由）。
+- 选型图：`screenshots/business-card-templates.png`（5 套 + 自定义预览）。

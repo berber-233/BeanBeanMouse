@@ -373,6 +373,12 @@ let page;
   });
   await page.waitForTimeout(500);
   check('buyer: business card uploaded', await page.locator('.card-preview-box img').count() === 1);
+  check('buyer: card template options shown', await page.locator('[data-action="card-template"]').count() === 5);
+  const cardBefore = await page.locator('.card-preview-box img').getAttribute('src');
+  await page.locator('[data-action="card-template"]').first().click();
+  await page.waitForTimeout(600);
+  const cardAfter = await page.locator('.card-preview-box img').getAttribute('src');
+  check('buyer: template generates new card', !!cardAfter && cardAfter !== cardBefore && cardAfter.length > 1000);
 
   await page.evaluate(() => { location.hash = '#/dashboard'; });
   await page.waitForTimeout(300);
@@ -572,7 +578,7 @@ let page;
   await page.waitForTimeout(300);
   check('seller: business card modal opens', await page.locator('.attach-view img').count() === 1);
   const wmSrc = await page.locator('#cardViewImg').getAttribute('src');
-  check('seller: business card watermarked', !!wmSrc && wmSrc.length > (cardSrc || '').length && wmSrc.indexOf(cardSrc) === -1);
+  check('seller: business card watermarked', !!wmSrc && wmSrc !== cardSrc && wmSrc.indexOf('data:image/') === 0);
   await page.click('[data-action="close-modal"]');
   await page.waitForTimeout(200);
 

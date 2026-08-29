@@ -238,6 +238,12 @@ const { chromium } = require('playwright-core');
       return list.some(x => x.id === r.id) && updated.status === 'done';
     }));
 
+  await run('templates.list returns presets', async () =>
+    page.evaluate(async () => {
+      const r = await api.templates.list();
+      return Array.isArray(r) && r.length >= 5 && r.some(t => t.id === 'luxe-ink');
+    }));
+
   console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
   const failed = results.filter(([, ok]) => !ok).length;
   console.log('PAGE ERRORS: ' + JSON.stringify(errors));

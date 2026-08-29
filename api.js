@@ -1228,5 +1228,16 @@ api.profile = {
   }
 };
 
+/* ============================================================
+ * 服务：名片模板（预设模板 + 自定义上传）
+ * ============================================================ */
+api.templates = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/card-templates');
+    await apiDelay();
+    return apiClone(typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []);
+  }
+};
+
 /* 暴露给页面与控制台测试 */
 window.api = api;

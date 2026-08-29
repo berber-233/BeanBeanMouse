@@ -642,6 +642,7 @@ function handleAction(el) {
       break;
     }
     case 'card-remove': runBusy(el, removeBusinessCard); break;
+    case 'card-template': runBusy(el, () => applyCardTemplate(el.dataset.tpl)); break;
     case 'feedback-status': runBusy(el, () => api.suggestions.setStatus(id, { status: el.dataset.status }).then(() => { toast(t('feedbackMarkSeenDone')); renderPage(); })); break;
     case 'dismiss-trial': {
       try { localStorage.setItem(TRIAL_DISMISS_KEY, '1'); } catch (e) { /* 忽略 */ }
@@ -1973,6 +1974,182 @@ function watermarkImage(dataUrl, name) {
     img.src = dataUrl;
   });
 }
+function templateCompanyEn(company) {
+  const map = {
+    '杭州云帆机械有限公司': 'HANGZHOU YUNFAN MACHINERY CO., LTD.',
+    '深圳新星电子科技有限公司': 'SHENZHEN NOVA ELECTRONICS CO., LTD.',
+    'Müller GmbH': 'MÜLLER GMBH',
+    'Muller GmbH': 'MÜLLER GMBH'
+  };
+  return map[String(company || '').trim()] || 'BEANBEANMOUSE MEMBER';
+}
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function renderCardTemplate(tplId, fields) {
+  const W = 1050, H = 600;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const name = String(fields.name || '').trim() || 'YOUR NAME';
+  const title = String(fields.jobTitle || '').trim() || 'BUSINESS';
+  const company = String(fields.company || '').trim() || String(fields.bizName || '').trim();
+  const companyEn = templateCompanyEn(company);
+  const contact = String(fields.contact || '').trim();
+  const email = state.user ? state.user.email || '' : '';
+  const address = fields.country ? countryName(fields.country) : '';
+  const brand = 'BeanBeanMouse · beanbeanmouse.com';
+  const yh = (str, x, y, size, weight, color, family) => {
+    ctx.font = weight + ' ' + size + 'px ' + family;
+    ctx.fillStyle = color;
+    ctx.fillText(str, x, y);
+  };
+  if (tplId === 'classic-gold') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#FFFDF6'); g.addColorStop(0.6, '#FFF6E0'); g.addColorStop(1, '#FBEBC9');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const band = ctx.createLinearGradient(0, 0, 0, H);
+    band.addColorStop(0, '#E8A33D'); band.addColorStop(1, '#8A5A0B');
+    ctx.fillStyle = band; ctx.fillRect(0, 0, 14, H);
+    const lg = ctx.createLinearGradient(70, 54, 130, 114);
+    lg.addColorStop(0, '#C8860B'); lg.addColorStop(1, '#8A5A0B');
+    ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(100, 84, 34, 0, Math.PI * 2); ctx.fill();
+    yh('YF', 100, 90, 22, '700', '#FFFFFF', '"Segoe UI", Arial');
+    yh(company || 'COMPANY', 152, 78, 26, '700', '#4A2E08', '"Microsoft YaHei","Segoe UI"');
+    yh(companyEn, 152, 102, 13, '500', '#8A7654', 'Georgia, serif');
+    yh(name, 84, 230, 52, '700', '#2E1F0A', '"Microsoft YaHei","Segoe UI"');
+    yh(title, 84 + ctx.measureText(name).width + 28, 228, 18, '600', '#C8860B', '"Microsoft YaHei","Segoe UI"');
+    ctx.strokeStyle = 'rgba(200,134,11,.55)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(84, 272); ctx.lineTo(560, 272); ctx.stroke();
+    ['E  ' + (email || '—'), 'T  ' + (contact || '—'), 'W  www.beanbeanmouse.com', 'A  ' + (address || '—')].forEach((t, i) => yh(t, 84, 312 + i * 38, 16, '500', '#5A4A2E', '"Segoe UI", Arial'));
+    ctx.strokeStyle = 'rgba(200,134,11,.25)';
+    ctx.beginPath(); ctx.moveTo(84, 540); ctx.lineTo(966, 540); ctx.stroke();
+    yh(brand, 84, 566, 13, '500', '#8A7654', 'Georgia, serif');
+  } else if (tplId === 'luxe-ink') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#1A1D25'); g.addColorStop(0.46, '#20242E'); g.addColorStop(1, '#151820');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W * 0.85, -40, 40, W * 0.85, -40, 620);
+    glow.addColorStop(0, 'rgba(232,211,160,.10)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(200,162,91,.45)'; ctx.lineWidth = 1.5;
+    rr(ctx, 8, 8, W - 16, H - 16, 12); ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,162,91,.08)'; ctx.lineWidth = 1;
+    rr(ctx, 18, 18, W - 36, H - 36, 10); ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,162,91,.75)'; ctx.lineWidth = 1.5;
+    rr(ctx, 84, 66, 46, 46, 6); ctx.stroke();
+    yh('云', 107, 97, 28, '600', '#D6B476', '"KaiTi","STKaiti",serif');
+    ctx.save(); ctx.letterSpacing = '4px';
+    yh('BEANBEANMOUSE', 910, 92, 13, '500', '#C8A25B', 'Georgia, serif');
+    ctx.restore();
+    const ng = ctx.createLinearGradient(84, 200, 700, 290);
+    ng.addColorStop(0, '#F6E9C8'); ng.addColorStop(0.4, '#D8B877'); ng.addColorStop(0.7, '#8A6A2F'); ng.addColorStop(1, '#E8D3A0');
+    ctx.font = '600 66px "KaiTi","STKaiti",serif';
+    ctx.fillStyle = ng; ctx.fillText(name, 84, 258);
+    ctx.save(); ctx.letterSpacing = '5px';
+    yh((title || '').toUpperCase(), 84, 296, 12, '500', '#A99F8C', 'Georgia, serif');
+    ctx.restore();
+    const rg = ctx.createLinearGradient(84, 0, 700, 0);
+    rg.addColorStop(0, 'rgba(200,162,91,.75)'); rg.addColorStop(1, 'rgba(200,162,91,0)');
+    ctx.strokeStyle = rg; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(84, 330); ctx.lineTo(700, 330); ctx.stroke();
+    yh(company || 'COMPANY', 84, 378, 22, '600', '#EFE8D6', '"Microsoft YaHei","Segoe UI"');
+    yh(companyEn, 84, 404, 11, '400', '#8E8574', 'Georgia, serif');
+    yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 470, 13, '400', '#C9C0AC', '"Segoe UI", Arial');
+    ctx.strokeStyle = 'rgba(200,162,91,.25)';
+    ctx.beginPath(); ctx.moveTo(84, 528); ctx.lineTo(966, 528); ctx.stroke();
+    yh(brand, 84, 556, 11, '400', '#7D7566', 'Georgia, serif');
+  } else if (tplId === 'minimal-white') {
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+    yh('BEANBEANMOUSE', 84, 84, 12, '500', '#9A9A9A', 'Georgia, serif');
+    ctx.fillStyle = '#C8A25B'; ctx.beginPath(); ctx.arc(966, 78, 7, 0, Math.PI * 2); ctx.fill();
+    yh(name, 84, 226, 52, '600', '#161616', '"Microsoft YaHei","Segoe UI"');
+    ctx.save(); ctx.letterSpacing = '4px';
+    yh((title || '').toUpperCase(), 84, 260, 12, '500', '#A5A5A5', 'Georgia, serif');
+    ctx.restore();
+    ctx.strokeStyle = '#E7E7E7'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(84, 300); ctx.lineTo(966, 300); ctx.stroke();
+    yh(company || 'COMPANY', 84, 348, 20, '600', '#161616', '"Microsoft YaHei","Segoe UI"');
+    yh(companyEn, 84, 374, 11, '400', '#A5A5A5', 'Georgia, serif');
+    yh('E  ' + (email || '—'), 84, 428, 14, '400', '#777777', '"Segoe UI", Arial');
+    yh('T  ' + (contact || '—'), 84, 456, 14, '400', '#777777', '"Segoe UI", Arial');
+    yh('W  beanbeanmouse.com', 84, 484, 14, '400', '#777777', '"Segoe UI", Arial');
+    ctx.strokeStyle = '#EFEFEF';
+    ctx.beginPath(); ctx.moveTo(84, 532); ctx.lineTo(966, 532); ctx.stroke();
+    yh('beanbeanmouse.com', 84, 560, 11, '400', '#C0C0C0', 'Georgia, serif');
+  } else if (tplId === 'modern-blue') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#0B1B3A'); g.addColorStop(0.55, '#123060'); g.addColorStop(1, '#0A1730');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(120,180,255,.08)'; ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 44) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 44) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    const glow = ctx.createRadialGradient(W * 0.9, -30, 30, W * 0.9, -30, 560);
+    glow.addColorStop(0, 'rgba(64,150,255,.22)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#2E6FD8'; rr(ctx, 84, 60, 56, 30, 6); ctx.fill();
+    yh('BBM', 112, 81, 14, '700', '#FFFFFF', '"Segoe UI", Arial');
+    yh('BEANBEANMOUSE', 966, 81, 12, '500', '#9CC4FF', 'Georgia, serif');
+    yh(name, 84, 228, 56, '700', '#FFFFFF', '"Microsoft YaHei","Segoe UI"');
+    ctx.save(); ctx.letterSpacing = '3px';
+    yh((title || '').toUpperCase(), 84, 262, 12, '500', '#9CC4FF', 'Georgia, serif');
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(78,155,255,.45)'; ctx.lineWidth = 1;
+    rr(ctx, 84, 296, 620, 40, 8); ctx.stroke();
+    yh((company || 'COMPANY') + '  ·  ' + companyEn, 104, 321, 13, '500', '#D7E8FF', '"Segoe UI", Arial');
+    yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 452, 14, '400', '#B9D4FF', '"Segoe UI", Arial');
+    ctx.strokeStyle = 'rgba(120,180,255,.25)';
+    ctx.beginPath(); ctx.moveTo(84, 524); ctx.lineTo(966, 524); ctx.stroke();
+    yh('beanbeanmouse.com · 认证供应商', 84, 554, 11, '400', '#7FA8E0', 'Georgia, serif');
+  } else if (tplId === 'oriental-ink') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#F7F1E3'); g.addColorStop(0.55, '#F1E8D5'); g.addColorStop(1, '#EAE0C8');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#B3402A';
+    ctx.save(); ctx.translate(914, 84); ctx.rotate(-0.03);
+    ctx.fillRect(-26, -26, 52, 52);
+    yh('印', 0, 12, 30, '600', '#F7F1E3', '"KaiTi","STKaiti",serif');
+    ctx.restore();
+    yh('杭州云帆', 84, 92, 20, '600', '#6B5544', '"KaiTi","STKaiti",serif');
+    yh(name, 84, 246, 58, '600', '#241D15', '"KaiTi","STKaiti",serif');
+    ctx.save(); ctx.letterSpacing = '3px';
+    yh((title || '').toUpperCase(), 84, 282, 11, '500', '#8A7A66', 'Georgia, serif');
+    ctx.restore();
+    const rg = ctx.createLinearGradient(84, 0, 560, 0);
+    rg.addColorStop(0, '#B3402A'); rg.addColorStop(1, 'rgba(179,64,42,0)');
+    ctx.strokeStyle = rg; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(84, 320); ctx.lineTo(560, 320); ctx.stroke();
+    yh(company || 'COMPANY', 84, 368, 20, '600', '#2E2620', '"Microsoft YaHei","Segoe UI"');
+    yh(companyEn, 84, 394, 11, '400', '#8A7A66', 'Georgia, serif');
+    yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 456, 14, '400', '#6B5544', '"Segoe UI", Arial');
+    ctx.strokeStyle = 'rgba(179,64,42,.2)';
+    ctx.beginPath(); ctx.moveTo(84, 528); ctx.lineTo(966, 528); ctx.stroke();
+    yh(brand + ' · 精工致远', 84, 556, 11, '400', '#9C8B74', 'Georgia, serif');
+  } else {
+    ctx.fillStyle = '#F4F1EC'; ctx.fillRect(0, 0, W, H);
+    yh('BeanBeanMouse', 84, 90, 22, '600', '#3D2E1A', 'Georgia, serif');
+    yh(name, 84, 260, 56, '700', '#1F1F1F', '"Microsoft YaHei","Segoe UI"');
+    yh(company || 'COMPANY', 84, 340, 20, '600', '#3D2E1A', '"Microsoft YaHei","Segoe UI"');
+  }
+  return c.toDataURL('image/png');
+}
+async function applyCardTemplate(tplId) {
+  const u = state.user;
+  if (!u) return;
+  const f = profileFieldsOf(u);
+  const dataUrl = renderCardTemplate(tplId, f);
+  try {
+    await api.profile.save({ businessCard: dataUrl, businessCardName: 'card-' + tplId + '.png' });
+    toast('✓ ' + t('cardTemplateApplied'));
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
 function renderProfileBody() {
   const u = state.user;
   if (!u) return '';
@@ -2007,6 +2184,15 @@ function renderProfileBody() {
     + '<input type="file" name="card" accept="image/jpeg,image/png,image/webp" data-attach-store="card">'
     + '<div class="card-preview">' + cardPreviewHtml + '</div>'
     + '<p class="small muted">' + t('cardUploadHint') + '</p>'
+    + '</div></div>'
+    + '<div class="card panel mt-20"><div class="panel-head"><h2>🎨 ' + t('cardTemplatesTitle') + '</h2><span class="small muted">' + t('cardTemplatesSub') + '</span></div>'
+    + '<div class="tpl-grid">' + (typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []).map(tpl =>
+      '<div class="tpl-card"><span class="tpl-swatch" style="background:' + tpl.swatch + '"></span>'
+      + '<b>' + esc(state.lang === 'zh' ? tpl.zh : tpl.en) + '</b>'
+      + '<button type="button" class="btn btn-sm" data-action="card-template" data-tpl="' + tpl.id + '">' + t('cardTemplateApply') + '</button></div>'
+    ).join('')
+    + '<div class="tpl-card custom"><span class="tpl-swatch custom">✦</span><b>' + t('cardCustomTitle') + '</b>'
+    + '<span class="small muted">' + t('cardCustomHint') + '</span></div>'
     + '</div></div>';
 }
 async function openCardModal(i) {

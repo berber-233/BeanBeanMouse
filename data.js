@@ -1150,6 +1150,15 @@ const AFTER_SALES_TYPES = [
   { id: 'other', zh: '其他', en: 'Other' }
 ];
 
+/* 名片模板（供客户选择；自定义 = 上传自己的名片图片） */
+const CARD_TEMPLATES = [
+  { id: 'classic-gold', zh: '经典暖金', en: 'Classic Gold', swatch: 'linear-gradient(135deg,#FFF6E0,#FBEBC9)' },
+  { id: 'luxe-ink', zh: '低调奢华', en: 'Luxe Ink', swatch: 'linear-gradient(135deg,#20242E,#14171E)' },
+  { id: 'minimal-white', zh: '简约留白', en: 'Minimal White', swatch: 'linear-gradient(135deg,#FFFFFF,#F2F2F2)' },
+  { id: 'modern-blue', zh: '现代科技', en: 'Modern Tech', swatch: 'linear-gradient(135deg,#123060,#0A1730)' },
+  { id: 'oriental-ink', zh: '东方雅韵', en: 'Oriental Ink', swatch: 'linear-gradient(135deg,#F7F1E3,#EAE0C8)' }
+];
+
 const I18N = {
   zh: {
     home: '首页', marketplace: '产品市场', dashboard: '工作台', login: '登录', logout: '退出登录',
@@ -1426,6 +1435,9 @@ const I18N = {
     jobTitle: '职务 / 头衔', profileContact: '联系方式', profileBio: '简介 / 业务范围',
     cardUploadBtn: '上传名片', cardReplaceBtn: '更换名片', cardRemoveBtn: '移除名片', cardUploadHint: '支持 JPG / PNG，单个不超过 4MB',
     cardPreviewLabel: '我的名片', cardNoCard: '尚未上传名片', cardAttachHint: '发送询盘时可选择附上名片，让对方直接认识你。',
+    cardTemplatesTitle: '名片模板（可选）', cardTemplatesSub: '选择一套模板，用你的资料一键生成名片；也可上传自己的图片。',
+    cardTemplateApply: '生成', cardTemplateApplied: '已生成模板名片', cardCustomTitle: '自定义',
+    cardCustomHint: '上传你自己的名片图片，即可自定义 Logo、配色与排版。',
     identityLabel: '询盘身份', identityPublic: '身份对卖家可见', identityHidden: '匿名询盘（不显示身份）',
     sendCard: '随询盘发送名片', viewCard: '查看名片', downloadCard: '下载名片', cardSentTag: '已附名片',
     attachLabel: '附件（图片 / 压缩包）', attachHint: '支持 JPG / PNG / GIF / WebP 图片与 ZIP / RAR / 7Z 压缩包，单个不超过 4MB',
@@ -1718,6 +1730,9 @@ const I18N = {
     jobTitle: 'Job title', profileContact: 'Contact', profileBio: 'Bio / business scope',
     cardUploadBtn: 'Upload business card', cardReplaceBtn: 'Replace card', cardRemoveBtn: 'Remove card', cardUploadHint: 'JPG / PNG, up to 4MB',
     cardPreviewLabel: 'My business card', cardNoCard: 'No business card yet', cardAttachHint: 'You can attach your card to inquiries so the other party knows you instantly.',
+    cardTemplatesTitle: 'Card templates (optional)', cardTemplatesSub: 'Pick a template and generate your card from your profile, or upload your own image.',
+    cardTemplateApply: 'Generate', cardTemplateApplied: 'Template card generated', cardCustomTitle: 'Custom',
+    cardCustomHint: 'Upload your own card image for a fully custom logo, colors and layout.',
     identityLabel: 'Inquiry identity', identityPublic: 'Identity visible to seller', identityHidden: 'Anonymous inquiry (identity hidden)',
     sendCard: 'Attach business card', viewCard: 'View card', downloadCard: 'Download card', cardSentTag: 'Card attached',
     attachLabel: 'Attachments (images / archives)', attachHint: 'JPG / PNG / GIF / WebP images or ZIP / RAR / 7Z archives, up to 4MB each',
