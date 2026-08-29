@@ -629,6 +629,13 @@ let catReqId;
   const e = await req('/logistics/estimate', { method: 'POST', body: { mode: 'sea', weight: 500, volume: 3, container: 'LCL' } });
   check('logistics estimate -> ranges', e.status === 200 && e.data.currency === 'USD' && e.data.lo > 0 && e.data.hi >= e.data.lo);
 }
+{
+  await req('/conversations/conv-read-1/messages', { method: 'POST', token: buyerToken, body: { text: 'hello' } });
+  const rd = await req('/conversations/conv-read-1/read', { method: 'POST', token: buyerToken, body: { lastReadAt: Date.now() } });
+  check('conversation read receipt -> 200', rd.status === 200 && !!rd.data.lastReadAt);
+  const readers = await req('/conversations/conv-read-1/read', { method: 'GET', token: buyerToken });
+  check('conversation readers list', readers.status === 200 && Array.isArray(readers.data.readers) && readers.data.readers.length >= 1);
+}
 
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
 const failed = results.filter(([, ok]) => !ok).length;

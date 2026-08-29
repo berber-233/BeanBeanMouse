@@ -644,7 +644,7 @@ api.messages = {
     const conv = (st.conversations || {})[conversationId];
     return apiClone(conv ? conv.messages : []);
   },
-  async send(conversationId, text) {
+  async send(conversationId, text, opts = {}) {
     if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/messages', { method: 'POST', body: { text } });
     await apiDelay();
     const st = mockState();
@@ -653,11 +653,13 @@ api.messages = {
     if (!String(text || '').trim()) throw new Error('VALIDATION');
     st.conversations = st.conversations || {};
     const conv = (st.conversations[conversationId] = st.conversations[conversationId] || { id: conversationId, messages: [] });
+    const senderId = opts.sender || u.id;
+    const sender = (st.users || []).find(x => x.id === senderId) || {};
     const msg = {
       id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5),
       conversationId,
-      fromUserId: u.id,
-      fromName: u.name || '',
+      fromUserId: senderId,
+      fromName: opts.fromName || sender.name || u.name || '',
       text: String(text).trim().slice(0, 2000),
       attachments: [],
       at: Date.now()
@@ -665,6 +667,27 @@ api.messages = {
     conv.messages.push(msg);
     mockSave(st);
     return apiClone(msg);
+  },
+  async readers(conversationId) {
+    if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/read');
+    await apiDelay();
+    const st = mockState();
+    const rows = (st.convReadAt || {})[conversationId] || {};
+    return apiClone({ conversationId, readers: Object.entries(rows).map(([userId, lastReadAt]) => ({ userId, lastReadAt })) });
+  },
+  async markRead(conversationId, lastReadAt) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/read', { method: 'POST', body: { lastReadAt } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('UNAUTHORIZED');
+    st.convReadAt = st.convReadAt || {};
+    st.convReadAt[conversationId] = st.convReadAt[conversationId] || {};
+    st.convReadAt[conversationId][u.id] = lastReadAt || Date.now();
+    mockSave(st);
+    return apiClone({ conversationId, userId: u.id, lastReadAt: st.convReadAt[conversationId][u.id] });
   }
 };
 

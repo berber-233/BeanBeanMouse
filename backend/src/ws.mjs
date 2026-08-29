@@ -103,6 +103,17 @@ function handleFrame(socket, meta, frame) {
     meta.conversationId = String(msg.conversationId);
     return;
   }
+  if (msg.type === 'read' && msg.conversationId) {
+    const convId = String(msg.conversationId);
+    const lastReadAt = msg.lastReadAt ? Number(msg.lastReadAt) : Date.now();
+    run('INSERT INTO conversation_reads (conversation_id, user_id, last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at',
+      convId, meta.userId, lastReadAt);
+    const out = JSON.stringify({ type: 'read', conversationId: convId, userId: meta.userId, lastReadAt });
+    for (const [s, m] of clients) {
+      if (s !== socket && m.conversationId === convId) s.write(encodeFrame(0x1, out));
+    }
+    return;
+  }
   if (msg.type === 'message' && msg.conversationId && msg.text) {
     const convId = String(msg.conversationId);
     if (!get('SELECT id FROM conversations WHERE id = ?', convId)) {

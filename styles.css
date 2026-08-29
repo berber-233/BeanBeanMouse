@@ -1236,6 +1236,7 @@ body.modal-open { overflow: hidden; }
 .chat-bubble p { margin: 0; font-size: 13.5px; white-space: pre-wrap; word-break: break-word; }
 .chat-bubble .attach-list { margin-top: 6px; }
 .chat-bubble .small { display: block; margin-top: 5px; font-size: 11px; }
+.chat-read { color: var(--success); font-weight: 700; }
 .chat-input { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); background: #FDFBF4; }
 .chat-input .input { flex: 1; min-width: 0; }
 .notif-wrap { position: relative; }
@@ -1247,6 +1248,9 @@ body.modal-open { overflow: hidden; }
 .notif-row b { display: block; font-size: 13px; }
 .notif-row p { margin: 3px 0; font-size: 12px; color: var(--text-2); }
 .notif-panel .btn-block { margin-top: 6px; }
+/* 无障碍：跳到主内容 */
+.skip-link { position: absolute; top: -120px; left: 0; background: var(--navy-900); color: #fff; padding: 10px 16px; border-radius: 0 0 10px 0; z-index: 200; transition: top .15s; }
+.skip-link:focus { top: 0; }
 @media (max-width: 860px) {
   .messages-layout { grid-template-columns: 1fr; }
   .conv-list { max-height: 220px; }

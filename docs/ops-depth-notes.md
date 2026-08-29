@@ -133,5 +133,16 @@
   买家 / 卖家「消息」页（会话列表 + 聊天 + 未读角标），会话由询盘自动生成。
 - 通知：顶栏铃铛（未读徽标 + 下拉面板 + 全部已读）；新询盘 / 报价 / 售后进展 / 建议处理
   自动推送 `state.notifications`。
+- 已读回执：`conversation_reads` 表 + `GET/POST /conversations/{id}/read` + WS `read` 广播；
+  聊天气泡显示「已读」（卖家账号与 sellerId 归一化匹配）；mock 模式自动模拟对方回复。
 - 实时性：后端 REST `/conversations/{id}/messages` 与 `WS /ws` 已就绪，前端切 `http` 模式即用；
-  已读回执与 WS 推送待联调。
+  WS 推送客户端联调待办。
+
+## 15. 优化批次补充（2026-08-29）
+
+- CSV 导出：`downloadCsv`（UTF-8 BOM）+ 订单 / 询盘列表「导出 CSV」。
+- 无障碍：`index.html` 顶部「跳到主内容」快捷键（`top` 移出屏幕实现，避免 RTL 横向溢出）、
+  `.chat-msgs` aria-live。
+- CI：`playwright-core` devDependency；测试浏览器路径 `resolveBrowser()`（env →
+  Edge → Linux Chrome → playwright 默认）；`.github/workflows/ci.yml` 新增 `frontend-tests`。
+- 种子用户补 `sellerId`，`migrateState` 为旧数据回填，通知与已读回执路由正确。

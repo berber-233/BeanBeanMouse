@@ -43,7 +43,8 @@
 - [ ] 商标检索（美国 / 欧盟 / 中国）
 - [ ] 海外公司主体注册（收款通道前提）
 - [ ] 冷启动运营：先选 1–2 个垂直品类 + 1 个目标市场跑通
-- [ ] 无障碍 WCAG 2.1 基础、物流轨迹与货损保险选项
+- [x] 物流轨迹与货损保险选项（物流时间线 + 三档保险已落地）
+- [ ] 无障碍 WCAG 2.1 基础（已补跳到主内容、聊天 aria-live、RTL 修复；对比度与完整审计待做）
 
 ## 四、上线后常规监控
 
@@ -125,4 +126,24 @@
 - [ ] 附件 / 名片正式版切换对象存储（R2/S3）：前端 `fileId` 字段与 `api.files` 已就绪，
   需接存储桶 + 签名 URL，并把名片水印改为服务端合成（含栅格图）。
 - [ ] 消息实时性：当前前端为本地 mock，后端 REST + WebSocket 已就绪，切 `http` 模式即用；
-  已读回执与 WS 推送待联调。
+  已读回执与 WS `read` 广播已落地（`conversation_reads` + `/conversations/{id}/read`）；
+  前端 http 模式的 WS 推送客户端待联调。
+
+## 八、2026-08-29 优化批次（消息实时化 / 测试与 CI / 无障碍 RTL / CSV 导出）
+
+### 已完成
+- [x] 已读回执：`conversation_reads` 表（SQLite + PG）、`GET/POST /conversations/{id}/read`、
+  WS `read` 广播；聊天气泡显示「已读」，打开会话自动上报。
+- [x] mock 自动回复：发送消息后模拟对方回复，让演示聊天更真实（http 模式走真实后端）。
+- [x] CSV 导出：订单 / 询盘列表「导出 CSV」（UTF-8 BOM）。
+- [x] 无障碍：跳到主内容快捷键（不产生横向溢出的实现）、聊天区 aria-live；
+  修复 RTL（阿拉伯语）下跳转链接导致全站横向溢出（11279px → 0）。
+- [x] CI：`playwright-core` 加入 devDependencies；测试脚本浏览器路径支持
+  `PLAYWRIGHT_EXECUTABLE` 环境变量 + Windows Edge / Linux Chrome 回退；
+  GitHub Actions 新增 `frontend-tests` job。
+- [x] 种子数据补 `sellerId`：卖家用户与产品 sellerId 关联，通知 / 已读回执可正确路由。
+- [x] 测试：前端 verify 237 项、API 冒烟 32 项、后端 126 项全绿。
+
+### 待办
+- [ ] 前端 http 模式 WS 推送客户端联调（当前已读/消息走 REST，实时推送待接）。
+- [ ] WCAG 完整对比度审计与焦点可见性抽查。

@@ -175,6 +175,13 @@ function migrateState() {
   if (!state.convReadAt || typeof state.convReadAt !== 'object') { state.convReadAt = {}; changed = true; }
   if (!state.tipDismissed || typeof state.tipDismissed !== 'object') { state.tipDismissed = {}; changed = true; }
   (state.users || []).forEach(u => { if (!u.accountType) { u.accountType = 'company'; changed = true; } });
+  (state.users || []).forEach(u => {
+    if (u.role === 'seller' && !u.sellerId) {
+      const s = (typeof SELLERS !== 'undefined' ? SELLERS : []).find(x => x.zh && (x.zh.company === u.company || (x.en && x.en.company === u.company)));
+      u.sellerId = s ? s.id : ('s' + String(u.id || '').replace(/\D/g, ''));
+      changed = true;
+    }
+  });
   if (state.user && !state.user.accountType) { state.user.accountType = 'company'; changed = true; }
   state.products.forEach(p => {
     if (!p.hsCode) { p.hsCode = HS_BY_CAT[p.cat] || ''; changed = true; }
@@ -679,6 +686,8 @@ function handleAction(el) {
     }
     case 'notif-read-all': runBusy(el, markAllNotificationsRead); break;
     case 'open-conv': go('/dashboard/messages?conv=' + encodeURIComponent(id)); break;
+    case 'export-orders': exportOrdersCsv(); break;
+    case 'export-inquiries': exportInquiriesCsv(); break;
     case 'dismiss-trial': {
       try { localStorage.setItem(TRIAL_DISMISS_KEY, '1'); } catch (e) { /* 忽略 */ }
       const b = document.getElementById('trialBanner');

@@ -1,9 +1,26 @@
 /* BeanBeanMouse 数据层（api.js）冒烟测试：在浏览器里直接调用 window.api */
 const { chromium } = require('playwright-core');
+const fs = require('fs');
+
+function resolveBrowser() {
+  const candidates = [
+    process.env.PLAYWRIGHT_EXECUTABLE,
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser'
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  try { return require('playwright-core').chromium.executablePath(); } catch (e) { return undefined; }
+}
 
 (async () => {
   const browser = await chromium.launch({
-    executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    executablePath: resolveBrowser(),
     headless: true
   });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -242,6 +259,18 @@ const { chromium } = require('playwright-core');
     page.evaluate(async () => {
       const r = await api.templates.list();
       return Array.isArray(r) && r.length >= 5 && r.some(t => t.id === 'luxe-ink');
+    }));
+
+  await run('messages.send + list + read receipt', async () =>
+    page.evaluate(async () => {
+      const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+      s.user = { id: 'u-buyer', role: 'buyer', name: 'B' };
+      localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+      await api.messages.send('conv-api-1', 'hello there');
+      const list = await api.messages.list('conv-api-1');
+      await api.messages.markRead('conv-api-1', Date.now());
+      const readers = await api.messages.readers('conv-api-1');
+      return list.length === 1 && readers.readers.length === 1 && readers.readers[0].userId === 'u-buyer';
     }));
 
   console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));

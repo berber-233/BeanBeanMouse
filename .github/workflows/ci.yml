@@ -32,3 +32,21 @@ jobs:
         run: node scripts/build-site.mjs
       - name: Verify dist output
         run: test -f dist/index.html && test -f dist/assets/mascot-vector.svg && echo "dist OK"
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Frontend API smoke
+        run: node test/api-smoke.cjs
+      - name: Frontend page regression
+        run: node test/verify.cjs

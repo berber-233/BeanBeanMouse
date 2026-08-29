@@ -1,12 +1,29 @@
 const { chromium } = require('playwright-core');
+const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const errors = [];
 let page;
 
+function resolveBrowser() {
+  const candidates = [
+    process.env.PLAYWRIGHT_EXECUTABLE,
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser'
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  try { return require('playwright-core').chromium.executablePath(); } catch (e) { return undefined; }
+}
+
 (async () => {
   const browser = await chromium.launch({
-    executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    executablePath: resolveBrowser(),
     headless: true
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
@@ -387,6 +404,15 @@ let page;
   const dl = await dlPromise;
   check('buyer: conversation exported as txt', (dl.suggestedFilename() || '').indexOf('.txt') > 0);
 
+  // ---- 站内消息 ----
+  await page.evaluate(() => { location.hash = '#/dashboard/messages'; });
+  await page.waitForTimeout(400);
+  check('buyer: messages tab shows conversations', await page.locator('.conv-row').count() >= 1);
+  await page.fill('.chat-input input[name="text"]', 'Any update on delivery schedule?');
+  await page.click('.chat-input button[type="submit"]');
+  await page.waitForTimeout(2200);
+  check('buyer: chat sends message + auto reply', await page.locator('.chat-msg').count() >= 2);
+
   await page.evaluate(() => { location.hash = '#/product/p1'; });
   await page.waitForTimeout(300);
   await page.click('[data-action="open-inquiry"]');
@@ -509,6 +535,10 @@ let page;
   await page.evaluate(() => { location.hash = '#/dashboard/orders'; });
   await page.waitForTimeout(400);
   check('buyer: sees seller shipment updates', await page.locator('.shipment-box').count() >= 2);
+  const dlOrders = page.waitForEvent('download');
+  await page.locator('[data-action="export-orders"]').first().click();
+  const dlo = await dlOrders;
+  check('buyer: orders exported as csv', (dlo.suggestedFilename() || '').indexOf('.csv') > 0);
 
   // ---- 单据中心与售后/纠纷 ----
   check('buyer: document center on orders', await page.locator('.doc-center-box').count() >= 1);
@@ -563,6 +593,18 @@ let page;
   await page.waitForTimeout(400);
   check('seller: accepted case resolved', await page.locator('.status-pill.done').count() >= 1);
 
+  // ---- 通知铃铛与已读回执 ----
+  check('seller: notification bell shown', await page.locator('[data-action="notif-toggle"]').count() === 1);
+  await page.click('[data-action="notif-toggle"]');
+  await page.waitForTimeout(200);
+  check('seller: notification panel lists items', await page.locator('#notifPanel .notif-row').count() >= 1);
+  await page.click('[data-action="notif-read-all"]');
+  await page.waitForTimeout(300);
+  check('seller: mark all read clears badge', await page.locator('.notif-badge').count() === 0);
+  await page.evaluate(() => { location.hash = '#/dashboard/messages'; });
+  await page.waitForTimeout(400);
+  check('seller: messages tab lists conversations', await page.locator('.conv-row').count() >= 1);
+
   // ---- 卖家查看买家身份与名片 ----
   await page.evaluate(() => { location.hash = '#/dashboard/inquiries'; });
   await page.waitForTimeout(300);
@@ -579,8 +621,24 @@ let page;
   check('seller: business card modal opens', await page.locator('#cardViewImg').count() === 1);
   const wmSrc = await page.locator('#cardViewImg').getAttribute('src');
   check('seller: business card watermarked', !!wmSrc && wmSrc !== cardSrc && wmSrc.indexOf('data:image/') === 0);
+  await page.click('[data-action="card-flip"]');
+  await page.waitForTimeout(350);
+  const flipT = await page.locator('#card3dInner').getAttribute('style');
+  check('seller: card flips to back view', (flipT || '').indexOf('180') >= 0);
   await page.click('[data-action="close-modal"]');
   await page.waitForTimeout(200);
+
+  // ---- 买家回看消息：确认已读回执 ----
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
+    s.user = { id: 'u-buyer', role: 'buyer', name: 'Thomas', email: 'buyer@demo.com', buyerCompany: 'Müller GmbH', accountType: 'company' };
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#/dashboard/messages'; });
+  await page.waitForTimeout(400);
+  check('buyer: read receipt shown after seller read', await page.locator('.chat-read').count() >= 1);
 
   // ---- 平台管理员后台 ----
   await page.evaluate(() => {

@@ -674,10 +674,10 @@ const COUNTRY_NAMES = {
 function buildUsers(now) {
   return [
     { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: '豆豆鼠运营部', country: 'CN', accountType: 'company', jobTitle: '平台运营', joinedAt: now - 864e5 * 220, status: 'active' },
-    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
+    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', sellerId: 's1', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
     { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', company: 'Müller GmbH', country: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager', joinedAt: now - 864e5 * 90, status: 'active' },
-    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
-    { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', accountType: 'company', jobTitle: 'Export Manager', joinedAt: now - 864e5 * 60, status: 'active' },
+    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', sellerId: 's2', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
+    { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', sellerId: 's3', accountType: 'company', jobTitle: 'Export Manager', joinedAt: now - 864e5 * 60, status: 'active' },
     { id: 'u6', role: 'buyer', name: 'Maria Garcia', email: 'maria@iberia-sourcing.es', company: 'Iberia Sourcing', country: 'ES', accountType: 'individual', jobTitle: '店主', joinedAt: now - 864e5 * 40, status: 'active' },
     { id: 'u7', role: 'buyer', name: '田中一郎', email: 'tanaka@tokyo-trading.jp', company: 'Tokyo Trading', country: 'JP', accountType: 'company', jobTitle: '采购课长', joinedAt: now - 864e5 * 25, status: 'active' },
     { id: 'u8', role: 'buyer', name: 'Ahmed Al Farsi', email: 'ahmed@gulf-imports.ae', company: 'Gulf Imports', country: 'AE', accountType: 'company', jobTitle: 'Buyer', joinedAt: now - 864e5 * 8, status: 'active' }
@@ -1429,6 +1429,8 @@ const I18N = {
     asSellerDesc: '发布产品、管理询盘、回复买家报价',
     switchRole: '切换角色', yourReply: '您的回复：',
     messagesTab: '消息', messagesEmpty: '暂无会话，从询盘开始沟通吧', chatPlaceholder: '输入消息…', chatSend: '发送',
+    chatRead: '已读', chatAutoReply: '已收到您的消息，我们会尽快回复。',
+    exportCsv: '导出 CSV',
     notificationsTitle: '通知', notificationsEmpty: '暂无通知', markAllRead: '全部已读', unreadLabel: '条未读',
     notifNewInquiry: '收到新询盘', notifNewQuote: '收到新报价', notifAfterSales: '售后 / 纠纷进展', notifFeedback: '建议处理结果',
     searchBtn: '搜索', searchSuggestTitle: '热门搜索', searchBarPlaceholder: '搜索产品 / 品类 / HS 编码，例如：折叠椅、螺丝刀…',
@@ -1734,6 +1736,8 @@ const I18N = {
     asSellerDesc: 'Publish products, manage inquiries and reply to buyers',
     switchRole: 'Switch role', yourReply: 'Your reply: ',
     messagesTab: 'Messages', messagesEmpty: 'No conversations yet — start from an inquiry', chatPlaceholder: 'Type a message…', chatSend: 'Send',
+    chatRead: 'Read', chatAutoReply: 'Thanks for your message — we will reply shortly.',
+    exportCsv: 'Export CSV',
     notificationsTitle: 'Notifications', notificationsEmpty: 'No notifications', markAllRead: 'Mark all read', unreadLabel: 'unread',
     notifNewInquiry: 'New inquiry received', notifNewQuote: 'New quotation received', notifAfterSales: 'After-sales / dispute update', notifFeedback: 'Suggestion status update',
     searchBtn: 'Search', searchSuggestTitle: 'Popular searches', searchBarPlaceholder: 'Search products / categories / HS codes, e.g. chair, screwdriver…',

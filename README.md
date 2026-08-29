@@ -81,7 +81,15 @@
 - **存储与水印**：`api.files` 上传服务（mock 落库 + http 分支），附件记录预留 `fileId/storage`
   字段（对象存储就绪形态）；后端 `/files` 支持 SVG 服务端水印，栅格图水印仍由前端 Canvas 合成
   （正式版接 R2/边缘处理后改为服务端合成）。
-- 版本：页脚与 `package.json` 升级为 **0.2.0**；测试 `verify` 228 项、`api-smoke` 31 项全绿。
+- **消息已读回执与实时化**：`conversation_reads` 表 + `/conversations/{id}/read` 接口 +
+  WS `read` 广播；聊天气泡显示「已读」；mock 模式自动模拟对方回复（http 模式走真实后端）。
+- **实用导出**：订单 / 询盘列表新增「导出 CSV」（UTF-8 BOM，Excel 直接打开）。
+- **无障碍与 RTL**：新增「跳到主内容」键盘捷径（改用不产生横向溢出的实现）、聊天区 aria-live；
+  修复了 RTL（阿拉伯语）下跳转链接导致全站横向溢出的问题。
+- **CI 前端回归**：`playwright-core` 加入 devDependencies，测试脚本浏览器路径改为
+  环境变量可覆盖 + 多系统回退；GitHub Actions 新增 `frontend-tests` job（ubuntu 自带 Chrome）。
+- 版本：页脚与 `package.json` 保持 **0.2.0**；测试 `verify` 237 项、`api-smoke` 32 项、
+  后端 126 项全绿。
 
 ## v0.1 新增（2026-08-21）
 
@@ -140,7 +148,7 @@
 - 前端数据层 [api.js](api.js)：页面统一通过 `window.api` 访问数据，
   当前为 mock（localStorage 模拟），接真实后端时改 `API_CONFIG.mode='http'` 即可
 
-验证：`test/api-smoke.cjs`（31 项断言）+ `test/verify.cjs`（228 项页面回归）；后端 `backend/test/api.test.mjs`（124 项断言）。
+验证：`test/api-smoke.cjs`（32 项断言）+ `test/verify.cjs`（237 项页面回归）；后端 `backend/test/api.test.mjs`（126 项断言）。
 
 ## 说明
 

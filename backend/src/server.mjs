@@ -974,6 +974,27 @@ async function route(m, segs, q, req, res) {
     }
   }
 
+  /* 会话已读回执 */
+  if (a === 'conversations' && c === 'read') {
+    const u = requireAuth(res, req);
+    if (!u) return;
+    const conv = get('SELECT * FROM conversations WHERE id = ?', b);
+    if (conv && conv.buyer_id !== u.id && conv.seller_id !== u.id && u.role !== 'admin') {
+      return fail(res, 403, 'FORBIDDEN', '无权操作该会话');
+    }
+    if (m === 'GET') {
+      const rows = all('SELECT user_id, last_read_at FROM conversation_reads WHERE conversation_id = ?', b);
+      return send(res, 200, { conversationId: b, readers: rows.map(r => ({ userId: r.user_id, lastReadAt: r.last_read_at })) });
+    }
+    if (m === 'POST') {
+      const body = await readBody(req);
+      const lastReadAt = body.lastReadAt ? Number(body.lastReadAt) : Date.now();
+      run('INSERT INTO conversation_reads (conversation_id, user_id, last_read_at) VALUES (?,?,?) ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at',
+        b, u.id, lastReadAt);
+      return send(res, 200, { conversationId: b, userId: u.id, lastReadAt });
+    }
+  }
+
   /* 翻译（服务端代理：真实服务链 + 额度 + 缓存 + 离线兜底） */
   if (a === 'translate' && m === 'POST') {
     const body = await readBody(req);

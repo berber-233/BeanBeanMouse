@@ -1814,9 +1814,47 @@ function ordersBody() {
   const u = state.user;
   let rows = (state.orders || []).slice().sort((a, b) => b.createdAt - a.createdAt);
   if (u && u.role !== 'admin') rows = rows.filter(o => o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
-  return '<div class="card panel"><div class="panel-head"><h2>' + t('myOrders') + '</h2></div>'
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('myOrders') + '</h2>'
+    + '<button type="button" class="btn btn-sm" data-action="export-orders">' + icon('file') + ' ' + t('exportCsv') + '</button></div>'
     + (rows.length ? rows.map(orderCard).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📦</div><p>' + t('noOrders') + '</p></div>')
     + '</div>';
+}
+function downloadCsv(filename, rows) {
+  const escCell = v => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const body = rows.map(r => r.map(escCell).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + body], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function exportOrdersCsv() {
+  const u = state.user;
+  const rows = (state.orders || []).filter(o => !u || u.role === 'admin' || o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
+  const zh = state.lang === 'zh';
+  const head = [zh ? '订单号' : 'Order', zh ? '产品' : 'Product', zh ? '买家' : 'Buyer', zh ? '卖家' : 'Seller', zh ? '金额' : 'Total', zh ? '货币' : 'Currency', zh ? '状态' : 'Status', zh ? '创建时间' : 'Created'];
+  const data = rows.map(o => {
+    const p = productById(o.productId);
+    return [o.id, p ? langObj(p).title : o.productId, partyNameOf(o, 'buyer'), partyNameOf(o, 'seller'), Number(o.total || 0), o.currency || 'USD', orderStatusLabel(o.status), fmtDate(o.createdAt)];
+  });
+  downloadCsv('bbm-orders.csv', [head].concat(data));
+}
+function exportInquiriesCsv() {
+  const u = state.user;
+  const rows = (state.inquiries || []).filter(i => !u || u.role === 'admin' || i.buyerId === u.id || i.sellerId === (u.sellerId || u.id));
+  const zh = state.lang === 'zh';
+  const head = [zh ? '询盘号' : 'Inquiry', zh ? '产品' : 'Product', zh ? '买家' : 'Buyer', zh ? '邮箱' : 'Email', zh ? '公司' : 'Company', zh ? '数量' : 'Qty', zh ? '单位' : 'Unit', zh ? '状态' : 'Status', zh ? '时间' : 'Sent'];
+  const data = rows.map(i => {
+    const p = productById(i.productId);
+    return [i.id, p ? langObj(p).title : i.productId, i.name || '', i.email || '', i.company || '', i.qty || '', i.unit || '', i.status === 'quoted' ? zh ? '已报价' : 'Quoted' : i.status === 'handled' ? zh ? '已回复' : 'Replied' : zh ? '待回复' : 'New', fmtDate(i.createdAt)];
+  });
+  downloadCsv('bbm-inquiries.csv', [head].concat(data));
 }
 function tipModalHtml(o) {
   const tippedByMe = hasActiveTipFromMe(o);
@@ -2976,6 +3014,7 @@ function orderAfterSalesPanel(o) {
 
 /* ---------- 卖家推广 / 管理员推广审核 ---------- */
 /* ---------- 站内消息与通知（v0.2） ---------- */
+const convAutoReplied = {};
 function pushNotification({ toUserId, title, body, link }) {
   if (!toUserId) return;
   state.notifications = state.notifications || [];
@@ -3037,6 +3076,33 @@ function convUnread(c) {
 function totalUnread() {
   return myConversations().reduce((s, c) => s + convUnread(c), 0);
 }
+function counterpartyOf(i) {
+  const u = state.user;
+  if (!i || !u) return null;
+  if (u.id === i.buyerId) return i.sellerId || null;
+  if (i.sellerId === (u.sellerId || u.id)) return i.buyerId || null;
+  return null;
+}
+function counterpartReadAt(c) {
+  const i = (state.inquiries || []).find(x => x.id === c.id);
+  const cp = counterpartyOf(i);
+  if (!cp) return 0;
+  const rows = (state.convReadAt || {})[c.id] || {};
+  let at = rows[cp] || 0;
+  const cpUser = (state.users || []).find(x => (x.sellerId || x.id) === cp);
+  if (cpUser && (rows[cpUser.id] || 0) > at) at = rows[cpUser.id];
+  return at;
+}
+async function refreshConvReaders(convId) {
+  if (api.config.mode !== 'http') return;
+  try {
+    const r = await api.messages.readers(convId);
+    state.convReadAt = state.convReadAt || {};
+    state.convReadAt[convId] = state.convReadAt[convId] || {};
+    (r.readers || []).forEach(x => { state.convReadAt[convId][x.userId] = x.lastReadAt; });
+    saveState();
+  } catch (e) { /* 忽略 */ }
+}
 function renderMessagesBody(convId) {
   const u = state.user;
   if (!u) return '';
@@ -3049,7 +3115,9 @@ function renderMessagesBody(convId) {
     if (last > (state.convReadAt[active.id][u.id] || 0)) {
       state.convReadAt[active.id][u.id] = last;
       saveState();
+      api.messages.markRead(active.id, last).catch(() => {});
     }
+    refreshConvReaders(active.id);
   }
   const listHtml = convs.length
     ? convs.map(c => {
@@ -3069,13 +3137,14 @@ function renderMessagesBody(convId) {
     ? '<div class="chat-pane">'
       + '<div class="chat-head"><b>' + esc((function () { const i = (state.inquiries || []).find(x => x.id === active.id); const p = i ? productById(i.productId) : null; return p ? langObj(p).title : active.id; })()) + '</b>'
       + '<a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
-      + '<div class="chat-msgs">' + (active.messages || []).map(m => {
+      + '<div class="chat-msgs" aria-live="polite">' + (active.messages || []).map(m => {
         const mine = m.fromUserId === u.id;
+        const read = mine && counterpartReadAt(active) >= m.at;
         return '<div class="chat-msg ' + (mine ? 'mine' : 'theirs') + '"><div class="chat-bubble">'
           + (mine ? '' : '<b>' + esc(m.fromName || '') + '</b>')
           + '<p>' + esc(m.text) + '</p>'
           + (m.attachments && m.attachments.length ? attachmentChipsHtml(m.attachments, active.id) : '')
-          + '<span class="small muted">' + fmtDate(m.at) + '</span></div></div>';
+          + '<span class="small muted">' + fmtDate(m.at) + (read ? ' · <b class="chat-read">' + t('chatRead') + '</b>' : '') + '</span></div></div>';
       }).join('') + '</div>'
       + '<form data-form="chat-send" data-conv="' + active.id + '" class="chat-input" novalidate>'
       + '<input class="input" name="text" maxlength="2000" placeholder="' + t('chatPlaceholder') + '" autocomplete="off">'
@@ -3107,6 +3176,16 @@ async function sendChatMessage(form) {
   try {
     await api.messages.send(convId, text);
     form.querySelector('input[name="text"]').value = '';
+    if (api.config.mode !== 'http' && !convAutoReplied[convId]) {
+      convAutoReplied[convId] = true;
+      const i = (state.inquiries || []).find(x => x.id === convId);
+      const cp = counterpartyOf(i);
+      setTimeout(() => {
+        api.messages.send(convId, t('chatAutoReply'), { sender: cp, fromName: state.lang === 'zh' ? '对方' : 'Them' })
+          .then(() => renderPage())
+          .catch(() => {});
+      }, 1200);
+    }
     renderPage();
   } catch (e) { toast(e.message || String(e)); }
 }
@@ -3318,7 +3397,8 @@ function renderSellerDash(path) {
   } else if (activeTab === 'publish') {
     body = renderPublishForm();
   } else if (activeTab === 'inquiries') {
-    body = '<div class="card panel"><div class="panel-head"><h2>' + t('inquiryManage') + '</h2><span class="small muted">' + myInquiries.length + ' ' + t('totalInquiries') + '</span></div>'
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('inquiryManage') + '</h2><span class="flex gap-10"><span class="small muted">' + myInquiries.length + ' ' + t('totalInquiries') + '</span>'
+      + '<button type="button" class="btn btn-sm" data-action="export-inquiries">' + icon('file') + ' ' + t('exportCsv') + '</button></span></div>'
       + (myInquiries.length ? myInquiries.map(inquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiries') + '</p></div>')
       + '</div>';
   }
@@ -3884,7 +3964,8 @@ function renderBuyerDash(path) {
   } else if (activeTab === 'messages') {
     body = renderMessagesBody(parseHash().params.get('conv') || '');
   } else {
-    body = '<div class="card panel"><div class="panel-head"><h2>' + t('myInquiries') + '</h2></div>'
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('myInquiries') + '</h2>'
+      + '<button type="button" class="btn btn-sm" data-action="export-inquiries">' + icon('file') + ' ' + t('exportCsv') + '</button></div>'
       + (myInquiries.length ? myInquiries.map(buyerInquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiriesYet') + '</p></div>')
       + '</div>';
   }

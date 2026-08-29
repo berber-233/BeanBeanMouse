@@ -416,6 +416,14 @@ CREATE TABLE IF NOT EXISTS export_readiness (
   PRIMARY KEY (seller_id, item_id)
 );
 
+-- 会话已读回执（v0.2）
+CREATE TABLE IF NOT EXISTS conversation_reads (
+  conversation_id UUID NOT NULL REFERENCES conversations(id),
+  user_id UUID NOT NULL REFERENCES users(id),
+  last_read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (conversation_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
@@ -430,3 +438,4 @@ CREATE INDEX IF NOT EXISTS idx_contract_custody_order ON contract_custodies(orde
 CREATE INDEX IF NOT EXISTS idx_after_sales_order ON after_sales(order_id, status);
 CREATE INDEX IF NOT EXISTS idx_suggestions_status ON suggestions(status);
 CREATE INDEX IF NOT EXISTS idx_export_readiness_seller ON export_readiness(seller_id);
+CREATE INDEX IF NOT EXISTS idx_conv_reads_conv ON conversation_reads(conversation_id);
