@@ -175,3 +175,83 @@
 - 商标检索、海外主体、冷启动选品。
 - 搜索引擎收录提交（按 `docs/seo-submission.md` 执行）。
 - 名片水印正式版服务端合成（对象存储边缘）。
+
+## 十、2026-09-07 宠物垂直 + 素材 / 信任 / 支付通道
+
+### 已完成
+- [x] **宠物用品首发垂直**：仓鼠与小宠 / 猫 / 小型犬 / 大型犬（金毛·边牧等）/
+  美容清洁 / 玩具训练 6 细分；新增 8 款商品，宠物在售共 10 款；
+  首页眉标“首发垂直·宠物用品”、热搜与精选宠物优先。
+- [x] **市场细分筛选**：选大类后可再按细分/适用宠物过滤（如“大型犬用品”）。
+- [x] **详情相关推荐**：同细分/同大类商品。
+- [x] **真实商品素材方案**：卖家可上传实拍图（≤8 张、≤4MB/张），
+  卡片/画廊/推荐/卖家主页优先显示真实图，无图回退占位；规范见 `docs/product-assets.md`。
+- [x] **卖家信任主页**：`#/seller/:id`（企业信息、认证、出口就绪度、服务指标、
+  认证与目标市场、在售商品 + 直达询盘）；详情页卖家卡加入口。
+- [x] **支付先接 PayPal**：`api.payments`（providers/checkout/markPaid）+ 订单“PayPal 支付（演示）”
+  弹窗，明确标注不产生真实扣款；后续再扩其他渠道。
+- [x] 测试：verify 237、api-smoke 32、后端 128 全绿（本轮后端未改动）。
+
+### 待办
+- [ ] 给演示商品生成 AI 实拍风占位图（需开启 imagegen API/CLI 并提供密钥）。
+- [ ] PayPal 真实接入：商户入驻 + Sandbox 凭据 + 服务端订单/回调验签；其他渠道后续扩展。
+
+## 十一、2026-09-11 Codex「Duplicate namespace name」死会话修复
+
+### 已完成
+- [x] **定位根因**：Codex Desktop 26.903.71938 / CLI 0.153.4 在同一回合调用两次
+  `tool_search` 时，会把同一批 MCP 命名空间重复写入请求 `input`，服务端返回
+  `Duplicate namespace name ... Namespace names must be unique.`；该错误随历史
+  回放，导致此会话之后**每一轮都失败**（线程死锁）。属内核缺陷，无用户侧开关
+  （`codex features list` 中 `tool_search` / `js_repl` 均为 removed）。
+- [x] **修复工具**：`scripts/fix-duplicate-namespaces.mjs`（零依赖，默认干跑，
+  `--apply` 写回并自动备份，`--sync-projection` 对齐历史库字节偏移）。
+- [x] **修复受损会话**：2 个 rollout 已修（各带 `.bak-2026-09-11T07-17-06-*` 备份）；
+  复扫 47 个文件 = 0 待修，JSON 全部可解析。
+- [x] **规避规则**：写入全局 `~/.codex/AGENTS.md`——单回合最多一次 `tool_search`，
+  需要二次检索时等下一个用户回合。
+- [x] **说明文档**：`docs/codex-duplicate-namespace-fix.md`（现象/根因/用法/回滚/上游复现要点）。
+
+### 待办
+- [ ] 实机验证：取消归档那两个会话，续聊确认不再报错。
+- [ ] 升级 Codex 后复跑 `node scripts/fix-duplicate-namespaces.mjs` 自查。
+- [ ] （可选）清理 `thread_history_1.sqlite` 中 7 条历史 `error_json` 留痕——需先确认对 UI 展示的影响。
+
+## 十二、2026-09-11 全量自查 + 不利因素速查
+
+### 检测结果
+- [x] 前端回归 `node test/verify.cjs`：ALL CHECKS PASSED
+- [x] 前端 API 冒烟 `node test/api-smoke.cjs`：ALL API SMOKE CHECKS PASSED
+- [x] 后端 `node backend/test/api.test.mjs`：128 项全绿；SMTP、WS 测试均通过
+- [x] 语法检查 app/app-core/app-pages/api/data/backend server 全通过
+
+### 查出并修复的不利因素
+- [x] **sitemap 漏收录 8 款新品**：此前只到 p24，宠物垂直新增的 p25–p32 未进 sitemap
+  → 已重跑 `scripts/gen-sitemap.mjs`（45 条 URL），并补齐 customs/insurance/contracts/recruit 四个分区。
+- [x] **sitemap 收录的干净路径线上 404**（实测 `/products`、`/feedback` 均 404）：
+  站点是 hash 路由，而 sitemap 写的是干净路径 → 新增 `_redirects`，
+  12 条 301 到 `/#/xxx`；前端 `app-core.js` 再加一层兜底改写；`build-site.mjs` 已把
+  `_redirects` 打进 dist。
+- [x] **GitHub Pages 工作流把仓库根目录当网站发布**：会把 `backend/` 源码、`docs/`
+  （威胁模型、安全报告、openapi）、`test/`、截图全部公开，并与 Cloudflare Pages
+  正式站形成重复内容 → 改为只构建并发布 `dist/`。
+- [x] **防复发**：新增 `scripts/check-consistency.mjs`（校验 sitemap ↔ data.js ↔
+  `_redirects` ↔ 前端路由 ↔ 构建清单 ↔ index.html 引用），已接入 CI。
+- [x] **第三方翻译链收敛**：一页几十个 `[data-l10n]` 原先并发打第三方公共接口，
+  实测大面积 429；现已加并发闸门（最多 3）+ 相同原文合并；并移除
+  `libretranslate.com`（已需 API key 且不返回 CORS 头，浏览器必预检失败，纯浪费往返）。
+  真实 DeepL 服务端通道仍是待办（见第三节）。
+
+### 速查未发现问题的项
+- [x] 无硬编码密钥：全仓库 `git grep` 扫描 sk-/AKIA/ghp_/PRIVATE KEY/client_secret 均无命中，
+  `.env` 已被 gitignore，只提交 `.env.example`。
+- [x] `backend/uploads/`、`dist/`、`work/`、`node_modules/` 均未被 git 跟踪（本地测试残留，已忽略）。
+- [x] 安全响应头齐全（CSP / HSTS 由 Cloudflare 层负责、nosniff、SAMEORIGIN、Referrer-Policy）。
+- [x] `robots.txt`、`404.html`、`.nojekyll`、canonical、OG 均正常。
+
+### 遗留（不阻塞）
+- [ ] `screenshots/` 有 56 张 QA 截图，单张最大 3.3MB，占仓库体积偏大；如需瘦身需另开一轮
+      （会改写历史，建议单独决定）。
+- [ ] `pixel-art/` 为早期像素画实验产物，与当前站点无引用关系，可择机归档或移出。
+- [ ] `commit.ps1` 里的提交信息是早期的写死文案，且 `git add -A` 可能误提交未忽略的文件；
+      建议改用 `npm run commit -- "message"` 或删掉该脚本。

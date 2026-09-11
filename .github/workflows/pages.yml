@@ -23,12 +23,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      # 只发布公开站点产物 dist/（由 build-site.mjs 生成）。
+      # 以前这里直接上传仓库根目录，会把 backend/ 源码、docs/（含威胁模型、
+      # 安全报告、openapi）、tests/、截图一并公开成网页，并与 Cloudflare Pages
+      # 上的正式站形成重复内容，故改为只发布 dist/。
+      - name: Build static site
+        run: node scripts/build-site.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: dist
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

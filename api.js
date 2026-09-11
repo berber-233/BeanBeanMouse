@@ -1193,6 +1193,49 @@ api.afterSales = {
 };
 
 /* ============================================================
+ * 服务：支付通道（先接入 PayPal 主题演示，后续扩展其他渠道）
+ * ============================================================ */
+api.payments = {
+  async providers() {
+    if (api.config.mode === 'http') return apiRequest('/payments/providers');
+    await apiDelay();
+    return apiClone([
+      { id: 'paypal', name: 'PayPal', enabled: 1, mode: 'sandbox', currencies: ['USD', 'EUR', 'GBP'] }
+    ]);
+  },
+  async checkout(orderId, providerId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/payments', { method: 'POST', body: { providerId } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.payment && o.payment.status === 'paid') throw new Error('ALREADY_PAID');
+    o.payment = {
+      provider: providerId || 'paypal',
+      status: 'pending',
+      amount: Number(o.total || 0),
+      currency: o.currency || 'USD',
+      reference: 'PP-DEMO-' + String(orderId).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10) + '-' + Math.floor(1000 + Math.random() * 9000),
+      at: Date.now()
+    };
+    mockSave(st);
+    return apiClone(o.payment);
+  },
+  async markPaid(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/payments/paid', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (!o.payment) o.payment = { provider: 'paypal', status: 'paid', amount: Number(o.total || 0), currency: o.currency || 'USD', reference: 'PP-DEMO', at: Date.now() };
+    o.payment.status = 'paid';
+    o.payment.paidAt = Date.now();
+    mockSave(st);
+    return apiClone(o.payment);
+  }
+};
+
+/* ============================================================
  * 服务：合规筛查（演示：关键词命中 → 正式版接权威名单 API）
  * ============================================================ */
 api.compliance = {

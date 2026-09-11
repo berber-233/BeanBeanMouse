@@ -148,6 +148,7 @@ function render() {
   else if (path === '/contracts') { app.innerHTML = renderContracts(); }
   else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
   else if (path === '/login') app.innerHTML = renderLogin();
+  else if (path.indexOf('/seller/') === 0) app.innerHTML = renderSellerPage(path.slice(8));
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
   else app.innerHTML = renderHome();
   applyViewerLang(app);
@@ -190,7 +191,7 @@ function productCard(p) {
     + (p.hot ? '<span class="badge">' + t('hot') + '</span>' : '')
     + (p.promoted ? '<span class="badge promo">' + t('promoBadge') + '</span>' : '')
     + (p.featured && !p.hot ? '<span class="badge new">★</span>' : '')
-    + '<img src="' + productImg(p) + '" alt="' + esc(langObj(p).title) + '" loading="lazy">'
+    + '<img src="' + productMainImg(p, 640, 480) + '" alt="' + esc(langObj(p).title) + '" loading="lazy">'
     + '<button type="button" class="fav-btn ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" aria-label="' + t('favorite') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + '</button>'
     + '</div>'
     + '<div class="body">'
@@ -281,13 +282,17 @@ function closeHelp() {
 function renderHome() {
   document.title = 'BeanBeanMouse · ' + t('heroTitle');
   const live = state.products.filter(isLive);
-  const featured = live.filter(p => p.featured || p.promoted).sort((a, b) => (b.promoted ? 1 : 0) - (a.promoted ? 1 : 0)).slice(0, 6);
+  /* 首发垂直：宠物用品优先展示（小试用品类） */
+  const featured = live.filter(p => p.featured || p.promoted)
+    .sort((a, b) => (b.promoted ? 1 : 0) - (a.promoted ? 1 : 0) || ((b.cat === 'pet' ? 1 : 0) - (a.cat === 'pet' ? 1 : 0)))
+    .slice(0, 6);
   const hotKw = state.lang === 'zh'
-    ? ['激光切割机', '氮化镓充电器', '柚木家具', '柠檬酸', '充电枪']
-    : ['laser cutter', 'GaN charger', 'teak furniture', 'citric acid', 'EV cable'];
+    ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂盆', '宠物饮水机']
+    : ['hamster cage', 'cat litter', 'large dog harness', 'cat fountain', 'pet feeder'];
   const catEmoji = { machinery: '⚙️', electronics: '💡', textiles: '👕', furniture: '🛋️', chemicals: '🧪', auto: '🚗', sports: '🏕️', gifts: '🎁', hardware: '🔧', pet: '🐾' };
   return '<section class="hero">'
     + '<div class="hero-inner">'
+    + '<div class="hero-pilot">🐾 ' + esc(t('heroPilot')) + '</div>'
     + '<h1>' + t('heroTitle') + '</h1>'
     + '<p>' + t('heroSub') + '</p>'
     + '<form class="hero-search" data-form="home-search">'
@@ -348,10 +353,10 @@ function productRelevance(p, tokens) {
   if (p.hot) score += 1;
   return score;
 }
-function relatedProducts(kw, cat) {
+function relatedProducts(kw, cat, sub) {
   const tokens = String(kw || '').toLowerCase().split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
-  const pool = liveProducts().filter(p => !cat || p.cat === cat);
+  const pool = liveProducts().filter(p => (!cat || p.cat === cat) && (!sub || p.sub === sub));
   return pool.map(p => ({ p, s: productRelevance(p, tokens) }))
     .filter(x => x.s > 0)
     .sort((a, b) => b.s - a.s || b.p.rating - a.p.rating)
@@ -362,6 +367,7 @@ function renderProducts(params) {
   document.title = t('marketplace') + ' · BeanBeanMouse';
   const kw = (params.get('kw') || '').trim();
   const cat = params.get('cat') || '';
+  const sub = params.get('sub') || '';
   const sort = params.get('sort') || 'recommended';
   const min = params.get('min') ? +params.get('min') : null;
   const max = params.get('max') ? +params.get('max') : null;
@@ -369,6 +375,8 @@ function renderProducts(params) {
   const origin = params.get('origin') || '';
   const certs = (params.get('certs') || '').split(',').filter(Boolean);
   const origins = Array.from(new Set(liveProducts().map(p => p.country)));
+  const catObj = CATEGORIES.find(c => c.id === cat) || null;
+  const catSubs = catObj ? (catObj.subs || []) : [];
 
   let list = liveProducts();
   if (kw) {
@@ -376,6 +384,7 @@ function renderProducts(params) {
     list = list.filter(p => p.en.title.toLowerCase().includes(k) || p.zh.title.includes(kw) || p.en.desc.toLowerCase().includes(k) || p.zh.desc.includes(kw));
   }
   if (cat) list = list.filter(p => p.cat === cat);
+  if (sub) list = list.filter(p => p.sub === sub);
   if (min != null) list = list.filter(p => p.priceMax >= min);
   if (max != null) list = list.filter(p => p.priceMin <= max);
   if (moqMin != null) list = list.filter(p => p.moq >= moqMin);
@@ -390,12 +399,13 @@ function renderProducts(params) {
   const chips = [];
   if (kw) chips.push('<span class="active-filter" data-action="remove-filter" data-key="kw">' + esc(kw) + ' ✕</span>');
   if (cat) chips.push('<span class="active-filter" data-action="remove-filter" data-key="cat">' + esc(langObj(catById(cat))) + ' ✕</span>');
+  if (sub) chips.push('<span class="active-filter" data-action="remove-filter" data-key="sub">' + esc((catById(cat).subs || []).find(s => s.id === sub) ? langObj((catById(cat).subs || []).find(s => s.id === sub)) : sub) + ' ✕</span>');
   if (min != null || max != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="minmax">$' + (min != null ? min : '0') + '–' + (max != null ? max : '∞') + ' ✕</span>');
   if (moqMin != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="moq">MOQ ≥ ' + moqMin + ' ✕</span>');
   if (origin) chips.push('<span class="active-filter" data-action="remove-filter" data-key="origin">' + esc(countryName(origin)) + ' ✕</span>');
   certs.forEach(c => chips.push('<span class="active-filter" data-action="remove-filter" data-key="certs" data-value="' + esc(c) + '">' + esc(c) + ' ✕</span>'));
 
-  const related = kw ? relatedProducts(kw, cat) : [];
+  const related = kw ? relatedProducts(kw, cat, sub) : [];
   const grid = list.length
     ? '<div class="product-grid">' + list.map(productCard).join('') + '</div>'
     : '<div class="empty-state"><div class="ico">🔎</div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>'
@@ -425,6 +435,12 @@ function renderProducts(params) {
     + '<label class="' + (cat === '' ? 'active' : '') + '"><input type="radio" name="cat" value="" ' + (cat === '' ? 'checked' : '') + '>' + t('allCategories') + '</label>'
     + CATEGORIES.map(c => '<label class="' + (cat === c.id ? 'active' : '') + '"><input type="radio" name="cat" value="' + c.id + '" ' + (cat === c.id ? 'checked' : '') + '>' + langObj(c) + '</label>').join('')
     + '</div></div>'
+    + (catSubs.length
+      ? '<div class="filter-group"><h4>' + t('subFilter') + '</h4><div class="radio-row">'
+        + '<label class="' + (sub === '' ? 'active' : '') + '"><input type="radio" name="sub" value="" ' + (sub === '' ? 'checked' : '') + '>' + t('allSubs') + '</label>'
+        + catSubs.map(s => '<label class="' + (sub === s.id ? 'active' : '') + '"><input type="radio" name="sub" value="' + s.id + '" ' + (sub === s.id ? 'checked' : '') + '>' + langObj(s) + '</label>').join('')
+        + '</div></div>'
+      : '')
     + '<div class="filter-group"><h4>' + t('priceRange') + '</h4>'
     + '<div class="input-group"><input class="input" type="number" min="0" id="priceMin" placeholder="' + t('minPrice') + '" value="' + (min != null ? min : '') + '"><span class="sep">–</span><input class="input" type="number" min="0" id="priceMax" placeholder="' + t('maxPrice') + '" value="' + (max != null ? max : '') + '"></div>'
     + '</div>'
@@ -458,7 +474,14 @@ function renderProducts(params) {
 function bindProductsPage() {
   const panel = $('#filterPanel');
   if (!panel) return;
-  panel.querySelectorAll('input[name="cat"]').forEach(r => r.addEventListener('change', () => setFilter('cat', r.value)));
+  panel.querySelectorAll('input[name="cat"]').forEach(r => r.addEventListener('change', () => {
+    const { params } = parseHash();
+    params.delete('sub');
+    if (r.value) params.set('cat', r.value); else params.delete('cat');
+    const qs = params.toString();
+    location.hash = '#/products' + (qs ? '?' + qs : '');
+  }));
+  panel.querySelectorAll('input[name="sub"]').forEach(r => r.addEventListener('change', () => setFilter('sub', r.value)));
   const pm = $('#priceMin'), px = $('#priceMax'), mq = $('#moqFilter'), or = $('#originFilter'), so = $('#sortSel');
   if (pm) pm.addEventListener('change', e => setFilter('min', e.target.value));
   if (px) px.addEventListener('change', e => setFilter('max', e.target.value));
@@ -582,6 +605,70 @@ function bindNewsPage() {
 }
 
 /* ---------- 产品详情 ---------- */
+function detailRelatedHtml(p) {
+  let others = liveProducts().filter(x => x.id !== p.id && x.cat === p.cat && p.sub && x.sub === p.sub).sort((a, b) => b.rating - a.rating);
+  if (!others.length) others = liveProducts().filter(x => x.id !== p.id && x.cat === p.cat).sort((a, b) => b.rating - a.rating);
+  others = others.slice(0, 4);
+  if (!others.length) return '';
+  return '<section class="related-section detail-related"><div class="section-head"><h2>✨ ' + t('relatedTitle') + '</h2>'
+    + '<a class="btn btn-sm" href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + t('viewAll') + ' →</a></div>'
+    + '<div class="product-grid">' + others.map(productCard).join('') + '</div></section>';
+}
+function renderSellerPage(sid) {
+  const seller = SELLERS.find(s => s.id === sid);
+  if (!seller) return renderHome();
+  document.title = langObj(seller).company + ' · BeanBeanMouse';
+  const verified = isVerifiedSeller(seller.id);
+  const company = (state.companies || []).find(c => c.sellerId === seller.id) || null;
+  const products = liveProducts().filter(p => p.sellerId === seller.id);
+  const certs = Array.from(new Set(products.flatMap(p => p.certs || [])));
+  const markets = Array.from(new Set(products.flatMap(p => p.markets || [])));
+  const readiness = exportReadinessOf(seller.id);
+  const companyName = langObj(seller).company;
+  const companyEn = seller.en && seller.en.company ? seller.en.company : companyName;
+  const certChips = certs.length ? certs.map(c => '<span class="chip cert">' + esc(c) + '</span>').join('') : '<span class="small muted">—</span>';
+  const marketChips = markets.length ? markets.map(m => '<span class="chip">' + esc(MARKET_COMPLIANCE[m] ? langObj(MARKET_COMPLIANCE[m]) : m) + '</span>').join('') : '<span class="small muted">—</span>';
+  const statusPill = verified
+    ? '<span class="status-pill done">' + icon('check') + ' ' + t('verified') + '</span>'
+    : '<span class="status-pill pend">' + t('pendingVerify') + '</span>';
+  const firstProduct = products[0] || null;
+  const stat = (n, l) => '<div class="sp-stat"><b>' + n + '</b><span>' + esc(l) + '</span></div>';
+  return '<div class="container page">'
+    + '<nav class="breadcrumb"><a href="#/" data-nav="/">' + t('home') + '</a> / <a href="#/products" data-nav="/products">' + t('marketplace') + '</a> / <span>' + esc(companyName) + '</span></nav>'
+    + '<section class="card panel seller-profile-head">'
+    + '<span class="sp-logo">' + esc(initialsOf(companyName)) + '</span>'
+    + '<div class="sp-main"><div class="sp-title">' + esc(companyName) + ' ' + statusPill + '</div>'
+    + '<div class="sp-en">' + esc(companyEn) + '</div>'
+    + '<div class="sp-meta">' + flagEmoji(seller.country) + ' ' + countryName(seller.country) + ' · ' + esc(langObj(seller).city) + ' · ' + t('since') + ' ' + seller.since + '</div>'
+    + (company && company.businessScope ? '<div class="sp-scope">' + esc(company.businessScope) + '</div>' : '')
+    + '</div>'
+    + '<div class="sp-stats">'
+    + stat(seller.rating.toFixed(1), '★ ' + t('statsSuppliers'))
+    + stat(seller.orders.toLocaleString(), t('orders'))
+    + stat(seller.responseRate + '%', t('responseRate'))
+    + stat(seller.responseTime, t('responseTime'))
+    + '</div>'
+    + '</section>'
+    + '<div class="seller-trust-grid">'
+    + '<section class="card panel"><div class="panel-head"><h2>🛡️ ' + t('sellerTrustTitle') + '</h2></div>'
+    + '<div class="trust-cell"><b>' + (verified ? t('verified') : t('pendingVerify')) + '</b><span>' + (verified ? t('companyApproved') : t('companyTip')) + '</span></div>'
+    + '<div class="trust-cell"><b>' + t('exportReadinessScore') + '</b><span>' + readiness.score + '%（' + readiness.coreDone + '/' + readiness.coreTotal + '）</span></div>'
+    + '<div class="trust-cell"><b>' + t('statLive') + '</b><span>' + products.length + '</span></div>'
+    + '<p class="small muted" style="margin-top:10px">' + t('sellerTrustNote') + '</p></section>'
+    + '<section class="card panel"><div class="panel-head"><h2>📜 ' + t('sellerCertsTitle') + '</h2></div>'
+    + '<div class="cert-block">' + certChips + '</div>'
+    + (company && company.docs && company.docs.length ? '<p class="small muted">' + t('docsLabel') + '：' + esc(company.docs.join('、')) + '</p>' : '')
+    + '<div class="panel-head mt-20"><h2>🌍 ' + t('sellerMarketsTitle') + '</h2></div><div class="cert-block">' + marketChips + '</div>'
+    + '</section>'
+    + '</div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + t('sellerProductsTitle') + ' (' + products.length + ')</h2>'
+    + (firstProduct ? '<button type="button" class="btn btn-primary btn-sm" data-action="open-inquiry" data-id="' + firstProduct.id + '">' + icon('message') + ' ' + t('sellerContact') + '</button>' : '')
+    + '</div>'
+    + (products.length ? '<div class="product-grid">' + products.map(productCard).join('') + '</div>' : '<p class="muted">' + t('noProducts') + '</p>')
+    + '</section>'
+    + '<p class="small muted" style="margin-top:14px">' + t('sellerPageNote') + '</p>'
+    + '</div>';
+}
 function renderDetail(pid) {
   const p = productById(pid);
   if (!p || !isLive(p)) return renderHome();
@@ -595,14 +682,17 @@ function renderDetail(pid) {
   const srcDesc = (p[base] && p[base].desc) || '';
   const srcFeatures = (p[base] && p[base].features) || [];
   const showSrcBlock = state.lang !== base;
-  const thumbs = [0, 1, 2].map(v =>
-    '<img src="' + productImg(p, 640, 480, v) + '" alt="' + (v + 1) + '" class="' + (v === variant ? 'on' : '') + '" data-action="gallery" data-id="' + p.id + '" data-v="' + v + '">'
+  const imgs = productImages(p);
+  const galleryN = imgs.length ? imgs.length : 3;
+  const mainSrc = imgs.length ? productImgUrl(p, variant) : productImg(p, 800, 600, variant);
+  const thumbs = Array.from({ length: galleryN }, (_, v) =>
+    '<img src="' + (imgs.length ? productImgUrl(p, v) : productImg(p, 640, 480, v)) + '" alt="' + (v + 1) + '" class="' + (v === variant ? 'on' : '') + '" data-action="gallery" data-id="' + p.id + '" data-v="' + v + '">'
   ).join('');
   return '<div class="container page">'
     + '<nav class="breadcrumb"><a href="#/" data-nav="/">' + t('home') + '</a> / <a href="#/products" data-nav="/products">' + t('marketplace') + '</a> / <a href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + esc(langObj(cat)) + '</a> / <span>' + esc(langObj(p).title) + '</span></nav>'
     + '<div class="detail-layout">'
     + '<div class="gallery">'
-    + '<div class="main-img"><img src="' + productImg(p, 800, 600, variant) + '" alt="' + esc(langObj(p).title) + '" id="mainImg"></div>'
+    + '<div class="main-img"><img src="' + mainSrc + '" alt="' + esc(langObj(p).title) + '" id="mainImg"></div>'
     + '<div class="gallery-thumbs">' + thumbs + '</div>'
     + '</div>'
     + '<div class="card detail-main">'
@@ -635,7 +725,8 @@ function renderDetail(pid) {
     + '<div class="seller-card">'
     + '<span class="avatar" style="width:38px;height:38px;font-size:14px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
     + '<div class="info"><div class="name">' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('shield') + '<span style="color:#126A33;font-size:12px">' + t('verified') + '</span>' : '') + '</div>'
-    + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('responseRate') + ' ' + seller.responseRate + '%</div></div>'
+    + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('responseRate') + ' ' + seller.responseRate + '%</div>'
+    + '<a class="seller-page-link" href="#/seller/' + seller.id + '" data-nav="/seller/' + seller.id + '">' + t('viewSellerPage') + ' →</a></div>'
     + '</div>'
     + '<div class="detail-actions">'
     + '<button type="button" class="btn btn-primary btn-lg" data-action="open-inquiry" data-id="' + p.id + '" style="flex:1">' + icon('send') + t('sendInquiry') + '</button>'
@@ -698,7 +789,9 @@ function renderDetail(pid) {
     + '<div><div class="n">' + seller.orders.toLocaleString() + '</div><div class="l">' + t('orders') + '</div></div>'
     + '</div>'
     + '</div></div>'
-    + '</div></div>';
+    + '</div>'
+    + detailRelatedHtml(p)
+    + '</div>';
 }
 
 function setGallery(el) {
@@ -706,7 +799,7 @@ function setGallery(el) {
   if (!p) return;
   const v = el.dataset.v;
   const main = $('#mainImg');
-  if (main) main.src = productImg(p, 800, 600, +v);
+  if (main) main.src = productImages(p).length ? productImgUrl(p, +v) : productImg(p, 800, 600, +v);
   $$('.gallery-thumbs img').forEach(i => i.classList.toggle('on', i === el));
 }
 
@@ -850,6 +943,26 @@ document.addEventListener('change', e => {
     toast('✓ ' + t('cardLogoUpload'));
     renderPage();
   }).catch(() => toast(t('attachSizeTooBig')));
+  input.value = '';
+});
+
+/* 产品发布：真实商品图上传 */
+document.addEventListener('change', e => {
+  const input = e.target;
+  if (!input || !input.hasAttribute('data-product-imgs')) return;
+  if (!input.files || !input.files.length) return;
+  const files = Array.from(input.files);
+  Promise.all(files.map(f => {
+    if (!ATTACH_IMAGE_TYPES.includes(f.type)) { toast(t('attachTypeNotAllowed')); return null; }
+    return readAttachFile(f).catch(() => null);
+  })).then(list => {
+    list.forEach(a => {
+      if (!a) return;
+      if (productImgFiles.length >= 8) { toast(t('imgMax')); return; }
+      productImgFiles.push(a);
+    });
+    refreshProductImgWrap();
+  });
   input.value = '';
 });
 
@@ -1893,6 +2006,11 @@ function orderCard(o) {
     + orderAfterSalesPanel(o)
     + evidencePanelHtml(o)
     + '<div class="flex gap-10" style="margin-top:10px;flex-wrap:wrap">'
+    + (isBuyer && ['created', 'complete'].includes(o.status)
+      ? (o.payment
+        ? '<span class="chip ' + (o.payment.status === 'paid' ? 'ok' : '') + '">' + icon('check') + ' ' + t('payProvider') + ' · ' + (o.payment.status === 'paid' ? t('payPaid') : t('payPending')) + '</span>'
+        : '<button type="button" class="btn" data-action="pay-open" data-id="' + o.id + '">' + t('payTitle') + '</button>')
+      : '')
     + (o.status === 'created' && isBuyer ? '<button type="button" class="btn btn-primary" data-action="order-confirm" data-id="' + o.id + '">' + t('confirmReceipt') + '</button><button type="button" class="btn" data-action="order-cancel" data-id="' + o.id + '">' + t('orderStatusCancelled') + '</button>' : '')
     + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '">💛 ' + (tippedByMe ? t('tipBtnAgain') : t('tipTitle')) + '</button>' : '')
     + (isSeller && !shipments.length && (o.status === 'created' || o.status === 'complete')
@@ -2048,6 +2166,26 @@ async function cancelOrder(id) {
 function openTipModal(id) {
   const o = (state.orders || []).find(x => x.id === id);
   if (o) showModal(tipModalHtml(o));
+}
+function openPayModal(o) {
+  if (!o) return;
+  showModal('<div class="modal-head"><h3>💳 ' + t('payTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + '<div class="pay-order"><b>' + esc(o.id) + '</b><span>' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total || 0).toLocaleString() + '</span></div>'
+    + '<div class="pay-provider"><span class="pay-logo">P</span><div><b>PayPal</b><span class="small muted">Sandbox · USD/EUR/GBP</span></div>'
+    + '<span class="chip sub-chip">' + t('payFirstChannel') + '</span></div>'
+    + '<button type="button" class="btn btn-primary btn-lg btn-block" data-action="pay-paypal" data-id="' + o.id + '">' + t('payWith') + '</button>'
+    + '<p class="small muted" style="text-align:center;margin-top:10px">' + t('payNote') + '</p>'
+    + '</div>');
+}
+async function doPaypalPay(orderId) {
+  try {
+    await api.payments.checkout(orderId, 'paypal');
+    await api.payments.markPaid(orderId);
+    closeModal();
+    toast('✓ ' + t('payDone'));
+    render();
+  } catch (e) { toast(e.message || String(e)); }
 }
 async function sendTip(orderId) {
   const inp = $('#tipAmountInput');
@@ -3922,6 +4060,25 @@ function exportPublishHint() {
     + '<span>' + esc(r.score >= 80 ? t('exportReadyHigh') : r.score >= 50 ? t('exportReadyMid') : t('exportReadyLow')) + '</span>'
     + '<a class="btn btn-sm" href="#/dashboard/export" data-nav="/dashboard/export" style="margin-left:auto">' + t('exportTab') + ' →</a></div>';
 }
+const productImgFiles = [];
+function productImgListHtml(p) {
+  const own = Array.isArray(p && p.images) ? p.images.filter(x => x && (x.dataUrl || typeof x === 'string')) : [];
+  const cur = own.map((it, i) => ({ name: (typeof it === 'string' ? '' : it.name) || t('imgDefaultName') + (i + 1), dataUrl: (typeof it === 'string' ? it : it.dataUrl), base: true, i }));
+  const pend = productImgFiles.map((it, i) => ({ name: it.name, dataUrl: it.dataUrl, base: false, i }));
+  const all = cur.concat(pend);
+  if (!all.length) return '';
+  return '<div class="product-imgs">' + all.map((x, idx) =>
+    '<span class="product-img-item"><img src="' + x.dataUrl + '" alt="' + esc(x.name) + '">'
+    + '<button type="button" class="attach-x" data-action="product-img-remove" data-idx="' + idx + '" aria-label="' + t('imgRemove') + '">✕</button></span>'
+  ).join('') + '</div>';
+}
+function refreshProductImgWrap() {
+  const wrap = document.getElementById('productImgsWrap');
+  if (!wrap) return;
+  const { params } = parseHash();
+  const p = params.get('id') ? productById(params.get('id')) : null;
+  wrap.innerHTML = productImgListHtml(p);
+}
 
 function renderPublishForm() {
   const { params } = parseHash();
@@ -3951,6 +4108,9 @@ function renderPublishForm() {
     + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
     + '</select></div>'
     + '<div class="field"><label>' + t('chooseImage') + '</label><div class="palette">' + hueList.map(h => '<span class="swatch ' + (h === hue ? 'on' : '') + '" data-action="pick-hue" data-hue="' + h + '" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 48%),hsl(' + ((h + 45) % 360) + ' 55% 30%))"></span>').join('') + '</div></div>'
+    + '<div class="field full"><label>' + t('prodImgLabel') + ' <span class="hint">' + t('prodImgHint') + '</span></label>'
+    + '<input type="file" class="input" name="images" multiple accept="image/jpeg,image/png,image/webp" data-product-imgs>'
+    + '<div id="productImgsWrap">' + productImgListHtml(p) + '</div></div>'
     + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'
     + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
     + '<div class="field"><label>' + t('moqField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="moq" value="' + (p ? p.moq : '') + '" required><select class="select" name="unit" style="width:100px">' + UNITS.map(u => '<option value="' + u + '" ' + (p && p.unit === u ? 'selected' : '') + '>' + u + '</option>').join('') + '</select></div></div>'
@@ -4020,8 +4180,13 @@ function submitProduct(f) {
     Object.assign(p, data);
     p.status = 'pending';
     p.rejectReason = '';
+    if (productImgFiles.length) {
+      p.images = (p.images || []).concat(productImgFiles.splice(0));
+    }
   } else {
-    state.products.unshift(Object.assign({ id: 'u' + Date.now(), sellerId: state.user.sellerId, status: 'pending', featured: false, hot: false, addedAt: Date.now() }, data));
+    const np = Object.assign({ id: 'u' + Date.now(), sellerId: state.user.sellerId, status: 'pending', featured: false, hot: false, addedAt: Date.now() }, data);
+    if (productImgFiles.length) np.images = productImgFiles.splice(0);
+    state.products.unshift(np);
   }
   saveState();
   toast(t('productSubmitted'));

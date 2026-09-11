@@ -213,6 +213,17 @@ function parseHash() {
   return { path: h.slice(0, i) || '/', params: new URLSearchParams(h.slice(i + 1)) };
 }
 
+/* 干净路径兼容：_redirects 已把 /products 这类路径 301 到 /#/products；
+   万一重定向把 hash 丢掉（或有人直接访问干净路径），这里再兜一次，
+   保证落到对应页面而不是首页。仅在 hash 为空时改写，不影响正常路由。 */
+const CLEAN_PATHS = ['products', 'news', 'guide', 'export', 'logistics', 'compliance', 'disputes', 'feedback', 'customs', 'recruit', 'insurance', 'contracts'];
+(function adoptCleanPath() {
+  if (location.hash) return;
+  const seg = location.pathname.replace(/\/+$/, '').replace(/^\//, '');
+  if (CLEAN_PATHS.indexOf(seg) === -1) return;
+  try { history.replaceState(null, '', '/#/' + seg); } catch (e) { location.hash = '#/' + seg; }
+})();
+
 function fmtPrice(n) {
   if (Number.isInteger(n)) return n.toLocaleString('en-US');
   return n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 2 : 1 });
@@ -328,9 +339,11 @@ async function translateViaMyMemory(text, target) {
   return out;
 }
 
+/* 备用 LibreTranslate 实例。原先第一位是 libretranslate.com，但该站点已要求
+   API key 且不返回 CORS 头，从浏览器必然预检失败（实测每次都浪费一个往返），
+   故只保留无需密钥的公共实例。 */
 async function translateViaLibre(text, target) {
   const instances = [
-    'https://libretranslate.com/translate',
     'https://translate.argosopentech.com/translate'
   ];
   let lastErr;
@@ -349,6 +362,29 @@ async function translateViaLibre(text, target) {
   throw lastErr || new Error('LibreTranslate failed');
 }
 
+/* 并发闸门 + 同文本合并：一页可能有几十个 [data-l10n]，不设限会同时打第三方
+   公共接口，触发大面积 429（实测如此）。这里限制同时最多 3 个请求，
+   相同原文（中/俄切换常见重复短语）只发一次。 */
+const TRANSLATE_MAX_CONCURRENCY = 3;
+const translateInflight = new Map();
+let translateActive = 0;
+const translateWaiters = [];
+
+function withTranslateSlot(fn) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      translateActive += 1;
+      Promise.resolve().then(fn).then(resolve, reject).finally(() => {
+        translateActive -= 1;
+        const next = translateWaiters.shift();
+        if (next) next();
+      });
+    };
+    if (translateActive < TRANSLATE_MAX_CONCURRENCY) run();
+    else translateWaiters.push(run);
+  });
+}
+
 /* 真实翻译主流程：缓存 → MyMemory → LibreTranslate → 离线词典 */
 async function realTranslate(text, target) {
   const s = String(text || '').trim();
@@ -358,6 +394,18 @@ async function realTranslate(text, target) {
   if (tgt === src) return { text: s, mode: 'same' };
   const key = src + '>' + tgt + ':' + s;
   if (transCache[key]) return { text: transCache[key], mode: 'cache' };
+  if (translateInflight.has(key)) return translateInflight.get(key);
+  const job = withTranslateSlot(() => translateRemote(s, tgt, key));
+  translateInflight.set(key, job);
+  try {
+    return await job;
+  } finally {
+    translateInflight.delete(key);
+  }
+}
+
+/* 远端翻译：拿到就写缓存，全失败则回落离线词典 */
+async function translateRemote(s, tgt, key) {
   try {
     const out = await translateViaMyMemory(s, tgt);
     if (out && out.trim()) { transCache[key] = out.trim(); saveTransCache(); return { text: out.trim(), mode: 'remote' }; }
@@ -476,6 +524,21 @@ function productImg(p, w = 640, h = 480, variant = 0) {
     + '<text x="' + (w / 2) + '" y="' + Math.round(h * 0.74) + '" text-anchor="middle" font-family="Arial, sans-serif" font-size="' + Math.round(h * 0.07) + '" letter-spacing="3" fill="rgba(255,255,255,0.75)">' + esc(catLabel) + '</text>'
     + '</svg>';
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+/* 真实商品图优先，无图回退程序占位图 */
+function productImages(p) {
+  const mapped = (typeof window !== 'undefined' && window.__PRODUCT_IMAGE_MAP__ && window.__PRODUCT_IMAGE_MAP__[p && p.id]) || [];
+  const own = Array.isArray(p && p.images) ? p.images.filter(x => x && (x.dataUrl || typeof x === 'string')) : [];
+  return mapped.concat(own);
+}
+function productImgUrl(p, v) {
+  const imgs = productImages(p);
+  if (!imgs.length) return '';
+  const it = imgs[(v || 0) % imgs.length];
+  return typeof it === 'string' ? it : (it.dataUrl || '');
+}
+function productMainImg(p, w, h) {
+  return productImages(p).length ? productImgUrl(p, 0) : productImg(p, w || 640, h || 480, 0);
 }
 
 /* ---------- 全局交互（事件委托） ---------- */
@@ -696,6 +759,30 @@ function handleAction(el) {
     case 'open-conv': go('/dashboard/messages?conv=' + encodeURIComponent(id)); break;
     case 'export-orders': exportOrdersCsv(); break;
     case 'export-inquiries': exportInquiriesCsv(); break;
+    case 'pay-open': {
+      const o = (state.orders || []).find(x => x.id === id);
+      if (o) openPayModal(o);
+      break;
+    }
+    case 'pay-paypal': runBusy(el, () => doPaypalPay(id)); break;
+    case 'product-img-remove': {
+      const idx = Number(el.dataset.idx);
+      const { params } = parseHash();
+      const pid = params.get('id') || '';
+      const p = pid ? productById(pid) : null;
+      const base = Array.isArray(p && p.images) ? p.images.length : 0;
+      if (p && idx < base) {
+        const imgs = Array.isArray(p.images) ? p.images.slice() : [];
+        imgs.splice(idx, 1);
+        p.images = imgs;
+        saveState();
+      } else if (idx >= base) {
+        productImgFiles.splice(idx - base, 1);
+      }
+      refreshProductImgWrap();
+      renderPage();
+      break;
+    }
     case 'dismiss-trial': {
       try { localStorage.setItem(TRIAL_DISMISS_KEY, '1'); } catch (e) { /* 忽略 */ }
       const b = document.getElementById('trialBanner');

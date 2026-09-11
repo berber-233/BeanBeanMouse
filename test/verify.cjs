@@ -200,7 +200,7 @@ function resolveBrowser() {
   await page.evaluate(() => { location.hash = '#/product/p3'; });
   await page.waitForTimeout(300);
   check('detail: title visible', await page.locator('.detail-main h1').isVisible());
-  check('detail: inquiry button', await page.locator('[data-action="open-inquiry"]').count() === 1);
+  check('detail: inquiry button', await page.locator('.detail-main [data-action="open-inquiry"]').count() === 1);
   check('detail: gallery thumbs 3', await page.locator('.gallery-thumbs img').count() === 3);
   check('detail: HS code shown', (await page.locator('.spec-list').textContent()).includes('8504.40'));
   check('detail: subcategory with HS ref shown', (await page.locator('.spec-list').textContent()).includes('HS '));

@@ -63,10 +63,12 @@ const CATEGORIES = [
     { id: 'locks', zh: '锁具与安防五金', en: 'Locks & Security Hardware', hs: '8301' }
   ]},
   { id: 'pet', zh: '宠物用品', en: 'Pet Supplies', hue: 280, subs: [
-    { id: 'pet-feeders', zh: '喂食器与饮水器', en: 'Feeders & Waterers', hs: '3924, 7326' },
-    { id: 'pet-toys', zh: '宠物玩具', en: 'Pet Toys', hs: '9503' },
-    { id: 'pet-grooming', zh: '洗护用品', en: 'Grooming Supplies', hs: '3307, 9615' },
-    { id: 'pet-furniture', zh: '宠物窝与家具', en: 'Pet Beds & Furniture', hs: '9403' }
+    { id: 'pet-hamster', zh: '仓鼠与小宠', en: 'Hamsters & Small Pets', hs: '9403, 3924, 4421' },
+    { id: 'pet-cat', zh: '猫用品', en: 'Cat Supplies', hs: '3924, 9403, 4818' },
+    { id: 'pet-dog-small', zh: '小型犬用品', en: 'Small Dog Supplies', hs: '4201, 9503' },
+    { id: 'pet-dog-large', zh: '大型犬用品（金毛·边牧等）', en: 'Large Dog Supplies (Golden Retriever, Border Collie…)', hs: '4201, 9503, 6307' },
+    { id: 'pet-grooming', zh: '美容与清洁', en: 'Grooming & Hygiene', hs: '3307, 9615' },
+    { id: 'pet-toys', zh: '玩具与训练', en: 'Toys & Training', hs: '9503, 4201' }
   ]}
 ];
 
@@ -441,6 +443,7 @@ const PRODUCTS = [
   },
   {
     id: 'p23', sellerId: 's2', cat: 'pet', country: 'CN', hot: true,
+    sub: 'pet-cat',
     priceMin: 24, priceMax: 39, moq: 200, unit: 'pcs', leadTime: 15,
     terms: ['FOB', 'CIF'], certs: ['CE', 'RoHS'], rating: 4.7, orders: 8200, hue: 285,
     en: {
@@ -456,6 +459,7 @@ const PRODUCTS = [
   },
   {
     id: 'p24', sellerId: 's4', cat: 'pet', country: 'TR',
+    sub: 'pet-cat',
     priceMin: 12, priceMax: 18, moq: 150, unit: 'pcs', leadTime: 24,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.5, orders: 2100, hue: 275,
     en: {
@@ -467,6 +471,126 @@ const PRODUCTS = [
       title: '猫抓板窝（带隧道）',
       desc: '瓦楞纸猫抓板窝，自带隧道与逗猫球，60×30×30cm，环保可回收，可抓可睡，保护家具。',
       features: ['环保瓦楞纸', '内置隧道+球', '60×30×30cm', '可回收']
+    }
+  },
+  {
+    id: 'p25', sellerId: 's3', cat: 'pet', country: 'VN', sub: 'pet-hamster', featured: true, hot: true,
+    priceMin: 8.5, priceMax: 15, moq: 100, unit: 'set', leadTime: 20,
+    terms: ['FOB', 'CIF'], certs: ['EN71', 'ISO9001'], rating: 4.7, orders: 5600, hue: 282,
+    en: {
+      title: '2-Story Hamster Cage with Wheel & Water Bottle',
+      desc: 'Compact 2-story hamster cage with deep anti-escape base, silent running wheel, hideout, feeding bowl and water bottle. Easy to clean, ideal for Syrian and dwarf hamsters.',
+      features: ['2-story + anti-escape base', 'Silent running wheel', 'Hideout & bowl included', 'Easy clean tray']
+    },
+    zh: {
+      title: '双层仓鼠笼（含跑轮与水壶）',
+      desc: '双层紧凑仓鼠笼，防逃深底盘，静音跑轮，含躲避屋、食盆与水壶，易清洁，适合熊类与侏儒仓鼠。',
+      features: ['双层 + 防逃底盘', '静音跑轮', '含躲避屋与食盆', '易清洁托盘']
+    }
+  },
+  {
+    id: 'p26', sellerId: 's5', cat: 'pet', country: 'IN', sub: 'pet-hamster',
+    priceMin: 1.2, priceMax: 2.4, moq: 500, unit: 'bag', leadTime: 15,
+    terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.5, orders: 9800, hue: 290,
+    en: {
+      title: 'Natural Paper Hamster Bedding 10L',
+      desc: 'Soft dust-free paper bedding for hamsters and small pets, 10L expanded bag. Safe for burrowing, low dust and highly absorbent.',
+      features: ['Dust-free & soft', '10L expanded volume', 'Safe for burrowing', 'Highly absorbent']
+    },
+    zh: {
+      title: '仓鼠纸棉垫材 10L',
+      desc: '柔软无尘纸棉垫材，10L 膨胀包装，适合仓鼠与小宠打洞筑巢，低粉尘、高吸水。',
+      features: ['无尘柔软', '10L 膨胀量', '适合打洞筑巢', '高吸水']
+    }
+  },
+  {
+    id: 'p27', sellerId: 's4', cat: 'pet', country: 'TR', sub: 'pet-cat', featured: true,
+    priceMin: 6.8, priceMax: 11, moq: 200, unit: 'set', leadTime: 22,
+    terms: ['FOB', 'CIF'], certs: ['REACH'], rating: 4.6, orders: 7300, hue: 268,
+    en: {
+      title: 'Cat Litter Box with Scoop & Mat Set',
+      desc: 'Large corner cat litter box with high splash guard, matching scoop and anti-track mat. BPA-free PP, smooth surface for easy cleaning.',
+      features: ['High splash guard', 'Scoop & anti-track mat', 'BPA-free PP', 'Easy-clean corners']
+    },
+    zh: {
+      title: '猫砂盆套装（含猫砂铲与防带砂垫）',
+      desc: '大号直角猫砂盆，高防溅挡边，配套猫砂铲与防带砂垫，BPA 免费 PP 材质，易清洁。',
+      features: ['高防溅挡边', '含铲与防带砂垫', 'BPA 免费 PP', '易清洁']
+    }
+  },
+  {
+    id: 'p28', sellerId: 's2', cat: 'pet', country: 'CN', sub: 'pet-cat', featured: true,
+    priceMin: 13, priceMax: 21, moq: 150, unit: 'pcs', leadTime: 15,
+    terms: ['FOB', 'CIF'], certs: ['CE', 'FDA', 'RoHS'], rating: 4.7, orders: 6100, hue: 200,
+    en: {
+      title: 'Cat Water Fountain 2L Silent Pump',
+      desc: '2L pet water fountain with ultra-quiet submersible pump, triple filtration and wide bowl. Food-safe ABS with low-water reminder.',
+      features: ['Ultra-quiet pump', 'Triple filtration', '2L food-safe bowl', 'Low-water reminder']
+    },
+    zh: {
+      title: '猫咪饮水机 2L 静音水泵',
+      desc: '2L 宠物饮水机，超静音潜水泵，三重过滤与大宽碗设计，食品级 ABS，缺水提醒。',
+      features: ['超静音水泵', '三重过滤', '2L 食品级宽碗', '缺水提醒']
+    }
+  },
+  {
+    id: 'p29', sellerId: 's3', cat: 'pet', country: 'VN', sub: 'pet-dog-small', hot: true,
+    priceMin: 3.6, priceMax: 6.5, moq: 300, unit: 'set', leadTime: 18,
+    terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.6, orders: 8800, hue: 220,
+    en: {
+      title: 'Small Dog No-Pull Harness & Leash Set',
+      desc: 'Soft breathable no-pull harness for small dogs (2-8kg) with adjustable straps, quick-release buckles and matching leash. Reflective stitching for night walks.',
+      features: ['For dogs 2–8kg', 'No-pull & breathable', 'Reflective stitching', 'Matching leash']
+    },
+    zh: {
+      title: '小型犬防爆冲胸背带牵引套装',
+      desc: '柔软透气防爆冲胸背带，适用 2–8kg 小型犬，可调织带与快拆扣，配牵引绳，反光走线夜行更安全。',
+      features: ['适用 2–8kg', '防爆冲透气', '反光走线', '配套牵引绳']
+    }
+  },
+  {
+    id: 'p30', sellerId: 's4', cat: 'pet', country: 'TR', sub: 'pet-dog-large', featured: true,
+    priceMin: 9.8, priceMax: 16, moq: 150, unit: 'set', leadTime: 24,
+    terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.8, orders: 4700, hue: 240,
+    en: {
+      title: 'Large Dog Harness & Leash for Golden Retriever / Border Collie',
+      desc: 'Heavy-duty padded harness for large breeds (20-45kg) such as Golden Retriever and Border Collie. Two leash rings, soft neoprene padding and strong metal buckles.',
+      features: ['For large breeds 20–45kg', 'Neoprene padded chest', 'Two leash rings', 'Metal quick-release buckles']
+    },
+    zh: {
+      title: '大型犬胸背带牵引套装（金毛/边牧适用）',
+      desc: '加厚衬垫大型犬胸背带，适用 20–45kg 金毛、边牧等，双牵引环设计，柔软氯丁橡胶内衬，金属快拆扣。',
+      features: ['适用大型犬 20–45kg', '氯丁橡胶胸垫', '双牵引环', '金属快拆扣']
+    }
+  },
+  {
+    id: 'p31', sellerId: 's5', cat: 'pet', country: 'IN', sub: 'pet-dog-large', hot: true,
+    priceMin: 2.8, priceMax: 5.2, moq: 300, unit: 'pcs', leadTime: 16,
+    terms: ['FOB', 'CIF'], certs: ['EN71'], rating: 4.5, orders: 11900, hue: 255,
+    en: {
+      title: 'Durable Dog Chew Bone for Aggressive Chewers',
+      desc: 'Extra-tough nylon chew bone designed for large breeds (Golden Retriever, Lab, Border Collie). Helps clean teeth and lasts longer for aggressive chewers.',
+      features: ['Extra-tough nylon', 'For large breeds', 'Teeth-cleaning ridges', 'Long-lasting']
+    },
+    zh: {
+      title: '大型犬耐咬磨牙骨',
+      desc: '超强尼龙磨牙骨，专为金毛、拉布拉多、边牧等大型犬设计，帮助清洁牙齿，适合强力啃咬型狗狗。',
+      features: ['超强尼龙', '适合大型犬', '洁齿纹路', '持久耐咬']
+    }
+  },
+  {
+    id: 'p32', sellerId: 's3', cat: 'pet', country: 'VN', sub: 'pet-grooming',
+    priceMin: 2.2, priceMax: 4.0, moq: 400, unit: 'pcs', leadTime: 15,
+    terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.4, orders: 6600, hue: 300,
+    en: {
+      title: 'Double-Sided Pet Grooming Brush (Slicker & Pin)',
+      desc: '2-in-1 grooming brush with stainless steel slicker side and rounded pin side. Suitable for cats and dogs including long-haired breeds; removes loose undercoat gently.',
+      features: ['Slicker + pin sides', 'Stainless steel pins', 'Gentle rounded tips', 'Cats & dogs']
+    },
+    zh: {
+      title: '宠物双面美容梳（针梳+除毛）',
+      desc: '二合一宠物美容梳，不锈钢针梳面与圆头梳面，适合猫与长毛犬种，温和去除浮毛，减少打结。',
+      features: ['针梳+除毛双面', '不锈钢针', '圆头防伤', '猫犬通用']
     }
   }
 ].concat(pendingSeedProducts());
@@ -529,7 +653,9 @@ const MARKETS_BY_PRODUCT = {
   p9: ['ASIA', 'US'], p10: ['EU', 'US'], p11: ['EU', 'US'], p12: ['ASIA'],
   p13: ['EU', 'US'], p14: ['EU'], p15: ['EU'], p16: ['EU', 'US'],
   p17: ['EU', 'US', 'ASIA'], p18: ['EU', 'US'], p19: ['EU', 'US'], p20: ['US', 'EU'],
-  p21: ['EU', 'US', 'ASIA'], p22: ['US', 'EU'], p23: ['EU', 'US', 'ASIA'], p24: ['EU', 'US']
+  p21: ['EU', 'US', 'ASIA'], p22: ['US', 'EU'], p23: ['EU', 'US', 'ASIA'], p24: ['EU', 'US'],
+  p25: ['EU', 'US', 'ASIA'], p26: ['EU', 'US'], p27: ['EU', 'US'], p28: ['EU', 'US', 'ASIA'],
+  p29: ['EU', 'US', 'ASIA'], p30: ['EU', 'US'], p31: ['EU', 'US'], p32: ['EU', 'US', 'ASIA']
 };
 
 /* 演示用中英短语翻译库（正式版接入 AI 翻译服务） */
@@ -1164,6 +1290,7 @@ const I18N = {
     home: '首页', marketplace: '产品市场', dashboard: '工作台', login: '登录', logout: '退出登录',
     heroTitle: '连接全球买家与优质供应商',
     heroSub: '一站式发布产品、精准筛选、快速询盘，让每一笔跨国生意更简单。',
+    heroPilot: '首发垂直 · 宠物用品（仓鼠 · 猫与小型犬 · 大型犬）',
     searchPlaceholder: '搜索产品，例如：激光切割机、充电器、面料…',
   popular: '热门搜索：',
     categoriesTitle: '热门行业', featuredTitle: '精选产品', viewAll: '查看全部',
@@ -1399,6 +1526,11 @@ const I18N = {
     compliancePanelTitle: '出口合规筛查', compliancePanelNote: '发布后平台按品名与描述做管制/制裁关键词筛查（演示）。',
     compliancePassLabel: '未命中风险', complianceFlagLabel: '关注项', complianceMarketTitle: '目标市场合规',
     complianceScreenDemo: '演示筛查', adminScreenLabel: '出口管制筛查',
+    viewSellerPage: '供应商主页', sellerTrustTitle: '平台核验与信任',
+    sellerCertsTitle: '认证与证书', sellerMarketsTitle: '目标市场',
+    sellerProductsTitle: '在售商品', sellerContact: '联系供应商',
+    sellerTrustNote: '展示信息基于平台企业认证与商品资料，供决策参考；正式合作请另行尽调。',
+    sellerPageNote: '演示页：认证与证书来自演示企业资料。',
     disputesTitle: '售后与纠纷中心', disputesSub: '订单交付后的质量异议、退换货与平台仲裁都在这里处理，全程自动纳入订单存证链。',
     afterSalesTitle: '售后与纠纷', afterSalesCreate: '申请售后', afterSalesOpen: '发起纠纷',
     afterSalesTypeLabel: '问题类型', afterSalesDescLabel: '问题描述', afterSalesResolution: '期望解决方案',
@@ -1420,6 +1552,8 @@ const I18N = {
     docBLHint: '参考件用于演示单据流；真实提单由承运人签发，信息以承运人出具为准。',
     docCOHint: '参考件用于演示；正式原产地证请向贸促会或海关申领。',
     docPIHint: '形式发票已支持打印，商业发票为正式结算与清关单据。',
+    prodImgLabel: '真实商品图（可多选）', prodImgHint: '建议 800×800 以上实拍图，JPEG/PNG，最多 8 张',
+    imgRemove: '移除图片', imgDefaultName: '图片', imgMax: '最多上传 8 张商品图',
     exportTab: '出口资质', exportTabHint: '维护你的出口资质清单，平台会在发布产品时提示缺口。',
     adminAfterSales: '纠纷仲裁', adminAfterSalesHint: '仲裁前可查看订单存证链与双方沟通记录。',
     adminExportReady: '出口就绪度', asPanelTitle: '售后与纠纷', asApplyBtn: '申请售后', asDisputeBtn: '发起纠纷',
@@ -1437,6 +1571,7 @@ const I18N = {
     searchBtn: '搜索', searchSuggestTitle: '热门搜索', searchBarPlaceholder: '搜索产品 / 品类 / HS 编码，例如：折叠椅、螺丝刀…',
     catStripTitle: '品类速览', catStripSub: '轻扫查看全部行业', viewAllCats: '查看全部',
     relatedTitle: '相关推荐', relatedSub: '没有找到完全匹配的商品，为你推荐以下相关商品',
+    subFilter: '细分 / 适用宠物', allSubs: '全部细分',
     profileTab: '个人信息', profileTitle: '个人信息与名片', profileSub: '完善资料会显示在询盘与订单中，帮助对方更快信任你。',
     businessCard: '名片',
     cardWatermarkNote: '对方展示与下载的名片带轻量水印，防止被冒用。',
@@ -1453,6 +1588,10 @@ const I18N = {
     cardLogoUpload: '上传 Logo（可选）', cardApplyCustom: '用自定义设置生成', customCardApplied: '已应用自定义设置生成名片',
     cardFlip: '翻转', cardDragHint: '拖拽可旋转 · 点击翻转查看背面',
     storageFull: '本地存储空间不足，请删除部分附件或旧数据后重试',
+    payTitle: 'PayPal 支付（演示）', payProvider: '支付', payFirstChannel: '首发通道',
+    payWith: '用 PayPal 支付', payDone: '支付成功（演示，未产生真实扣款）',
+    payPending: '待支付', payPaid: '已支付（演示）',
+    payNote: '演示环境：不会产生真实扣款。正式收款需接入 PayPal 商户与平台合规配置。',
     identityLabel: '询盘身份', identityPublic: '身份对卖家可见', identityHidden: '匿名询盘（不显示身份）',
     sendCard: '随询盘发送名片', viewCard: '查看名片', downloadCard: '下载名片', cardSentTag: '已附名片',
     attachLabel: '附件（图片 / 压缩包）', attachHint: '支持 JPG / PNG / GIF / WebP 图片与 ZIP / RAR / 7Z 压缩包，单个不超过 4MB',
@@ -1474,6 +1613,7 @@ const I18N = {
     home: 'Home', marketplace: 'Products', dashboard: 'Dashboard', login: 'Sign in', logout: 'Sign out',
     heroTitle: 'Connecting Global Buyers with Trusted Suppliers',
     heroSub: 'Publish products, filter precisely and send inquiries — one platform for simpler cross-border trade.',
+    heroPilot: 'Pilot vertical · Pet Supplies (Hamsters · Cats & Small Dogs · Large Dogs)',
     searchPlaceholder: 'Search products, e.g. laser cutter, charger, fabric…',
   popular: 'Popular:',
     categoriesTitle: 'Top Categories', featuredTitle: 'Featured Products', viewAll: 'View all',
@@ -1710,6 +1850,11 @@ const I18N = {
     compliancePanelTitle: 'Export compliance screening', compliancePanelNote: 'After publishing, the platform screens title & description against control/sanctions keywords (demo).',
     compliancePassLabel: 'No flags', complianceFlagLabel: 'Flags', complianceMarketTitle: 'Target market compliance',
     complianceScreenDemo: 'Demo screening', adminScreenLabel: 'Export-control screening',
+    viewSellerPage: 'Supplier profile', sellerTrustTitle: 'Verification & trust',
+    sellerCertsTitle: 'Certificates', sellerMarketsTitle: 'Target markets',
+    sellerProductsTitle: 'Products for sale', sellerContact: 'Contact supplier',
+    sellerTrustNote: 'Shown info is based on platform verification and product data; perform your own due diligence before a formal deal.',
+    sellerPageNote: 'Demo page: verification and certificates come from demo company data.',
     disputesTitle: 'After-sales & Disputes Center', disputesSub: 'Quality claims, returns and platform arbitration after delivery are handled here; every milestone is sealed into the order evidence chain.',
     afterSalesTitle: 'After-sales & disputes', afterSalesCreate: 'Request after-sales', afterSalesOpen: 'Open dispute',
     afterSalesTypeLabel: 'Issue type', afterSalesDescLabel: 'Description', afterSalesResolution: 'Expected resolution',
@@ -1731,6 +1876,8 @@ const I18N = {
     docBLHint: 'Reference only; the real B/L is issued by the carrier and its terms prevail.',
     docCOHint: 'Reference only; apply for the official CO from CCPIT or customs.',
     docPIHint: 'Proforma invoices are printable; the commercial invoice is the settlement and clearance document.',
+    prodImgLabel: 'Real product images (multi-select)', prodImgHint: 'Actual photos recommended, 800×800+, JPEG/PNG, up to 8',
+    imgRemove: 'Remove image', imgDefaultName: 'Image', imgMax: 'Up to 8 product images',
     exportTab: 'Export readiness', exportTabHint: 'Maintain your export qualification checklist; the platform flags gaps when you publish.',
     adminAfterSales: 'Dispute arbitration', adminAfterSalesHint: 'Review the order evidence chain and party communication before ruling.',
     adminExportReady: 'Export readiness', asPanelTitle: 'After-sales & disputes', asApplyBtn: 'Request after-sales', asDisputeBtn: 'Open dispute',
@@ -1748,6 +1895,7 @@ const I18N = {
     searchBtn: 'Search', searchSuggestTitle: 'Popular searches', searchBarPlaceholder: 'Search products / categories / HS codes, e.g. chair, screwdriver…',
     catStripTitle: 'Categories', catStripSub: 'Swipe to browse all industries', viewAllCats: 'View all',
     relatedTitle: 'Related products', relatedSub: 'No exact matches found. Here are related products you may like:',
+    subFilter: 'Subcategory / pet type', allSubs: 'All',
     profileTab: 'My profile', profileTitle: 'Profile & business card', profileSub: 'A complete profile builds trust in inquiries and orders.',
     businessCard: 'Business card',
     cardWatermarkNote: 'Cards shown and downloaded by the other party carry a subtle anti-misuse watermark.',
@@ -1764,6 +1912,10 @@ const I18N = {
     cardLogoUpload: 'Upload logo (optional)', cardApplyCustom: 'Generate with custom settings', customCardApplied: 'Custom card generated',
     cardFlip: 'Flip', cardDragHint: 'Drag to rotate · click to flip and view the back',
     storageFull: 'Local storage is full — remove some attachments or old data and retry',
+    payTitle: 'PayPal Payment (demo)', payProvider: 'Payment', payFirstChannel: 'First channel',
+    payWith: 'Pay with PayPal', payDone: 'Payment succeeded (demo — no real charge)',
+    payPending: 'Pending', payPaid: 'Paid (demo)',
+    payNote: 'Demo only: no real charge occurs. Live collection requires PayPal merchant onboarding and compliance setup.',
     identityLabel: 'Inquiry identity', identityPublic: 'Identity visible to seller', identityHidden: 'Anonymous inquiry (identity hidden)',
     sendCard: 'Attach business card', viewCard: 'View card', downloadCard: 'Download card', cardSentTag: 'Card attached',
     attachLabel: 'Attachments (images / archives)', attachHint: 'JPG / PNG / GIF / WebP images or ZIP / RAR / 7Z archives, up to 4MB each',

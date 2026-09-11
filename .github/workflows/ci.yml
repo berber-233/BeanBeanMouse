@@ -28,10 +28,12 @@ jobs:
         run: node backend/test/smtp.test.mjs
       - name: Backend WebSocket tests
         run: node backend/test/ws.test.mjs
+      - name: Consistency check (sitemap / redirects / build manifest)
+        run: node scripts/check-consistency.mjs
       - name: Build static site
         run: node scripts/build-site.mjs
       - name: Verify dist output
-        run: test -f dist/index.html && test -f dist/assets/mascot-vector.svg && echo "dist OK"
+        run: test -f dist/index.html && test -f dist/assets/mascot-vector.svg && test -f dist/_redirects && echo "dist OK"
 
   frontend-tests:
     runs-on: ubuntu-latest

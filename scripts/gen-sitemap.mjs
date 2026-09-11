@@ -20,7 +20,11 @@ const staticRoutes = [
   { loc: '#/logistics', priority: 0.6, freq: 'monthly' },
   { loc: '#/compliance', priority: 0.6, freq: 'monthly' },
   { loc: '#/disputes', priority: 0.5, freq: 'monthly' },
-  { loc: '#/feedback', priority: 0.4, freq: 'monthly' }
+  { loc: '#/feedback', priority: 0.4, freq: 'monthly' },
+  { loc: '#/customs', priority: 0.6, freq: 'monthly' },
+  { loc: '#/insurance', priority: 0.5, freq: 'monthly' },
+  { loc: '#/contracts', priority: 0.5, freq: 'monthly' },
+  { loc: '#/recruit', priority: 0.5, freq: 'monthly' }
 ];
 
 const urls = staticRoutes.map(r => ({
