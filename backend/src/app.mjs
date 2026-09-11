@@ -14,6 +14,7 @@ import { hashPassword, verifyPassword, signToken, verifyToken, configureAuth } f
 import { translateText, translateError } from './translate.mjs';
 import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE } from './storage.mjs';
 import { sendMail, notifyUser } from './mailer.mjs';
+import { verifyEmailContent } from './email-template.mjs';
 
 export function createApp({ env = {}, deps = {} } = {}) {
   const ENV = env;
@@ -175,9 +176,11 @@ async function sendVerifyEmail(userId, email) {
   const token = await newEmailToken(userId);
   const appUrl = ENV.APP_URL || 'https://beanbeanmouse.com';
   const link = appUrl + '/#/verify-email?token=' + token;
+  const tpl = verifyEmailContent({ link });
   await sendMail({
     to: email,
-    subject: '[BeanBeanMouse] 请验证您的邮箱',
+    subject: tpl.subject,
+    html: tpl.html,
     body: '欢迎注册 BeanBeanMouse！请点击以下链接完成邮箱验证（24 小时内有效）：\n\n' + link + '\n\n如非本人操作，请忽略本邮件。'
   });
   return link;
@@ -476,8 +479,22 @@ async function route(m, segs, q, req, res) {
       }
       const u = await get('SELECT * FROM users WHERE id = ?', id);
       await audit(id, 'auth.register', 'user', id, email);
-      await sendVerifyEmail(id, email);
-      return send(res, 201, { user: publicUser(u), emailVerified: false, message: '注册成功，请查收邮箱完成验证（24 小时内有效）' });
+      /* 邮件发送失败不应让注册半途而废（账号已建好，可用重发接口再试） */
+      let mailSent = true;
+      try {
+        await sendVerifyEmail(id, email);
+      } catch (e) {
+        mailSent = false;
+        console.error('[auth.register] verify mail failed: ' + (e && e.message));
+      }
+      return send(res, 201, {
+        user: publicUser(u),
+        emailVerified: false,
+        mailSent,
+        message: mailSent
+          ? '注册成功，请查收邮箱完成验证（24 小时内有效）'
+          : '注册成功，但验证邮件发送失败，请稍后在登录页点击「重发验证邮件」'
+      });
     }
     if (m === 'POST' && b === 'login') {
       const ip = req.socket.remoteAddress || 'unknown';
@@ -512,9 +529,17 @@ async function route(m, segs, q, req, res) {
       const body = await readBody(req);
       const email = String(body.email || '').trim().toLowerCase();
       const u = await get('SELECT * FROM users WHERE email = ?', email);
-      if (u && !u.email_verified) await sendVerifyEmail(u.id, u.email);
+      let mailSent = true;
+      if (u && !u.email_verified) {
+        try {
+          await sendVerifyEmail(u.id, u.email);
+        } catch (e) {
+          mailSent = false;
+          console.error('[auth.resend] verify mail failed: ' + (e && e.message));
+        }
+      }
       /* 无论邮箱是否存在都返回成功，防止邮箱枚举 */
-      return send(res, 200, { ok: true, message: '如该邮箱已注册且未验证，验证邮件已重新发送' });
+      return send(res, 200, { ok: true, mailSent, message: '如该邮箱已注册且未验证，验证邮件已重新发送' });
     }
     if (m === 'POST' && b === 'refresh') {
       const u = await requireAuth(res, req);

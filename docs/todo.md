@@ -278,8 +278,12 @@
 - [x] **回归**：后端 128 项、SMTP、WS、前端冒烟 31、页面回归 237 全绿（验证共享核心与重构前等价）。
 
 ### 待办（切换到真实后端前必须解决）
-- [ ] **邮件通道**（🔴 阻塞）：`MAIL_TRANSPORT=mock` 只把邮件写进 D1 的 mail_outbox，
-      用户拿不到验证链接 → 注册后无法登录。需接 SMTP 或 HTTP 邮件服务后再切换前端。
+- [~] **邮件通道**（🟠 代码已通，差域名开通）：
+      Pages 配置**不支持 `send_email` 绑定**，已改为「Worker 持有绑定 + Pages 走 service binding」：
+      `workers/mailer`（已部署，持有 `send_email`）+ 根配置 `services: [{ binding: MAILER }]`（已部署）。
+      线上实测错误为 `E_SENDER_DOMAIN_NOT_CONFIGURED`——只差在控制台为 `beanbeanmouse.com`
+      开通 Email Sending（会自动加 SPF/DKIM）。开通后重新注册即可收到验证邮件。
+      详见 `workers/mailer/README.md`。
 - [ ] **前端切 http 模式**（🔴）：`api.js` 的 `API_CONFIG.mode` 仍是 `mock`。
       切换后线上即用真实后端（数据不再只存浏览器）。
 - [ ] **R2 未开通**（🟡）：账号需要在 Cloudflare 控制台启用 R2；未启用前附件/名片上传返回
@@ -290,6 +294,15 @@
 - [ ] **实时消息**（🟡）：Pages Functions 不支持 WebSocket，聊天实时推送需改用 Durable Objects；
       当前 REST 收发正常，WebSocket 仅 Node 侧保留。
 - [ ] **资讯定时刷新**（🟡）：Workers 侧 `NEWS_AUTO_REFRESH=0`，需要时改用 Cron Triggers。
+- [ ] **限流在 Workers 上被削弱**（🟠）：`loginAttempts` / `registerAttempts` 是进程内 Map，
+      Workers 每个 isolate 各存一份，实际限流比设计值宽松得多。应迁到 D1/KV，
+      或直接改用 Cloudflare WAF 的 Rate Limiting 规则。
+- [ ] **没有找回密码流程**（🔴 试用前必补）：当前只有「验证邮箱」，没有 forgot-password /
+      reset-password。用户忘记密码等于账号作废（只能管理员改库）。
+- [ ] **CORS 白名单**（🟡）：`ALLOWED_ORIGINS` 未配置时是 `*`，切前端前应设为
+      `https://beanbeanmouse.com`。
+- [ ] **D1 备份**（🟡）：免费版 Time Travel 只有 7 天，建议定期
+      `wrangler d1 export beanbeanmouse-db --remote --output=backup.sql` 并留存到 R2/本地。
 
 ## 十三、2026-09-11 全站美术重制（AI 原始出图标准）
 

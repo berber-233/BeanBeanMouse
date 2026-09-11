@@ -18,9 +18,15 @@
   // 附件/名片对象存储：需要在 Cloudflare 控制台开通 R2 后取消注释并创建同名桶
   // "r2_buckets": [{ "binding": "FILES", "bucket_name": "beanbeanmouse-files" }],
 
+  // 邮件发送：Pages 配置不支持 send_email 绑定，改由 workers/mailer 这个 Worker 持有绑定，
+  // Pages Functions 通过 service binding 调用它（见 workers/mailer/README）。
+  "services": [{ "binding": "MAILER", "service": "beanbeanmouse-mailer" }],
+
   "vars": {
     // 非敏感配置；密钥类请用 `npx wrangler pages secret put <NAME> --project-name beanbean-mouse`
-    "MAIL_TRANSPORT": "mock",
+    "MAIL_TRANSPORT": "service",
+    "MAIL_FROM": "no-reply@beanbeanmouse.com",
+    "APP_URL": "https://beanbeanmouse.com",
     "NEWS_AUTO_REFRESH": "0",
     "PBKDF2_ITERATIONS": "100000"
   }

@@ -28,19 +28,42 @@ function getApp(env) {
   return appPromise;
 }
 
-/* 邮件：Workers 里不跑 SMTP，改用 HTTP 邮件服务（凭据到位后在 vars/secrets 里配置） */
+/* 邮件：Workers 里不跑 SMTP。优先用 Cloudflare Email Service 的 send_email 绑定
+ * （需要先给域名开通 Email Sending，见 docs/deploy-backend.md），
+ * 也可退回自建 HTTP 邮件服务（MAIL_TRANSPORT=http）。 */
 function mailTransport(env) {
   const mode = env.MAIL_TRANSPORT || 'mock';
-  if (mode !== 'http') return undefined;
-  return async ({ to, subject, body }) => {
-    if (!env.MAIL_API_URL || !env.MAIL_API_KEY) throw new Error('MAIL_API_URL / MAIL_API_KEY 未配置');
-    const r = await fetch(env.MAIL_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.MAIL_API_KEY },
-      body: JSON.stringify({ from: env.MAIL_FROM, to, subject, text: body })
-    });
-    if (!r.ok) throw new Error('MAIL_HTTP_' + r.status);
-  };
+  const from = { email: env.MAIL_FROM || 'no-reply@beanbeanmouse.com', name: '豆豆鼠 BeanBeanMouse' };
+
+  /* service：调用 workers/mailer（它持有 Pages 不支持的 send_email 绑定） */
+  if (mode === 'service') {
+    return async ({ to, subject, body, html }) => {
+      if (!env.MAILER || typeof env.MAILER.fetch !== 'function') {
+        throw new Error('MAILER service binding 不可用（需先 deploy workers/mailer）');
+      }
+      const r = await env.MAILER.fetch('https://mailer/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, text: body || '', html: html || '' })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error((j.code || 'MAIL_FAILED') + ': ' + (j.message || r.status));
+    };
+  }
+
+  if (mode === 'http') {
+    return async ({ to, subject, body, html }) => {
+      if (!env.MAIL_API_URL || !env.MAIL_API_KEY) throw new Error('MAIL_API_URL / MAIL_API_KEY 未配置');
+      const r = await fetch(env.MAIL_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.MAIL_API_KEY },
+        body: JSON.stringify({ from: from.email, to, subject, text: body, html })
+      });
+      if (!r.ok) throw new Error('MAIL_HTTP_' + r.status);
+    };
+  }
+
+  return undefined;
 }
 
 export async function onRequest(context) {

@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   subject TEXT,
   body TEXT,
   status TEXT NOT NULL DEFAULT 'sent',
+  error TEXT,
   sent_at INTEGER,
   created_at INTEGER NOT NULL
 );

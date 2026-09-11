@@ -1,0 +1,17 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "beanbeanmouse-mailer",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-13",
+  // 只作为 service binding 的目标，不对外发布（也不需要 workers.dev 子域）
+  "workers_dev": false,
+  "preview_urls": false,
+  // 持有 Cloudflare Email Service 的发送绑定（Pages 配置不支持 send_email）
+  "send_email": [{ "name": "EMAIL" }],
+  "vars": {
+    "MAIL_FROM": "no-reply@beanbeanmouse.com",
+    "MAIL_FROM_NAME": "豆豆鼠 BeanBeanMouse",
+    "ALLOWED_FROM_DOMAINS": "beanbeanmouse.com"
+  },
+  "observability": { "enabled": true }
+}

@@ -67,7 +67,7 @@
 | 运行时 | `node:http` | Fetch API（Pages Functions） |
 | 数据库 | `node:sqlite`（`backend/src/db.mjs`） | D1（`backend/src/db-d1.mjs`） |
 | 文件 | 本地磁盘（`storage-node.mjs`） | R2（`storage-r2.mjs`，需开通） |
-| 邮件 | SMTP（`smtp.mjs`） | HTTP 邮件服务 / mock |
+| 邮件 | SMTP（`smtp.mjs`） | Cloudflare Email Service（经 `workers/mailer` + service binding） |
 | 实时 | WebSocket（`ws.mjs`） | 待接 Durable Objects |
 
 ## 二、已创建资源
@@ -78,6 +78,31 @@
 | 线上 API 根 | `https://beanbeanmouse.com/api/*` |
 | Pages 项目 | `beanbean-mouse`（`wrangler.jsonc`） |
 | R2 桶 | ❌ 未开通（控制台启用后才能创建 `beanbeanmouse-files`） |
+| 邮件 Worker | `beanbeanmouse-mailer`（持有 `send_email` 绑定，`workers_dev: false`） |
+
+## 二之二、邮件发送链路（重要）
+
+**Pages 的配置文件不支持 `send_email` 绑定**——在根 `wrangler.jsonc` 里写 `send_email`
+会直接报错：`Configuration file for Pages projects does not support "send_email"`。
+
+所以邮件走"Worker + service binding"：
+
+```
+Pages Functions ──env.MAILER.fetch()──► beanbeanmouse-mailer ──env.EMAIL.send()──► Cloudflare Email Service
+```
+
+- `workers/mailer/` 持有绑定，部署：`cd workers/mailer && npx wrangler deploy`
+- 根 `wrangler.jsonc`：`"services": [{ "binding": "MAILER", "service": "beanbeanmouse-mailer" }]`
+- Pages 侧变量：`MAIL_TRANSPORT=service`、`MAIL_FROM=no-reply@beanbeanmouse.com`
+
+### 域名开通（必须）
+
+在控制台 **Compute & AI → Email Service → Email Sending → Onboard Domain** 选择
+`beanbeanmouse.com`，会自动写入 SPF / DKIM 记录（DNS 一般 5–15 分钟生效）。
+未开通时的报错正是：`E_SENDER_DOMAIN_NOT_CONFIGURED`。
+
+CLI 等价命令 `npx wrangler email sending enable beanbeanmouse.com` 需要 OAuth token 带
+`email_sending:write`；若报 `Unauthorized [code: 2036]`，重新 `npx wrangler login` 再试。
 
 ## 三、常用命令
 

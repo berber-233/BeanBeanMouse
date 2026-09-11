@@ -19,13 +19,13 @@ export function mailerInfo() {
   return { transport: transportName, ready: !!(transport || transportName === 'mock') };
 }
 
-export async function sendMail({ to, subject, body }) {
+export async function sendMail({ to, subject, body, html }) {
   let status = 'sent';
   let detail = null;
 
   if (transport) {
     try {
-      await transport({ to, subject, body });
+      await transport({ to, subject, body, html });
     } catch (e) {
       status = 'failed';
       detail = e.message;
@@ -34,8 +34,8 @@ export async function sendMail({ to, subject, body }) {
 
   const id = randomUUID();
   await run(
-    'INSERT INTO mail_outbox (id, recipient, subject, body, status, sent_at, created_at) VALUES (?,?,?,?,?,?,?)',
-    id, to, subject || '', body || '', status, Date.now(), Date.now()
+    'INSERT INTO mail_outbox (id, recipient, subject, body, status, error, sent_at, created_at) VALUES (?,?,?,?,?,?,?,?)',
+    id, to, subject || '', body || '', status, detail, Date.now(), Date.now()
   );
   console.log('[mail:' + transportName + '] to=' + to + ' subject=' + subject + ' status=' + status + (detail ? ' (' + detail + ')' : ''));
   if (status === 'failed') throw new Error('MAIL_FAILED: ' + detail);
