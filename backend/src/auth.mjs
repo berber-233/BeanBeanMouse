@@ -1,45 +1,63 @@
-import { randomBytes, scryptSync, createHmac, timingSafeEqual } from 'node:crypto';
+/* 口令与令牌：纯 WebCrypto 实现（Node 22 与 Cloudflare Workers 共用）。
+ *
+ * 变更说明（相对 Node 版）：原先用 node:crypto 的 scryptSync + createHmac，
+ * Workers 不支持 scrypt，这里统一改成 PBKDF2-SHA256 + HMAC-SHA256（均为标准 WebCrypto），
+ * 因此 hashPassword/verifyPassword/signToken/verifyToken 现在都是 **异步** 的。
+ *
+ * 安全取舍：PBKDF2 迭代次数由 PBKDF2_ITERATIONS 控制（默认 100000）。
+ * Workers 免费版单次请求 CPU 上限很低，若注册/登录报 CPU 超时，
+ * 调低该值（例如 25000）；付费版可调高。
+ */
+import {
+  randomBytes, toHex, pbkdf2Hex, timingSafeEqualStr,
+  hmacSha256Base64Url, toBase64Url, fromBase64Url, utf8, fromUtf8
+} from './platform.mjs';
 
-export function hashPassword(pw) {
-  const salt = randomBytes(16).toString('hex');
-  // 安全最佳实践：scrypt 使用明确成本参数并提高内存上限，防离线爆破
-  const hash = scryptSync(String(pw), salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('hex');
-  return salt + ':' + hash;
+const DEFAULT_ITERATIONS = 100000;
+let ITERATIONS = DEFAULT_ITERATIONS;
+let SECRET = '';
+
+export function configureAuth({ secret, iterations } = {}) {
+  if (secret) SECRET = String(secret);
+  if (!SECRET) {
+    SECRET = toHex(randomBytes(32));
+    console.warn('[security] 未设置 JWT_SECRET，本次运行使用随机密钥（重启后登录态失效）');
+  }
+  const n = Number(iterations);
+  if (Number.isFinite(n) && n >= 10000) ITERATIONS = Math.floor(n);
 }
 
-export function verifyPassword(pw, stored) {
-  const [salt, hash] = String(stored || '').split(':');
-  if (!salt || !hash) return false;
-  const calc = scryptSync(String(pw), salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-  return timingSafeEqual(Buffer.from(hash, 'hex'), calc);
+export async function hashPassword(pw) {
+  const salt = toHex(randomBytes(16));
+  const hash = await pbkdf2Hex(String(pw), salt, ITERATIONS, 32);
+  return 'pbkdf2$' + ITERATIONS + '$' + salt + '$' + hash;
 }
 
-/* 安全最佳实践：禁止硬编码兜底密钥。
- * 生产环境未配置 JWT_SECRET 时拒绝启动（否则令牌可被伪造）；
- * 开发环境使用每次启动随机生成的密钥，并给出警告。 */
-const SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : randomBytes(32).toString('hex'));
-if (!SECRET) {
-  console.error('[security] JWT_SECRET 未配置：生产环境拒绝启动，防止令牌伪造');
-  process.exit(1);
-} else if (!process.env.JWT_SECRET) {
-  console.warn('[security] 警告：未设置 JWT_SECRET，开发模式使用随机密钥（重启后登录态失效）');
+export async function verifyPassword(pw, stored) {
+  const parts = String(stored || '').split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
+  const iterations = Number(parts[1]);
+  const salt = parts[2];
+  const expect = parts[3];
+  if (!iterations || !salt || !expect) return false;
+  const calc = await pbkdf2Hex(String(pw), salt, iterations, 32);
+  return timingSafeEqualStr(calc, expect);
 }
-function b64url(buf) { return Buffer.from(buf).toString('base64url'); }
 
-export function signToken(payload, expiresSec = 3600) {
-  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + expiresSec }));
-  const sig = createHmac('sha256', SECRET).update(header + '.' + body).digest('base64url');
+export async function signToken(payload, expiresSec = 3600) {
+  const header = toBase64Url(utf8(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
+  const body = toBase64Url(utf8(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + expiresSec })));
+  const sig = await hmacSha256Base64Url(SECRET, header + '.' + body);
   return header + '.' + body + '.' + sig;
 }
 
-export function verifyToken(token) {
+export async function verifyToken(token) {
   try {
     const [h, b, s] = String(token || '').split('.');
     if (!h || !b || !s) return null;
-    const expect = createHmac('sha256', SECRET).update(h + '.' + b).digest('base64url');
-    if (!timingSafeEqual(Buffer.from(s), Buffer.from(expect))) return null;
-    const payload = JSON.parse(Buffer.from(b, 'base64url').toString('utf8'));
+    const expect = await hmacSha256Base64Url(SECRET, h + '.' + b);
+    if (!timingSafeEqualStr(s, expect)) return null;
+    const payload = JSON.parse(fromUtf8(fromBase64Url(b)));
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch (e) {

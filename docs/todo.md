@@ -28,7 +28,8 @@
 - [x] 贸易资讯：实时更新时间 + 权威来源（多区域），管理员可发布与 RSS 刷新
 - [x] 安全：scrypt 密码哈希、限流、蜜罐、令牌只存哈希、安全响应头、CORS 可配置
 - [x] 测试：后端 107 项 + 前端 164 项全绿
-- [ ] 后端正式部署（VPS/Docker 或 Pages Functions + D1）——当前线上仍是前端演示（数据在浏览器）
+- [x] 后端正式部署（**已选 Pages Functions + D1**，2026-09-11 上线见第十三节）——
+      线上 API 已可用：https://beanbeanmouse.com/api/*；前端仍为 mock 模式，切换条件见第十三节
 - [ ] 真实 SMTP 发信与 DeepL 密钥（通道已就绪，待填凭据）
 - [ ] Cloudflare Turnstile 人机验证（当前为蜜罐 + 邮箱验证 + 限流）
 - [x] 资讯 RSS 定时自动刷新（默认每 6 小时，可配置；手动刷新保留）
@@ -256,6 +257,39 @@
 - [ ] `pixel-art/` 为早期像素画实验产物，与当前站点无引用关系，可择机归档或移出。
 - [ ] `commit.ps1` 里的提交信息是早期的写死文案，且 `git add -A` 可能误提交未忽略的文件；
       建议改用 `npm run commit -- "message"` 或删掉该脚本。
+
+## 十三、2026-09-11 后端正式部署（Cloudflare Pages Functions + D1）
+
+### 已完成
+- [x] **架构决定**：后端采用 Cloudflare Pages Functions + D1（用户选定），不再走 VPS/Docker。
+- [x] **代码合并为单一实现**：`backend/src/server.mjs` 的 1650 行路由逻辑抽成平台无关的
+      `backend/src/app.mjs`（`createApp({env, deps})`），Node 与 Workers 共用同一份业务代码：
+      - `backend/src/server.mjs` = Node 适配器（`node:http` + `node:sqlite` + 本地磁盘 + SMTP）
+      - `functions/api/[[path]].js` = Workers 适配器（Fetch API + D1 + R2 占位）
+      - `store.mjs` / `storage.mjs` / `mailer.mjs` = 可注入门面；`platform.mjs` = WebCrypto 同构层
+- [x] **加密层迁移**：`node:crypto` 的 scrypt/HMAC 改为标准 WebCrypto（PBKDF2-SHA256 + HMAC-SHA256），
+      两端通用（PBKDF2 迭代次数由 `PBKDF2_ITERATIONS` 控制，默认 100000）。
+- [x] **D1 落地**：创建 `beanbeanmouse-db`（region WNAM，id `0d3575be-…ef54`），
+      `migrations/0001_init.sql` 建 34 张表，本地与远程均已应用。
+- [x] **上线验证**：https://beanbeanmouse.com/api/products、/auth/login、/auth/me、
+      /card-templates、/logistics/estimate、/news 线上实测通过。
+- [x] **修掉一个上线才会暴露的问题**：未配 `JWT_SECRET` 时每个 isolate 各自生成随机密钥，
+      导致登录成功但 `/auth/me` 401。已用 `wrangler pages secret put` 写入随机密钥并复验通过。
+- [x] **回归**：后端 128 项、SMTP、WS、前端冒烟 31、页面回归 237 全绿（验证共享核心与重构前等价）。
+
+### 待办（切换到真实后端前必须解决）
+- [ ] **邮件通道**（🔴 阻塞）：`MAIL_TRANSPORT=mock` 只把邮件写进 D1 的 mail_outbox，
+      用户拿不到验证链接 → 注册后无法登录。需接 SMTP 或 HTTP 邮件服务后再切换前端。
+- [ ] **前端切 http 模式**（🔴）：`api.js` 的 `API_CONFIG.mode` 仍是 `mock`。
+      切换后线上即用真实后端（数据不再只存浏览器）。
+- [ ] **R2 未开通**（🟡）：账号需要在 Cloudflare 控制台启用 R2；未启用前附件/名片上传返回
+      503「文件存储暂不可用」（前端会提示，不会静默丢文件）。开通后取消 `wrangler.jsonc`
+      里 R2 绑定注释并创建 `beanbeanmouse-files` 桶即可。
+- [ ] **演示账号口令**（🔴 试用前必改）：seed 写入的 `admin@demo.com / admin123` 等演示账号
+      带有 admin 角色，公开 API 下必须改口令或设 `SEED_DEMO=0` 用干净库。
+- [ ] **实时消息**（🟡）：Pages Functions 不支持 WebSocket，聊天实时推送需改用 Durable Objects；
+      当前 REST 收发正常，WebSocket 仅 Node 侧保留。
+- [ ] **资讯定时刷新**（🟡）：Workers 侧 `NEWS_AUTO_REFRESH=0`，需要时改用 Cron Triggers。
 
 ## 十三、2026-09-11 全站美术重制（AI 原始出图标准）
 

@@ -61,11 +61,11 @@ function decodeClientFrame(buf) {
   return { opcode, payload: buf.slice(off, off + len), consumed: off + len };
 }
 
-export function handleWsUpgrade(req, socket, head) {
+export async function handleWsUpgrade(req, socket, head) {
   const key = req.headers['sec-websocket-key'];
   if (!key) { socket.destroy(); return; }
   const token = new URL(req.url, 'http://x').searchParams.get('token') || '';
-  const payload = verifyToken(token);
+    const payload = await verifyToken(token);
   if (!payload || !payload.uid) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     socket.destroy();

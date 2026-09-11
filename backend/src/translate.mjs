@@ -1,7 +1,7 @@
 /* 翻译服务端代理：真实服务链（MyMemory -> LibreTranslate）+ 离线词典兜底
  * 附带：结果缓存、按用户每日字符额度管理 */
-import { randomUUID } from 'node:crypto';
-import { run, get } from './db.mjs';
+import { randomUUID } from './platform.mjs';
+import { run, get } from './store.mjs';
 
 const DAILY_QUOTA = Number(process.env.TRANSLATION_DAILY_QUOTA || 5000);
 const cache = new Map(); // key: text|target -> result
@@ -102,8 +102,8 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function usedChars(userId) {
-  const row = get('SELECT COALESCE(SUM(chars),0) AS c FROM translation_usage WHERE user_id = ? AND day = ?', userId || 'guest', todayKey());
+async function usedChars(userId) {
+  const row = await get('SELECT COALESCE(SUM(chars),0) AS c FROM translation_usage WHERE user_id = ? AND day = ?', userId || 'guest', todayKey());
   return row ? row.c : 0;
 }
 
@@ -127,7 +127,7 @@ export async function translateText({ userId, text, target, source }) {
   }
 
   const uid = userId || 'guest';
-  if (usedChars(uid) + s.length > DAILY_QUOTA) {
+  if (await usedChars(uid) + s.length > DAILY_QUOTA) {
     throw translateError(429, 'QUOTA_EXCEEDED', '今日翻译额度已用完');
   }
 
@@ -159,7 +159,7 @@ export async function translateText({ userId, text, target, source }) {
   }
 
   if (provider !== 'offline') cache.set(cacheKey, { text: result, provider });
-  run(
+  await run(
     'INSERT INTO translation_usage (id, user_id, day, chars, created_at) VALUES (?,?,?,?,?)',
     randomUUID(), uid, todayKey(), s.length, Date.now()
   );

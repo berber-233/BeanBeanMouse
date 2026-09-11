@@ -7,6 +7,7 @@ process.env.SMTP_PASS = 'smtp-pass';
 process.env.MAIL_FROM = 'no-reply@beanbeanmouse.local';
 
 import { createServer } from 'node:net';
+await import('../src/server.mjs'); // 注入 node:sqlite 数据层 + 按 .env 配置 SMTP transport
 const { sendMail } = await import('../src/mailer.mjs');
 const { all } = await import('../src/db.mjs');
 

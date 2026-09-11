@@ -52,3 +52,66 @@
 - [ ] 对象存储已接（或确认本地磁盘可用且做好备份）
 - [ ] 数据库每日备份与监控（磁盘、内存、日志）
 - [ ] 前端 `API_CONFIG` 已切 http 并回归一遍核心链路
+# 后端部署（正式方案：Cloudflare Pages Functions + D1）
+
+> 2026-09-11 起，后端正式部署走 Cloudflare Pages Functions + D1（用户选定），
+> 原先的 VPS/Docker 方案保留为备选。下表是当前生效的路径。
+
+## 一、架构
+
+同一份业务代码（`backend/src/app.mjs`）跑在两个平台，差异只在注入的适配器：
+
+| | Node（本地开发/测试） | Cloudflare Workers（线上） |
+| --- | --- | --- |
+| 入口 | `backend/src/server.mjs` | `functions/api/[[path]].js` |
+| 运行时 | `node:http` | Fetch API（Pages Functions） |
+| 数据库 | `node:sqlite`（`backend/src/db.mjs`） | D1（`backend/src/db-d1.mjs`） |
+| 文件 | 本地磁盘（`storage-node.mjs`） | R2（`storage-r2.mjs`，需开通） |
+| 邮件 | SMTP（`smtp.mjs`） | HTTP 邮件服务 / mock |
+| 实时 | WebSocket（`ws.mjs`） | 待接 Durable Objects |
+
+## 二、已创建资源
+
+| 资源 | 值 |
+| --- | --- |
+| D1 数据库 | `beanbeanmouse-db`，id `0d3575be-e041-4cb5-a91b-df62b823ef54`，region WNAM |
+| 线上 API 根 | `https://beanbeanmouse.com/api/*` |
+| Pages 项目 | `beanbean-mouse`（`wrangler.jsonc`） |
+| R2 桶 | ❌ 未开通（控制台启用后才能创建 `beanbeanmouse-files`） |
+
+## 三、常用命令
+
+```bash
+# 本地开发（Pages Functions + 本地 D1）
+npx wrangler d1 migrations apply beanbeanmouse-db --local
+npx wrangler pages dev dist --port 8788
+
+# 线上迁移
+npx wrangler d1 migrations apply beanbeanmouse-db --remote
+
+# 部署（functions/ 会自动打包为 Functions bundle）
+npx wrangler pages deploy dist --project-name beanbean-mouse
+
+# 密钥（必须）
+node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))" \
+  | npx wrangler pages secret put JWT_SECRET --project-name beanbean-mouse
+# 改密钥后需重新 deploy 才生效
+```
+
+## 四、必须配置的密钥
+
+| 名称 | 作用 | 缺失后果 |
+| --- | --- | --- |
+| `JWT_SECRET` | 登录令牌签名 | 🔴 每个 isolate 随机生成 → 登录后立刻 401（已踩过） |
+| `TURNSTILE_SECRET` | 人机验证（可选） | 关闭校验 |
+| `MAIL_API_URL` / `MAIL_API_KEY` | 真实发信（配 `MAIL_TRANSPORT=http`） | 邮件进 outbox，用户收不到验证链接 |
+
+非敏感配置写在 `wrangler.jsonc` 的 `vars`：`MAIL_TRANSPORT`、`SEED_DEMO`、
+`NEWS_AUTO_REFRESH`、`PBKDF2_ITERATIONS`、`MAX_FILE_SIZE`。
+
+## 五、排障
+
+- **登录成功但接口 401**：`JWT_SECRET` 未配置（或多 isolate 密钥不一致）。
+- **上传返回 503 STORAGE_UNAVAILABLE**：R2 未开通/未绑定。
+- **`no such table`**：迁移没跑到目标环境（`--remote` / `--local` 别搞混）。
+- **CPU 超时（注册/登录）**：调低 `PBKDF2_ITERATIONS`。

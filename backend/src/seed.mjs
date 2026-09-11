@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { all, run } from './db.mjs';
+import { randomUUID } from './platform.mjs';
+import { all, run } from './store.mjs';
 import { hashPassword } from './auth.mjs';
 
 /* 与前端保持一致的产品防伪码生成算法（正式版由服务端签发） */
@@ -10,32 +10,32 @@ export function antiFakeCode(id, sellerId, enTitle) {
   return 'TB-' + String(id).toUpperCase().replace(/[^A-Z0-9]/g, '') + '-' + String(s).padStart(2, '0');
 }
 
-export function seedIfEmpty() {
-  const row = all('SELECT COUNT(*) AS c FROM users')[0];
+export async function seedIfEmpty() {
+  const row = (await all('SELECT COUNT(*) AS c FROM users'))[0];
   if (row && row.c > 0) return false;
 
   const now = Date.now();
   const adminId = 'u-admin', sellerId = 'u-seller', buyerId = 'u-buyer', frozenId = 'u-frozen';
 
-  run(
+  await run(
     'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    adminId, 'admin@demo.com', hashPassword('admin123'), 'admin', '平台管理员', 'active', 1, now
+    adminId, 'admin@demo.com', await hashPassword('admin123'), 'admin', '平台管理员', 'active', 1, now
   );
-  run(
+  await run(
     'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    sellerId, 'seller@demo.com', hashPassword('seller123'), 'seller', '王经理', 'active', 1, now
+    sellerId, 'seller@demo.com', await hashPassword('seller123'), 'seller', '王经理', 'active', 1, now
   );
-  run(
+  await run(
     'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    buyerId, 'buyer@demo.com', hashPassword('buyer123'), 'buyer', 'Thomas Müller', 'active', 1, now
+    buyerId, 'buyer@demo.com', await hashPassword('buyer123'), 'buyer', 'Thomas Müller', 'active', 1, now
   );
-  run(
+  await run(
     'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    frozenId, 'tanaka@tokyo-trading.jp', hashPassword('frozen123'), 'buyer', '田中一郎', 'frozen', 1, now
+    frozenId, 'tanaka@tokyo-trading.jp', await hashPassword('frozen123'), 'buyer', '田中一郎', 'frozen', 1, now
   );
 
   const c1 = randomUUID();
-  run(
+  await run(
     'INSERT INTO companies (id, user_id, name, country, city, license_no, status, created_at) VALUES (?,?,?,?,?,?,?,?)',
     c1, sellerId, '杭州云帆机械有限公司', 'CN', '杭州', 'LIC-2026-001', 'approved', now
   );
@@ -65,36 +65,36 @@ export function seedIfEmpty() {
   ];
 
   for (const p of products) {
-    run(
+    await run(
       'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       p.id, p.sellerId, p.companyId, p.category, p.sub || '', p.hsCode, p.country, p.priceMin, p.priceMax, p.moq, p.unit, p.leadTime,
       JSON.stringify(p.terms), JSON.stringify(p.certs), p.srcLang, p.status, now, now
     );
     for (const lang of ['en', 'zh']) {
-      run(
+      await run(
         'INSERT INTO product_translations (id, product_id, lang, title, description, features, updated_at) VALUES (?,?,?,?,?,?,?)',
         randomUUID(), p.id, lang, p[lang].title, p[lang].description, JSON.stringify(p[lang].features), now
       );
     }
-    run(
+    await run(
       'INSERT INTO anti_fake_codes (id, product_id, code, batch_no, status, issued_at, verify_count) VALUES (?,?,?,?,?,?,?)',
       randomUUID(), p.id, antiFakeCode(p.id, p.sellerId, p.en.title), 'B2026-001', 'active', now, 0
     );
   }
 
   const src1 = randomUUID(), src2 = randomUUID();
-  run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)', src1, '中国海关总署', 'https://www.customs.gov.cn', 'CN', 'logistics', 1);
-  run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)', src2, '欧盟委员会税务与海关', 'https://taxation-customs.ec.europa.eu', 'EU', 'compliance', 1);
-  run(
+  await run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)', src1, '中国海关总署', 'https://www.customs.gov.cn', 'CN', 'logistics', 1);
+  await run('INSERT INTO news_sources (id, name, url, region, category, enabled) VALUES (?,?,?,?,?,?)', src2, '欧盟委员会税务与海关', 'https://taxation-customs.ec.europa.eu', 'EU', 'compliance', 1);
+  await run(
     'INSERT INTO news_items (id, source_id, region, category, title_zh, title_en, summary_zh, summary_en, url, published_at, status) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
     'n1', src1, 'CN', 'logistics', '海关推广跨境电商退货便利化', 'Customs improves cross-border e-commerce returns', '退运商品可跨关区退回。', 'Returned goods can cross customs districts.', 'https://www.customs.gov.cn', '2026-08-01', 'published'
   );
-  run(
+  await run(
     'INSERT INTO news_items (id, source_id, region, category, title_zh, title_en, summary_zh, summary_en, url, published_at, status) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
     'n2', src2, 'EU', 'compliance', '欧盟 CBAM 进入正式实施阶段', 'EU CBAM enters definitive phase', '进口商须注册授权申报人。', 'Importers must register as authorized declarants.', 'https://taxation-customs.ec.europa.eu', '2026-08-02', 'published'
   );
 
-  run(
+  await run(
     'INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, detail, created_at) VALUES (?,?,?,?,?,?,?)',
     randomUUID(), adminId, 'system.seed', 'database', 'seed', '初始化演示数据', now
   );

@@ -39,6 +39,16 @@ else {
   }
 }
 
+// 5) D1 迁移与 Node 侧的 SQLite 建表脚本必须保持同一套表
+const tablesIn = (sql) => new Set(Array.from(sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z_]+)/gi)).map(m => m[1].toLowerCase()));
+const nodeTables = tablesIn(read('backend/db/schema.sqlite.sql'));
+const d1Tables = tablesIn(read('migrations/0001_init.sql'));
+for (const t of nodeTables) if (!d1Tables.has(t)) problems.push(`migrations/0001_init.sql 缺少表 ${t}（backend/db/schema.sqlite.sql 里有）`);
+for (const t of d1Tables) if (!nodeTables.has(t)) problems.push(`migrations/0001_init.sql 多出表 ${t}`);
+
+// 6) Workers 入口必须存在，否则前端切 http 模式会全 404
+if (!existsSync(path.join(root, 'functions/api/[[path]].js'))) problems.push('functions/api/[[path]].js 不存在（/api/* 将无法响应）');
+
 // 5) index.html 引用的本地资源必须存在
 for (const m of read('index.html').matchAll(/(?:src|href)="(?!https?:|#|mailto:|\/\/)([^"]+)"/g)) {
   const p = m[1].split('?')[0];

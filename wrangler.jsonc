@@ -2,5 +2,26 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "beanbean-mouse",
   "compatibility_date": "2026-08-13",
-  "pages_build_output_dir": "dist"
+  "compatibility_flags": ["nodejs_compat"],
+  "pages_build_output_dir": "dist",
+
+  // 后端数据库（Cloudflare D1，SQLite）
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "beanbeanmouse-db",
+      "database_id": "0d3575be-e041-4cb5-a91b-df62b823ef54",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // 附件/名片对象存储：需要在 Cloudflare 控制台开通 R2 后取消注释并创建同名桶
+  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "beanbeanmouse-files" }],
+
+  "vars": {
+    // 非敏感配置；密钥类请用 `npx wrangler pages secret put <NAME> --project-name beanbean-mouse`
+    "MAIL_TRANSPORT": "mock",
+    "NEWS_AUTO_REFRESH": "0",
+    "PBKDF2_ITERATIONS": "100000"
+  }
 }
