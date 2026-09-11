@@ -3,13 +3,12 @@
 > 用途：在供货商上传真实照片前，为演示/种子商品生成“写实电商主图”，
 > 提升页面观感。仅用于演示与占位，不得冒充真实商品照对外承诺。
 
-## 为什么现在不能直接生成
+## 生成通道（2026-09-11 已落地）
 
-- 本会话内置 image_gen 工具不可用；备选 CLI 通道需要 `OPENAI_API_KEY`，且需你明确启用。
-- 当前环境未检测到该 Key。启用步骤（不要把 Key 粘贴到对话里）：
-  1. 在 https://platform.openai.com/api-keys 创建 API Key；
-  2. 本机设置环境变量 `OPENAI_API_KEY`；
-  3. 回复“用 CLI 生成”，我会按 imagegen 技能规范批量执行并接好页面。
+- 直接用火山方舟 Seedream 通道：`node ~/.codex/skills/seedream-image/scripts/generate.mjs "提示词" --size 1K --out outputs/art/products`。
+- 首轮已生成宠物垂直 10 款 SKU（p23–p32），落位 `assets/products/<id>/1.jpg`（800×800），
+  并跑 `node scripts/sync-product-images.mjs` 生成映射；
+  规则：**直接使用模型原始出图**，仅做等比缩放与格式转换（详见 `docs/art-assets-status.md`）。
 
 ## 接入方式（先生成后即用）
 

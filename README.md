@@ -2,13 +2,16 @@
 
 一个可直接在浏览器中运行的外贸 B2B 平台第一版原型，覆盖完整业务闭环：
 
-**品牌吉祥物（临时占位，待替换）**：豆豆鼠（BeanBeanMouse）——矢量手绘 Q 版金丝熊仓鼠送货员：
-圆润身形、鼓鼓颊囊、红色围巾，暖黄白配色与网站主题一致。
-当前动画与吉祥物均为占位作品，用户审阅后待由更专业的模型重制；资产清单与替换要求见
-[docs/art-assets-status.md](docs/art-assets-status.md)。
-- 主吉祥物 `assets/mascot-vector.svg`（矢量：导航 Logo / 帮助按钮 / 镖局场景头像），
-  `assets/mascot-vector.png`（OG 分享图与浏览器图标）；
-- 打赏吉祥物 `assets/tip-hamster-empty.svg`（空碗）/ `assets/tip-hamster-full.svg`（金币碗，含金币弹出动画）；
+**品牌吉祥物（2026-09-11 AI 重制）**：豆豆鼠（BeanBeanMouse）——Q 版金丝熊仓鼠送货员：
+圆润大头小身、大圆耳（粉内耳）、鼓鼓颊囊、大眼高光、粉腮红、奶油白口鼻、金黄暖毛、红围巾，
+背米色运货袋；暖米色背景（`#F8E5C8`）与站点暖色主题一致。
+图片走 Seedream、动画走 Seedance，**直接采用模型原始出图**（不做后期像素化），
+资产清单、出图标准与重建命令见 [docs/art-assets-status.md](docs/art-assets-status.md)。
+- 主吉祥物 `assets/mascot-main.jpg`（OG / 登录页 / 名片）、`assets/mascot-icon.png`（导航 Logo / 帮助浮标 / favicon）、
+  `assets/help-banner.jpg`（帮助面板横幅）；
+- 打赏吉祥物 `assets/tip-hamster-empty.png`（空碗）/ `assets/tip-hamster-full.png`（金币碗，含金币弹出动画）；
+- 运输动画 `assets/video/transport-{land,sea,air}.webm`（VP9 ≈500KB/支 + 首帧封面，进入视口才播放）；
+- 三位运输角色（陆 / 海 / 空）多角度设定图在 `docs/art/characters/`；保险员角色已剔除；
 - 点击网站右下角吉祥物可打开"网站使用帮助"。
 
 **买家链路**：搜索 / 筛选产品 → 查看详情 → 发送询盘 → 在我的询盘查看供应商回复
@@ -226,3 +229,22 @@
 - **构建脚本**：`pixel-art/v2-hamsters/` 与 `pixel-art/v2-transport/` 可一键重建全部资产；
   旧版脚本归档于 `pixel-art/_legacy_2026-08-18/`。
 - **联系邮箱**：全站商务合作邮箱已从占位改为 GitHub 邮箱 `694113406@qq.com`。
+
+## 2026-09-11 全站美术重制（AI 原始出图标准）
+
+- **出图标准**：图片 `doubao-seedream-5-0-pro-260628`、视频 `doubao-seedance-2-5-260628`；
+  **直接采用模型原始出图**，只做等比缩放 / 居中裁切 / 格式转换，不做后期像素化。
+- **主吉祥物重制**：`assets/mascot-main.jpg`（1024）、`assets/mascot-icon.png`（256 圆形）、
+  `assets/help-banner.jpg`；接入 OG 分享图、favicon、导航 Logo、右下角帮助浮标与帮助面板、
+  登录页品牌图、名片水印条。
+- **打赏图重制**：`assets/tip-hamster-empty.png` / `assets/tip-hamster-full.png`（512）。
+- **角色多角度设定图**：陆运 / 海运 / 空运 三位角色 × 4 视角（正 / 侧 / 背 / 四分之三）= 12 张，
+  存 `docs/art/characters/`（设计资料，不部署）；**保险员角色已剔除**。
+- **运输动画全部重做**：三幕改为 Seedance 图生视频（1280×720 / 5.06 秒 / 16:9），
+  页面由 `<img gif>` 升级为 `<video muted loop playsinline poster>`：进入视口才播放、离开即暂停、
+  `prefers-reduced-motion` 下只显示封面；进度条包裹由 emoji 换成内联像素 SVG。
+- **演示商品图**：宠物垂直 10 款 SKU 的写实商品主图（`assets/products/p23…p32/1.jpg`），
+  `product-image-map.js` 重新生成。
+- **旧资产归档**：43 个被取代的占位文件移入 `legacy/2026-09-11/`（移动非删除，不在 assets 内、不进部署包）。
+- **自查**：一致性自查 OK、前端 verify 全绿（新增视频 / 角色头像 / 像素包裹断言）、
+  API 冒烟全绿、后端 128 项全绿、零页面报错；**改动未提交、未推送、未部署，等用户确认**。

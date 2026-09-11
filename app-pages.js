@@ -290,6 +290,8 @@ function renderHome() {
     ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂盆', '宠物饮水机']
     : ['hamster cage', 'cat litter', 'large dog harness', 'cat fountain', 'pet feeder'];
   const catEmoji = { machinery: '⚙️', electronics: '💡', textiles: '👕', furniture: '🛋️', chemicals: '🧪', auto: '🚗', sports: '🏕️', gifts: '🎁', hardware: '🔧', pet: '🐾' };
+  /* 分类像素图标（2026-09-11 AI 出图，洋红底抠透明）；缺图时回退到 emoji */
+  const catIcon = id => 'assets/pixel/ui/' + id + '.png';
   return '<section class="hero">'
     + '<div class="hero-inner">'
     + '<div class="hero-pilot">🐾 ' + esc(t('heroPilot')) + '</div>'
@@ -308,14 +310,18 @@ function renderHome() {
     + '<section class="section"><div class="section-head"><h2>' + t('catStripTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAllCats') + ' →</a></div>'
     + '<div class="cat-strip" role="list">' + CATEGORIES.map(c =>
       '<a class="cat-pill" href="#/products?cat=' + c.id + '" data-nav="/products?cat=' + c.id + '" role="listitem">'
-      + '<span class="cat-pill-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 55%),hsl(' + ((c.hue + 45) % 360) + ' 65% 40%))">' + (catEmoji[c.id] || '📦') + '</span>'
+      + '<span class="cat-pill-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 55%),hsl(' + ((c.hue + 45) % 360) + ' 65% 40%))">'
+      + '<img class="pixel-ico" src="' + catIcon(c.id) + '" alt="" width="22" height="22" loading="lazy" decoding="async">'
+      + '</span>'
       + '<span class="cat-pill-name">' + langObj(c) + '</span></a>'
     ).join('') + '</div></section>'
     + '<section class="section"><div class="section-head"><h2>' + t('categoriesTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
     + '<div class="cat-grid">' + CATEGORIES.slice(0, 6).map(c => {
       const count = live.filter(p => p.cat === c.id).length;
       return '<a class="cat-card" href="#/products?cat=' + c.id + '" data-nav="/products?cat=' + c.id + '">'
-        + '<div class="cat-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 52%),hsl(' + ((c.hue + 45) % 360) + ' 65% 38%))">' + (catEmoji[c.id] || '📦') + '</div>'
+        + '<div class="cat-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 52%),hsl(' + ((c.hue + 45) % 360) + ' 65% 38%))">'
+        + '<img class="pixel-ico" src="' + catIcon(c.id) + '" alt="" width="34" height="34" loading="lazy" decoding="async">'
+        + '</div>'
         + '<div class="name">' + langObj(c) + '</div>'
         + '<div class="count">' + count + ' ' + t('totalProducts') + '</div>'
         + '</a>';
@@ -408,7 +414,7 @@ function renderProducts(params) {
   const related = kw ? relatedProducts(kw, cat, sub) : [];
   const grid = list.length
     ? '<div class="product-grid">' + list.map(productCard).join('') + '</div>'
-    : '<div class="empty-state"><div class="ico">🔎</div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>'
+    : '<div class="empty-state"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/search.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>'
       + (related.length
         ? '<section class="related-section"><div class="section-head"><h2>✨ ' + t('relatedTitle') + '</h2><p class="small muted">' + t('relatedSub') + '</p></div>'
           + '<div class="product-grid">' + related.map(productCard).join('') + '</div></section>'
@@ -581,7 +587,7 @@ function renderNews(params) {
     + '<button type="button" class="btn btn-sm" data-action="refresh-news">' + icon('refresh') + t('newsRefresh') + '</button></div>'
     + (list.length
       ? '<div class="news-list">' + list.map(newsCard).join('') + '</div>'
-      : '<div class="empty-state"><div class="ico">📰</div><p>' + t('noNews') + '</p></div>')
+      : '<div class="empty-state"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/news.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noNews') + '</p></div>')
     + '<section class="section mt-20"><div class="section-head"><h2>' + t('sourceDirectory') + '</h2><span class="sub">' + t('sourceDirectorySub') + '</span></div>'
     + '<div class="source-grid">' + SOURCE_DIRECTORY.map(s =>
       '<a class="source-card" href="' + s.url + '" target="_blank" rel="noopener noreferrer">'
@@ -1612,7 +1618,7 @@ function cardBackHtml(i) {
     + '</g></svg>';
   return '<div class="card-back" style="background:' + bg + ';color:' + fg + '">'
     + '<div class="cb-frame" style="border-color:' + line + '"></div>'
-    + '<div class="cb-mark"><img src="assets/mascot-vector.png" alt=""><b>BeanBeanMouse</b><span>豆豆鼠外贸平台</span></div>'
+    + '<div class="cb-mark"><img src="assets/mascot-main.jpg" alt="" loading="lazy" decoding="async"><b>BeanBeanMouse</b><span>豆豆鼠外贸平台</span></div>'
     + '<div class="cb-motto" style="color:' + sub + '">以精工，致远方 —— 让每一笔跨国生意更简单。</div>'
     + '<div class="cb-qr">' + qr + '<span style="color:' + sub + '">扫码验真 · 验证本站真伪</span></div>'
     + '<div class="cb-foot" style="border-top-color:' + line + ';color:' + sub + '">beanbeanmouse.com</div>'
@@ -1762,7 +1768,26 @@ function transportMode(shipment) {
   return 'land';
 }
 function transportArt(mode) {
-  return 'assets/pixel/transport-' + (mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land') + '.gif';
+  return 'assets/video/transport-' + transportKey(mode) + '.webm';
+}
+function transportKey(mode) {
+  return mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land';
+}
+function transportPoster(mode) {
+  return 'assets/video/transport-' + transportKey(mode) + '-poster.jpg';
+}
+function escortAvatar(mode) {
+  return 'assets/pixel/characters/' + transportKey(mode) + '-icon.jpg';
+}
+/* 像素风包裹图标：纯内联 SVG，配色取自站点色板（替代 emoji） */
+function parcelIcon(size) {
+  const s = size || 22;
+  return '<svg viewBox="0 0 16 16" width="' + s + '" height="' + s + '" fill="none" shape-rendering="crispEdges" aria-hidden="true">'
+    + '<rect x="1" y="4" width="14" height="11" fill="#F7D9A8" stroke="#26304A" stroke-width="1"/>'
+    + '<rect x="1" y="4" width="14" height="3" fill="#F59E0B" stroke="#26304A" stroke-width="1"/>'
+    + '<rect x="6" y="4" width="4" height="11" fill="#1D4ED8" opacity=".85"/>'
+    + '<rect x="6" y="7" width="4" height="2" fill="#FFF6E8"/>'
+    + '</svg>';
 }
 function transportName(mode) {
   return mode === 'sea' ? t('modeSea') : mode === 'air' ? t('modeAir') : t('modeLand');
@@ -1778,7 +1803,7 @@ function hasActiveTipFromMe(o) {
 }
 function tipMascotImg(orderId) {
   const o = (state.orders || []).find(x => x.id === orderId);
-  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-hamster-full.svg' : 'assets/tip-hamster-empty.svg';
+  return (o && hasActiveTipFromMe(o)) ? 'assets/tip-hamster-full.png' : 'assets/tip-hamster-empty.png';
 }
 function partyNameOf(o, side) {
   if (!o) return '';
@@ -1801,11 +1826,11 @@ function shipmentTimelineHtml(shipment) {
   return '<div class="shipment-box">'
     + '<div class="ship-head"><b>' + icon('box') + ' ' + t('shipmentTitle') + '</b>'
     + '<span class="status-pill ' + (shipment.status === 'delivered' ? 'done' : shipment.status === 'exception' ? 'rej' : 'pend') + '">' + esc(shipmentStatusLabel(shipment.status)) + '</span></div>'
-    + '<div class="escort-head"><img src="assets/mascot-vector.svg" alt="" width="40" height="40" loading="lazy">'
+    + '<div class="escort-head"><img src="' + escortAvatar(mode) + '" alt="" width="40" height="40" loading="lazy" decoding="async">'
     + '<div class="escort-txt"><b>' + t('escortTitle') + '</b><span class="small muted">' + esc(transportName(mode)) + (shipment.carrier || shipment.tracking_no || shipment.trackingNo ? ' · ' + esc(shipment.carrier || shipment.tracking_no || shipment.trackingNo) : '') + '</span></div>'
     + '<span class="chip sub-chip">' + esc(transportName(mode)) + '</span></div>'
-    + '<div class="transport-scene-wrap"><img class="transport-scene" src="' + transportArt(mode) + '" alt="' + esc(transportName(mode)) + '" loading="lazy">'
-    + '<div class="escort-pkg" style="left:calc(' + pct + '% - 22px)">📦</div>'
+    + '<div class="transport-scene-wrap"><video class="transport-scene" data-transport-video src="' + transportArt(mode) + '" poster="' + transportPoster(mode) + '" width="1280" height="720" muted loop playsinline preload="none" aria-label="' + esc(transportName(mode)) + '"></video>'
+    + '<div class="escort-pkg" style="left:calc(' + pct + '% - 22px)">' + parcelIcon(22) + '</div>'
     + '<div class="transport-scene-label">' + esc(transportName(mode)) + '</div></div>'
     + '<div class="phase-bar"><span class="phase' + (phase === 'start' ? ' on' : '') + '">' + t('phaseStart') + '</span>'
     + '<span class="phase' + (phase === 'transit' ? ' on' : '') + '">' + t('phaseTransit') + '</span>'
@@ -1861,7 +1886,7 @@ function evidencePanelHtml(o) {
 }
 function tipCalloutHtml(o) {
   return '<div class="tip-callout">'
-    + '<img src="assets/tip-hamster-empty.svg" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy">'
+    + '<img src="assets/tip-hamster-empty.png" alt="' + esc(t('tipTitle')) + '" width="56" height="56" loading="lazy" decoding="async">'
     + '<div class="tip-callout-txt"><b>' + t('dealDone') + '</b><p>' + t('tipCallout') + '</p></div>'
     + '<div class="tip-callout-actions">'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="tip-open" data-id="' + o.id + '">' + t('tipViewBtn') + '</button>'
@@ -1994,7 +2019,7 @@ function orderCard(o) {
     + '<p class="muted">' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total).toLocaleString() + ' · ' + fmtDate(o.createdAt) + '</p>'
     + '<p class="small muted">' + t('party') + '：' + t('partyBuyer') + ' ' + esc(partyNameOf(o, 'buyer')) + ' · ' + t('partySeller') + ' ' + esc(partyNameOf(o, 'seller')) + '</p>'
     + (showTipCallout ? tipCalloutHtml(o) : '')
-    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-hamster-full.svg" alt="" width="42" height="42" loading="lazy"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
+    + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-hamster-full.png" alt="" width="42" height="42" loading="lazy" decoding="async"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
     + insuranceBoxHtml(o)
     + (tips.length ? '<div class="reply-box"><ul style="margin:6px 0 0;padding-left:18px">'
       + tips.map(x => '<li>💛 ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
@@ -2026,7 +2051,7 @@ function ordersBody() {
   if (u && u.role !== 'admin') rows = rows.filter(o => o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
   return '<div class="card panel"><div class="panel-head"><h2>' + t('myOrders') + '</h2>'
     + '<button type="button" class="btn btn-sm" data-action="export-orders">' + icon('file') + ' ' + t('exportCsv') + '</button></div>'
-    + (rows.length ? rows.map(orderCard).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📦</div><p>' + t('noOrders') + '</p></div>')
+    + (rows.length ? rows.map(orderCard).join('') : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/package.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noOrders') + '</p></div>')
     + '</div>';
 }
 function downloadCsv(filename, rows) {
@@ -2070,7 +2095,7 @@ function tipModalHtml(o) {
   const tippedByMe = hasActiveTipFromMe(o);
   return '<div class="modal-head"><h3>💛 ' + t('tipTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body">'
-    + '<div class="tip-img-wrap"><img src="' + tipMascotImg(o.id) + '" alt="' + t('tipTitle') + '" width="110" height="110" loading="lazy">'
+    + '<div class="tip-img-wrap"><img src="' + tipMascotImg(o.id) + '" alt="' + t('tipTitle') + '" width="110" height="110" loading="lazy" decoding="async">'
     + (tippedByMe ? '<span class="tip-coins">🪙🪙🪙</span>' : '')
     + '</div>'
     + '<p class="muted" style="text-align:center">' + (tippedByMe ? t('tipAgain') : t('tipHint')) + '</p>'
@@ -2901,7 +2926,7 @@ function renderDisputes() {
         }).join('') + '</div></section>'
       : '')
     + '<section class="card panel"><div class="panel-head"><h2>' + t('asMyCases') + '</h2><span class="small muted">' + t('afterSalesNote') + '</span></div>'
-    + (rows.length ? rows.map(afterSalesCaseHtml).join('') : '<div class="empty-state" style="padding:32px"><div class="ico">🛠️</div><p>' + t('afterSalesEmpty') + '</p></div>')
+    + (rows.length ? rows.map(afterSalesCaseHtml).join('') : '<div class="empty-state" style="padding:32px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/tools.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('afterSalesEmpty') + '</p></div>')
     + '</section></div>';
 }
 function bindDisputesPage() { /* 数据来自本地状态，动作走全局委托 */ }
@@ -3089,7 +3114,7 @@ function adminAfterSalesBody() {
   return '<div class="card panel"><div class="panel-head"><h2>' + t('adminAfterSales') + '</h2><span class="small muted">' + t('adminAfterSalesHint') + '</span></div>'
     + (pending.length ? pending.map(afterSalesCaseHtml).join('') : '')
     + (rest.length ? '<div class="section-divider">' + t('asMyCases') + ' · ' + rest.length + '</div>' + rest.map(afterSalesCaseHtml).join('') : '')
-    + (!rows.length ? '<div class="empty-state" style="padding:32px"><div class="ico">🛠️</div><p>' + t('afterSalesEmpty') + '</p></div>' : '')
+    + (!rows.length ? '<div class="empty-state" style="padding:32px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/tools.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('afterSalesEmpty') + '</p></div>' : '')
     + '</div>';
 }
 
@@ -3513,7 +3538,7 @@ async function reviewPromotion(id, action) {
 function renderLogin() {
   document.title = t('login') + ' · BeanBeanMouse';
   return '<div class="container login-page"><div class="login-card">'
-    + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-vector.png" alt="BeanBeanMouse">'
+    + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-icon.png" alt="BeanBeanMouse" width="58" height="58" decoding="async">'
     + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
     + '<h1>' + t('loginTitle') + '</h1>'
     + '<p class="sub">' + t('loginDesc') + '</p>'
@@ -3602,7 +3627,7 @@ function renderSellerDash(path) {
       + '<div class="card stat-card"><div class="stat-ico ico-purple">' + icon('sparkle') + '</div><div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('statRate') + '</div></div></div>'
       + '</div>'
       + '<div class="card panel"><div class="panel-head"><h2>' + t('recentInquiries') + '</h2><a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
-      + (myInquiries.length ? myInquiries.slice(0, 4).map(inquiryItem).join('') : '<div class="empty-state" style="padding:30px"><div class="ico">📭</div><p>' + t('noInquiries') + '</p></div>')
+      + (myInquiries.length ? myInquiries.slice(0, 4).map(inquiryItem).join('') : '<div class="empty-state" style="padding:30px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/mailbox.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noInquiries') + '</p></div>')
       + '</div>'
       + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('quickActions') + '</h2></div>'
       + '<div class="flex gap-10" style="flex-wrap:wrap">'
@@ -3632,7 +3657,7 @@ function renderSellerDash(path) {
             + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="delete-product" data-id="' + p.id + '">' + icon('trash') + '</button>'
             + '</div></td></tr>';
         }).join('') + '</tbody></table></div>'
-        : '<div class="empty-state" style="padding:36px"><div class="ico">📦</div><p>' + t('noProducts') + '</p></div>')
+        : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/package.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noProducts') + '</p></div>')
       + '</div>';
   } else if (activeTab === 'orders') {
     body = companyBannerHtml() + ordersBody();
@@ -3652,7 +3677,7 @@ function renderSellerDash(path) {
   } else if (activeTab === 'inquiries') {
     body = '<div class="card panel"><div class="panel-head"><h2>' + t('inquiryManage') + '</h2><span class="flex gap-10"><span class="small muted">' + myInquiries.length + ' ' + t('totalInquiries') + '</span>'
       + '<button type="button" class="btn btn-sm" data-action="export-inquiries">' + icon('file') + ' ' + t('exportCsv') + '</button></span></div>'
-      + (myInquiries.length ? myInquiries.map(inquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiries') + '</p></div>')
+      + (myInquiries.length ? myInquiries.map(inquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/mailbox.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noInquiries') + '</p></div>')
       + '</div>';
   }
   return '<div class="container page"><div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
@@ -3716,7 +3741,7 @@ function adminCatReqBody() {
       + (r.description ? '<p class="muted" style="margin-top:6px">' + esc(r.description) + '</p>' : '')
       + (r.note ? '<p class="small muted">📝 ' + esc(r.note) + '</p>' : '')
       + '</div></div>').join('')
-      : '<div class="empty-state" style="padding:36px"><div class="ico">🙋</div><p>' + t('noUsers') + '</p></div>')
+      : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/user.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noUsers') + '</p></div>')
     + '</div>';
 }
 
@@ -4257,7 +4282,7 @@ function renderBuyerDash(path) {
   } else {
     body = '<div class="card panel"><div class="panel-head"><h2>' + t('myInquiries') + '</h2>'
       + '<button type="button" class="btn btn-sm" data-action="export-inquiries">' + icon('file') + ' ' + t('exportCsv') + '</button></div>'
-      + (myInquiries.length ? myInquiries.map(buyerInquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">📭</div><p>' + t('noInquiriesYet') + '</p></div>')
+      + (myInquiries.length ? myInquiries.map(buyerInquiryItem).join('') : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/mailbox.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noInquiriesYet') + '</p></div>')
       + '</div>';
   }
   return '<div class="container page"><div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';

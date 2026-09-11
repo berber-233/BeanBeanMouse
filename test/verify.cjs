@@ -70,12 +70,19 @@ function resolveBrowser() {
   check('home: deals ticker placeholder', await page.locator('.hero-deals').count() === 1);
   check('home: 6 categories', await page.locator('.cat-card').count() === 6);
   check('home: category strip all 10', await page.locator('.cat-pill').count() === 10);
+  check('pixel-ui: 10 category pills use pixel icons', await page.locator('.cat-pill-ico img[src^="assets/pixel/ui/"]').count() === 10);
+  check('pixel-ui: 6 category cards use pixel icons', await page.locator('.cat-ico img[src^="assets/pixel/ui/"]').count() === 6);
+  check('pixel-ui: category icon actually loads', await page.locator('.cat-ico img[src^="assets/pixel/ui/"]').first().evaluate(img => img.complete && img.naturalWidth > 0));
+  check('pixel-ui: pixel controls styled (blocky border-radius)', await page.locator('.cat-pill').first().evaluate(el => parseFloat(getComputedStyle(el).borderTopLeftRadius) <= 12));
   check('home: product cards >= 4', await page.locator('.product-card').count() >= 4);
   check('home: simplified (no steps section)', await page.locator('.steps').count() === 0);
   check('home: simplified (no trust section)', await page.locator('.trust-grid').count() === 0);
   check('header: language switch has 3 buttons (中文/EN/其他)', await page.locator('#langSwitch .lang-btn').count() === 3);
   check('a11y: language buttons have aria-pressed', await page.locator('#langSwitch .lang-btn[aria-pressed]').count() === 3);
   check('a11y: help button has aria-expanded', (await page.locator('.help-btn').getAttribute('aria-expanded')) === 'false');
+  check('home: brand icon image loads', await page.locator('.brand-mark-img').evaluate(img => img.complete && img.naturalWidth > 0));
+  check('help: panel banner + mascot image bound', await page.locator('.help-banner[src="assets/help-banner.jpg"]').count() === 1
+    && await page.locator('.help-btn img[src="assets/mascot-icon.png"]').count() === 1);
   check('home: no horizontal overflow', await noOverflow());
 
   await page.evaluate(() => { location.hash = '#/products'; });
@@ -85,6 +92,11 @@ function resolveBrowser() {
   check('products: filter panel visible', await page.locator('#filterPanel').isVisible());
   check('products: search bar present', await page.locator('.products-search').count() === 1);
   check('products: category filter covers all', await page.locator('#filterPanel input[name="cat"]').count() >= 10);
+  check('products: AI demo image used on cards', await page.locator('.product-card img[src^="assets/products/"]').count() > 0);
+  const firstCardImg = page.locator('.product-card img[src^="assets/products/"]').first();
+  await firstCardImg.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  check('products: AI demo image actually loads', await firstCardImg.evaluate(img => img.complete && img.naturalWidth > 0));
   check('products: no horizontal overflow', await noOverflow());
 
   await page.evaluate(() => { location.hash = '#/products?cat=machinery'; });
@@ -98,6 +110,7 @@ function resolveBrowser() {
   await page.evaluate(() => { location.hash = '#/products?kw=fiber%20cutter'; });
   await page.waitForTimeout(300);
   check('products: no-result shows related recommendations', await page.locator('.related-section .product-card').count() > 0);
+  check('pixel-ui: empty state uses pixel icon', await page.locator('.empty-state .ico img[src*="pixel/ui/"]').count() >= 1);
 
   // ---- 贸易资讯 ----
   await page.evaluate(() => { location.hash = '#/news'; });
@@ -451,7 +464,7 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('buyer: tip opens as separate window', await page.locator('#tipAmountInput').count() === 1);
   check('buyer: tip modal has skip button', await page.locator('[data-action="tip-skip"]').count() === 1);
-  check('buyer: tip modal shows empty bowl before tip', await page.locator('#modalRoot img[src="assets/tip-hamster-empty.svg"]').count() === 1);
+  check('buyer: tip modal shows empty bowl before tip', await page.locator('#modalRoot img[src="assets/tip-hamster-empty.png"]').count() === 1);
   await page.click('.tip-chips [data-amount="25"]');
   check('buyer: quick amount chip fills input', (await page.inputValue('#tipAmountInput')) === '25');
   await page.keyboard.press('Tab');
@@ -467,10 +480,20 @@ function resolveBrowser() {
   await page.waitForTimeout(400);
   check('buyer: tip saved on order (both sides visible)', await page.locator('[data-action="tip-cancel"]').count() >= 1);
   check('buyer: tip callout hidden after tipping', await page.locator('.tip-callout').count() === 0);
-  check('buyer: coins image appears after tip', await page.locator('.tip-list-head img[src="assets/tip-hamster-full.svg"]').count() >= 1);
+  check('buyer: coins image appears after tip', await page.locator('.tip-list-head img[src="assets/tip-hamster-full.png"]').count() >= 1);
   check('buyer: shipment timeline visible on completed order', await page.locator('.shipment-box').count() >= 1);
   check('buyer: escort scene & phase bar present', await page.locator('.transport-scene').count() >= 1 && await page.locator('.phase-bar .phase').count() === 3);
-  check('buyer: sea shipment scene shown', await page.locator('.transport-scene[src*="transport-sea.gif"]').count() >= 1);
+  check('buyer: sea shipment scene shown', await page.locator('.transport-scene[src*="transport-sea.webm"]').count() >= 1);
+  check('buyer: transport video is muted + looping + playsinline with poster', await page.locator('video.transport-scene').first().evaluate(v =>
+    v.hasAttribute('muted') && v.hasAttribute('loop') && v.hasAttribute('playsinline') && /transport-(land|sea|air)-poster\.jpg$/.test(v.getAttribute('poster') || '')));
+  const sceneVideo = page.locator('video.transport-scene').first();
+  await sceneVideo.scrollIntoViewIfNeeded();
+  check('buyer: transport video starts playing when visible', await sceneVideo.evaluate(async v => {
+    for (let i = 0; i < 60 && (v.paused || v.readyState < 2); i++) await new Promise(r => setTimeout(r, 250));
+    return !v.paused && v.readyState >= 2 && v.videoWidth > 0;
+  }));
+  check('buyer: escort avatar uses mode character icon', await page.locator('.escort-head img[src*="characters/sea-icon.jpg"]').count() >= 1);
+  check('buyer: tracking parcel uses inline pixel icon (no emoji)', await page.locator('.escort-pkg svg').count() >= 1);
   check('buyer: order thumbnail shown', await page.locator('.order-thumb').count() >= 1);
   check('buyer: insurance box on completed order', await page.locator('.insurance-box').count() >= 1);
   await page.locator('.insurance-box [data-action="insurance-buy"]').first().click();

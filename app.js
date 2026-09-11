@@ -59,3 +59,30 @@ document.addEventListener('click', e => {
 window.addEventListener('hashchange', render);
 window.addEventListener('resize', fitHeroTitle);
 render();
+
+/* ---------- 运输动画视频：进入视口才播放，离开即暂停（省流量），并尊重 reduced-motion ---------- */
+(function transportVideoAutoplay() {
+  const reduce = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  const seen = new WeakSet();
+  const reduced = () => !!(reduce && reduce.matches);
+  const tryPlay = v => {
+    if (reduced()) { v.pause(); return; }
+    const p = v.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  };
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    entries.forEach(en => (en.isIntersecting ? tryPlay(en.target) : en.target.pause()));
+  }, { threshold: 0.15 }) : null;
+
+  function scan() {
+    document.querySelectorAll('video[data-transport-video]').forEach(v => {
+      if (seen.has(v)) return;
+      seen.add(v);
+      if (v.preload === 'none') v.preload = 'metadata';
+      if (io) io.observe(v); else tryPlay(v);
+    });
+  }
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  if (reduce && reduce.addEventListener) reduce.addEventListener('change', scan);
+  scan();
+})();

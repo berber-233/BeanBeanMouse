@@ -1,6 +1,7 @@
 # 临时/中间文件
 work/
 dist/
+outputs/
 .pnpm-store/
 pnpm-workspace.yaml
 
