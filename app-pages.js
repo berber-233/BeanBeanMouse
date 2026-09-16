@@ -369,12 +369,14 @@ function renderHome() {
 }
 
 function videoCard(v) {
+  /* 视频封面：优先用作者上传的封面，否则用该细分概念图（避免 404） */
+  const thumbFallback = { hamster: 'hamster', cat: 'cat', 'dog-small': 'dog-small', 'dog-large': 'dog-large' }[v.pet] || 'hamster';
   const x = langObj(v);
   const badge = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', upload: '自营' }[v.platform] || v.platform;
   const play = v.url ? '<a class="video-play" href="' + esc(v.url) + '" target="_blank" rel="noopener noreferrer">▶</a>'
     : '<span class="video-play video-play--soon" aria-hidden="true">▶</span>';
   return '<article class="video-card">'
-    + '<div class="video-thumb"><img src="assets/pet/video-' + esc(v.pet) + '.jpg" alt="" width="480" height="270" loading="lazy" decoding="async">'
+    + '<div class="video-thumb"><img src="' + esc(videoThumbSrc(v)) + '" alt="" width="480" height="270" loading="lazy" decoding="async">'
     + play + '<span class="video-badge">' + esc(badge) + '</span></div>'
     + '<h3 class="oneline" title="' + esc(x.title) + '">' + esc(x.title) + '</h3>'
     + '<p class="video-by oneline" title="' + esc(x.by) + '">' + esc(x.by) + '</p>'
@@ -382,6 +384,12 @@ function videoCard(v) {
 }
 
 function renderVideos() {
+/* 视频封面地址：有上传封面用上传的，否则回落到细分概念图 */
+function videoThumbSrc(v) {
+  const map = { hamster: 'hamster', cat: 'cat', 'dog-small': 'dog-small', 'dog-large': 'dog-large' };
+  return 'assets/pet/products/' + (map[v.pet] || 'hamster') + '.png';
+}
+
   document.title = t('videoWallTitle') + ' · BeanBeanMouse';
   const list = (state.videos && state.videos.length) ? state.videos : VIDEO_SHOWCASE;
   return '<div class="container page">'

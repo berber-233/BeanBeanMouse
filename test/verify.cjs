@@ -32,6 +32,7 @@ function resolveBrowser() {
     headless: true
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(5000);   // 缺元素快速失败（容错包装会记为 FAIL），避免整轮被 30s 默认超时拖死
   /* 容错包装：单个元素缺失时记为失败而不是中断整轮回归（脚本改版后要能看到全部问题） */
   const RAW = page;
   const isLocator = v => v && typeof v === 'object' && typeof v.count === 'function' && typeof v.click === 'function';
@@ -70,7 +71,15 @@ function resolveBrowser() {
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('dialog', d => d.accept('涉嫌侵犯品牌知识产权'));
   const results = [];
-  const check = (name, cond) => results.push([name, !!cond]);
+  /* 边跑边写日志：Node 重定向到文件时会缓冲，写文件才能实时看到进度与卡点 */
+  const logPath = path.join(__dirname, '..', 'work', 'verify-live.txt');
+  try { fs.writeFileSync(logPath, ''); } catch (e) { /* 忽略 */ }
+  const check = (name, cond) => {
+    results.push([name, !!cond]);
+    const line = (cond ? 'PASS | ' : 'FAIL | ') + name + '\n';
+    process.stdout.write(line);
+    try { fs.appendFileSync(logPath, line); } catch (e) { /* 忽略 */ }
+  };
   const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   const waitForTranslated = async (loc, ms) => {
     const deadline = Date.now() + Math.min(ms, 6000);
