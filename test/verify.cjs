@@ -4,8 +4,10 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const errors = [];
 let page;
-const safeClick = async (sel) => { const l = page.locator(sel).first(); if (!(await l.count())) return false; try { await l.click({ timeout: 6000 }); return true; } catch (e) { return false; } };
-const safeFill = async (sel, val) => { const l = page.locator(sel).first(); if (!(await l.count())) return false; try { await l.fill(val, { timeout: 6000 }); return true; } catch (e) { return false; } };
+/* 注意：不要用 count() 预检——那会关掉 Playwright 的自动等待，页面还没渲染完就被判成失败。
+ * 这里保留自动等待，只把等待上限压到 6 秒，超时才记为失败。 */
+const safeClick = async (sel) => { try { await page.locator(sel).first().click({ timeout: 6000 }); return true; } catch (e) { return false; } };
+const safeFill = async (sel, val) => { try { await page.locator(sel).first().fill(val, { timeout: 6000 }); return true; } catch (e) { return false; } };
 
 const safeCloseModal = async () => { if (await page.locator('[data-action="close-modal"]').count()) await page.click('[data-action="close-modal"]').catch(() => {}); };
 
@@ -347,7 +349,7 @@ function resolveBrowser() {
 
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
-    s.user = { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 's1' };
+    s.user = { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 'bbm' };
     localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
   });
   await page.reload();
@@ -569,7 +571,7 @@ function resolveBrowser() {
 
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
-    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 's1' };
+    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 'bbm' };
     localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
   });
   await page.reload();
@@ -649,7 +651,7 @@ function resolveBrowser() {
   // ---- 卖家处理售后 ----
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
-    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 's1' };
+    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 'bbm' };
     localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
   });
   await page.reload();
@@ -758,7 +760,7 @@ function resolveBrowser() {
 
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
-    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 's1' };
+    s.user = { id: 'u-seller', role: 'seller', name: 'Wang', email: 'seller@demo.com', sellerId: 'bbm' };
     localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
   });
   await page.reload();

@@ -383,13 +383,13 @@ function videoCard(v) {
     + '</article>';
 }
 
-function renderVideos() {
 /* 视频封面地址：有上传封面用上传的，否则回落到细分概念图 */
 function videoThumbSrc(v) {
   const map = { hamster: 'hamster', cat: 'cat', 'dog-small': 'dog-small', 'dog-large': 'dog-large' };
   return 'assets/pet/products/' + (map[v.pet] || 'hamster') + '.png';
 }
 
+function renderVideos() {
   document.title = t('videoWallTitle') + ' · BeanBeanMouse';
   const list = (state.videos && state.videos.length) ? state.videos : VIDEO_SHOWCASE;
   return '<div class="container page">'
