@@ -1,0 +1,15 @@
+# 站点用 hash 路由（/#/products 等）。这些干净路径此前直接 404，
+# 而 sitemap.xml 里收录的就是干净路径 —— 这里 301 到对应的 hash 路由，
+# 避免搜索引擎收录时报 "Not Found"。前端 app-core.js 还有一层兜底改写。
+/products   /#/products   301
+/news       /#/news       301
+/guide      /#/guide      301
+/export     /#/export     301
+/logistics  /#/logistics  301
+/compliance /#/compliance 301
+/disputes   /#/disputes   301
+/feedback   /#/feedback   301
+/customs    /#/customs    301
+/recruit    /#/recruit    301
+/insurance  /#/insurance  301
+/contracts  /#/contracts  301

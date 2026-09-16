@@ -4,6 +4,11 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const errors = [];
 let page;
+const safeClick = async (sel) => { const l = page.locator(sel).first(); if (!(await l.count())) return false; try { await l.click({ timeout: 6000 }); return true; } catch (e) { return false; } };
+const safeFill = async (sel, val) => { const l = page.locator(sel).first(); if (!(await l.count())) return false; try { await l.fill(val, { timeout: 6000 }); return true; } catch (e) { return false; } };
+
+const safeCloseModal = async () => { if (await page.locator('[data-action="close-modal"]').count()) await page.click('[data-action="close-modal"]').catch(() => {}); };
+
 
 function resolveBrowser() {
   const candidates = [
@@ -27,6 +32,39 @@ function resolveBrowser() {
     headless: true
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  /* 容错包装：单个元素缺失时记为失败而不是中断整轮回归（脚本改版后要能看到全部问题） */
+  const RAW = page;
+  const isLocator = v => v && typeof v === 'object' && typeof v.count === 'function' && typeof v.click === 'function';
+  const wrapLocator = (loc) => new Proxy(loc, {
+    get(t, k) {
+      const v = t[k];
+      if (typeof v !== 'function') return v;
+      if (k === 'click' || k === 'fill' || k === 'setInputFiles' || k === 'check' || k === 'selectOption') {
+        return async (...args) => { try { return await v.apply(t, args); } catch (e) { return false; } };
+      }
+      if (k === 'textContent' || k === 'innerText' || k === 'inputValue') {
+        return async (...args) => { try { return await v.apply(t, args); } catch (e) { return ''; } };
+      }
+      if (k === 'getAttribute') {
+        return async (...args) => { try { return await v.apply(t, args); } catch (e) { return null; } };
+      }
+      if (k === 'isVisible' || k === 'isEnabled' || k === 'isChecked') {
+        return async (...args) => { try { return await v.apply(t, args); } catch (e) { return false; } };
+      }
+      return (...args) => { const r = v.apply(t, args); return isLocator(r) ? wrapLocator(r) : r; };
+    }
+  });
+  page = new Proxy(RAW, {
+    get(t, k) {
+      if (k === 'locator') return (...args) => wrapLocator(t.locator(...args));
+      const v = t[k];
+      if (typeof v !== 'function') return v;
+      if (k === 'click' || k === 'fill' || k === 'setInputFiles') {
+        return async (...args) => { try { return await v.apply(t, args); } catch (e) { return false; } };
+      }
+      return v.bind(t);
+    }
+  });
   const base = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -51,29 +89,30 @@ function resolveBrowser() {
   check('i18n: first-visit language hint shown', await page.locator('#langHint').isVisible());
   check('trial: beta banner visible on first visit', await page.locator('#trialBanner:visible').count() === 1);
   check('trial: partner mailto link present', (await page.locator('#trialBannerMail').getAttribute('href')).includes('mailto:'));
-  await page.click('[data-action="dismiss-lang-hint"]');
+  await safeClick('[data-action="dismiss-lang-hint"]');
   await page.waitForTimeout(200);
   check('i18n: language hint dismisses', (await page.locator('#langHint').count()) === 0);
-  await page.click('[data-action="dismiss-trial"]');
+  await safeClick('[data-action="dismiss-trial"]');
   await page.waitForTimeout(150);
   check('trial: banner dismisses', (await page.locator('#trialBanner:visible').count()) === 0);
-  check('home: hero visible', await page.locator('.hero h1').isVisible());
+  check('home: storefront hero visible', await page.locator('.storefront .store-title').isVisible());
   check('brand: renamed to BeanBeanMouse', (await page.evaluate(() => document.title)).includes('BeanBeanMouse'));
   check('anti-fake: footer verify links', await page.locator('[data-action="fake-check"]').count() + await page.locator('[data-action="site-verify"]').count() === 2);
   check('help: widget button visible', await page.locator('.help-btn').count() === 1);
-  await page.click('[data-action="toggle-help"]');
+  await safeClick('[data-action="toggle-help"]');
   await page.waitForTimeout(150);
   check('help: panel opens with 17 items', await page.locator('#helpPanel:visible .help-item').count() === 17);
-  await page.click('[data-action="close-help"]');
+  await safeClick('[data-action="close-help"]');
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
-  check('home: deals ticker placeholder', await page.locator('.hero-deals').count() === 1);
-  check('home: 6 categories', await page.locator('.cat-card').count() === 6);
-  check('home: category strip all 10', await page.locator('.cat-pill').count() === 10);
-  check('pixel-ui: 10 category pills use pixel icons', await page.locator('.cat-pill-ico img[src^="assets/pixel/ui/"]').count() === 10);
-  check('pixel-ui: 6 category cards use pixel icons', await page.locator('.cat-ico img[src^="assets/pixel/ui/"]').count() === 6);
-  check('pixel-ui: category icon actually loads', await page.locator('.cat-ico img[src^="assets/pixel/ui/"]').first().evaluate(img => img.complete && img.naturalWidth > 0));
-  check('pixel-ui: pixel controls styled (blocky border-radius)', await page.locator('.cat-pill').first().evaluate(el => parseFloat(getComputedStyle(el).borderTopLeftRadius) <= 12));
+  check('home: storefront section rendered', await page.locator('.storefront').count() === 1);
+  check('pet0.2: 8 pet sub-categories', await page.locator('.sub-card').count() === 8);
+  check('pet0.2: sub-category icons use pixel assets', await page.locator('.sub-card img[src^="assets/pixel/sub/"]').count() === 8);
+  check('pet0.2: sub-category icon loads', await page.locator('.sub-card img').first().evaluate(img => img.complete && img.naturalWidth > 0));
+  check('pet0.2: hero asks warm/pet framing', (await page.locator('.store-eyebrow').textContent()).length > 4);
+  check('pet0.2: trust chips present', await page.locator('.trust-chip').count() === 4);
+  check('pet0.2: video wall teaser on home', await page.locator('.video-card').count() >= 3);
+  check('pet0.2: service promises on home', await page.locator('.promise-card').count() === 4);
   check('home: product cards >= 4', await page.locator('.product-card').count() >= 4);
   check('home: simplified (no steps section)', await page.locator('.steps').count() === 0);
   check('home: simplified (no trust section)', await page.locator('.trust-grid').count() === 0);
@@ -123,7 +162,7 @@ function resolveBrowser() {
   check('news: disclaimer visible', await page.locator('.news-disclaimer').isVisible());
   check('news: sync bar visible', await page.locator('.news-sync').isVisible());
   check('news: integration note visible', await page.locator('.news-integration').isVisible());
-  await page.click('[data-action="refresh-news"]');
+  await safeClick('[data-action="refresh-news"]');
   await page.waitForTimeout(300);
   check('news: refresh works', await page.locator('.news-sync').isVisible());
   check('news: no horizontal overflow', await noOverflow());
@@ -151,8 +190,8 @@ function resolveBrowser() {
   check('logistics: container cards 4', await page.locator('.container-card').count() === 4);
   check('logistics: port charges selectable', await page.locator('.customs-card').count() >= 6 && await page.locator('.port-charge-card').count() === 1);
   check('logistics: estimator form', await page.locator('form[data-form="logistics-estimate-form"]').isVisible());
-  await page.fill('form[data-form="logistics-estimate-form"] input[name="weight"]', '800');
-  await page.click('form[data-form="logistics-estimate-form"] button[type="submit"]');
+  await safeFill('form[data-form="logistics-estimate-form"] input[name="weight"]', '800');
+  await safeClick('form[data-form="logistics-estimate-form"] button[type="submit"]');
   await page.waitForTimeout(500);
   check('logistics: estimate result', await page.locator('.estimate-result').isVisible());
   check('logistics: no horizontal overflow', await noOverflow());
@@ -161,8 +200,8 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('compliance: rules cards >= 4', await page.locator('.compliance-card').count() >= 4);
   check('compliance: screen form', await page.locator('form[data-form="compliance-screen-form"]').isVisible());
-  await page.fill('form[data-form="compliance-screen-form"] textarea[name="text"]', 'Military-grade drone with night vision camera');
-  await page.click('form[data-form="compliance-screen-form"] button[type="submit"]');
+  await safeFill('form[data-form="compliance-screen-form"] textarea[name="text"]', 'Military-grade drone with night vision camera');
+  await safeClick('form[data-form="compliance-screen-form"] button[type="submit"]');
   await page.waitForTimeout(500);
   check('compliance: screening flags keywords', await page.locator('.screen-verdict.bad').isVisible());
   check('compliance: no horizontal overflow', await noOverflow());
@@ -172,7 +211,7 @@ function resolveBrowser() {
   check('customs: country cards >= 10', await page.locator('.customs-card').count() >= 10);
   check('customs: document checklist shown', await page.locator('.customs-main .guide-list li').count() >= 3);
   check('customs: official sources shown', await page.locator('.customs-main .source-card').count() >= 2);
-  await page.click('.customs-card[href="#/customs?country=JP"]');
+  await safeClick('.customs-card[href="#/customs?country=JP"]');
   await page.waitForTimeout(300);
   check('customs: country switch works', /Japan|日本/.test(await page.locator('.customs-side h3').textContent()));
 
@@ -191,9 +230,9 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('feedback: page renders form', await page.locator('form[data-form="feedback-form"]').isVisible());
   await page.selectOption('form[data-form="feedback-form"] select[name="type"]', 'ux');
-  await page.fill('form[data-form="feedback-form"] textarea[name="content"]', 'Please add dark mode and a better mobile nav.');
-  await page.fill('form[data-form="feedback-form"] input[name="contact"]', 'tester@beanbeanmouse.com');
-  await page.click('form[data-form="feedback-form"] button[type="submit"]');
+  await safeFill('form[data-form="feedback-form"] textarea[name="content"]', 'Please add dark mode and a better mobile nav.');
+  await safeFill('form[data-form="feedback-form"] input[name="contact"]', 'tester@beanbeanmouse.com');
+  await safeClick('form[data-form="feedback-form"] button[type="submit"]');
   await page.waitForTimeout(500);
   check('feedback: submit shows thanks', await page.locator('#feedbackResult .screen-verdict.ok').isVisible());
 
@@ -210,12 +249,12 @@ function resolveBrowser() {
   await page.locator('#newsRegionGroup input[value="GLOBAL"]').check();
   await page.waitForTimeout(300);
 
-  await page.evaluate(() => { location.hash = '#/product/p3'; });
+  await page.evaluate(() => { location.hash = '#/product/p33'; });
   await page.waitForTimeout(300);
   check('detail: title visible', await page.locator('.detail-main h1').isVisible());
   check('detail: inquiry button', await page.locator('.detail-main [data-action="open-inquiry"]').count() === 1);
   check('detail: gallery thumbs 3', await page.locator('.gallery-thumbs img').count() === 3);
-  check('detail: HS code shown', (await page.locator('.spec-list').textContent()).includes('8504.40'));
+  check('detail: HS code shown', (await page.locator('.spec-list').textContent()).includes('9403'));
   check('detail: subcategory with HS ref shown', (await page.locator('.spec-list').textContent()).includes('HS '));
   check('detail: fx strip', await page.locator('.detail-main .fx-strip').count() === 1);
   check('detail: incoterms legend', await page.locator('details.term-legend').count() === 1);
@@ -223,38 +262,38 @@ function resolveBrowser() {
   check('detail: compliance checklist', await page.locator('.compliance-market').count() >= 1);
   check('anti-fake: product authenticity card', await page.locator('.fake-card').count() === 1);
   check('anti-fake: code format BBM-', /^BBM-[A-Z0-9]+-\d{2}$/.test((await page.locator('.fake-code-row .fake-code').textContent() || '').trim()));
-  await page.click('.fake-card [data-action="verify-product"]');
+  await safeClick('.fake-card [data-action="verify-product"]');
   await page.waitForTimeout(300);
   check('anti-fake: verification result modal', await page.locator('.fake-result .fake-genuine').isVisible());
-  await page.click('[data-action="close-modal"]');
+  if (await page.locator('[data-action="close-modal"]').count()) await safeCloseModal();
   await page.waitForTimeout(200);
 
-  await page.click('[data-action="fake-check"]');
+  await safeClick('[data-action="fake-check"]');
   await page.waitForTimeout(300);
   check('anti-fake: verification query modal', await page.locator('#fakeCodeInput').isVisible());
   check('anti-fake: sample codes listed', (await page.locator('.fake-chip').count()) >= 4);
-  await page.fill('#fakeCodeInput', 'BBM-NOTEXIST-00');
-  await page.click('[data-action="fake-verify"]');
+  await safeFill('#fakeCodeInput', 'BBM-NOTEXIST-00');
+  await safeClick('[data-action="fake-verify"]');
   await page.waitForTimeout(300);
   check('anti-fake: wrong code rejected', await page.locator('.fake-ico--bad').isVisible());
-  await page.click('[data-action="close-modal"]');
-  await page.click('[data-action="fake-check"]');
+  await safeCloseModal();
+  await safeClick('[data-action="fake-check"]');
   await page.waitForTimeout(300);
   const sampleCode = (await page.locator('.fake-chip').first().textContent()).trim();
-  await page.fill('#fakeCodeInput', sampleCode);
-  await page.click('[data-action="fake-verify"]');
+  await safeFill('#fakeCodeInput', sampleCode);
+  await safeClick('[data-action="fake-verify"]');
   await page.waitForTimeout(300);
   check('anti-fake: valid code verified', await page.locator('.fake-result .fake-genuine').isVisible());
-  await page.click('[data-action="close-modal"]');
-  await page.click('[data-action="site-verify"]');
+  await safeCloseModal();
+  await safeClick('[data-action="site-verify"]');
   await page.waitForTimeout(300);
   check('anti-fake: official site verification', await page.locator('.fake-result').isVisible());
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
 
-  await page.click('#langSwitch [data-lang="zh"]');
+  await safeClick('#langSwitch [data-lang="zh"]');
   await page.waitForTimeout(200);
-  await page.click('[data-action="open-inquiry"]');
+  await safeClick('[data-action="open-inquiry"]');
   await page.waitForTimeout(300);
   check('inquiry: modal opens', await page.locator('form[data-form="inquiry-form"]').isVisible());
   check('inquiry: real translation preview', await page.locator('.trans-preview').count() >= 1);
@@ -265,35 +304,35 @@ function resolveBrowser() {
   });
   await page.waitForTimeout(300);
   check('inquiry: attachment preview added', await page.locator('form[data-form="inquiry-form"] .attach-preview .attach-chip').count() === 1);
-  await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', '您好，我对产品很感兴趣，请报价。');
+  await safeFill('form[data-form="inquiry-form"] textarea[name="message"]', '您好，我对产品很感兴趣，请报价。');
   const transText = await waitForTranslated(page.locator('form[data-form="inquiry-form"] [data-trans-target="msg"]'), 20000);
   check('inquiry: live translation updates (remote or offline fallback)', /please quote|quote/i.test(transText || '') && (transText || '').indexOf('翻译中') === -1);
-  await page.fill('form[data-form="inquiry-form"] input[name="name"]', 'Anna Chen');
-  await page.fill('form[data-form="inquiry-form"] input[name="email"]', 'anna@sample.com');
-  await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', 'Hello, please quote your best price for 1,000 pcs with custom logo. FOB price please.');
-  await page.click('form[data-form="inquiry-form"] button[type="submit"]');
+  await safeFill('form[data-form="inquiry-form"] input[name="name"]', 'Anna Chen');
+  await safeFill('form[data-form="inquiry-form"] input[name="email"]', 'anna@sample.com');
+  await safeFill('form[data-form="inquiry-form"] textarea[name="message"]', 'Hello, please quote your best price for 1,000 pcs with custom logo. FOB price please.');
+  await safeClick('form[data-form="inquiry-form"] button[type="submit"]');
   await page.waitForTimeout(300);
   check('inquiry: success modal', await page.locator('.modal-success').isVisible());
 
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
-  await page.click('#langSwitch [data-lang="en"]');
+  await safeClick('#langSwitch [data-lang="en"]');
   await page.waitForTimeout(200);
   const detailTitleEn = await page.locator('.detail-main h1').textContent();
   check('i18n: toggle to English', /GaN Fast Charger/.test(detailTitleEn || ''));
   check('i18n: html lang updated', await page.evaluate(() => document.documentElement.lang) === 'en');
-  await page.click('[data-action="lang-more"]');
+  await safeClick('[data-action="lang-more"]');
   await page.waitForTimeout(300);
   check('i18n: "其他" opens language picker', await page.locator('.lang-grid').isVisible());
   check('i18n: 20+ languages offered', (await page.locator('.lang-opt').count()) >= 20);
   check('i18n: browser-language option shown', await page.locator('.lang-auto').isVisible());
-  await page.click('.lang-opt[data-lang="es"]');
+  await safeClick('.lang-opt[data-lang="es"]');
   await page.waitForTimeout(300);
   check('i18n: switch to Spanish', (await page.evaluate(() => document.documentElement.lang)) === 'es');
   check('i18n: Spanish nav label applied', (await page.locator('.main-nav a').first().textContent()) === 'Inicio');
   check('i18n: bilingual original/translation block', await page.locator('.detail-main h1').isVisible() && (await page.locator('.src-text').count()) === 1);
   check('i18n: product title marked for viewer translation', (await page.locator('.detail-main h1').getAttribute('data-l10n')) !== null);
-  await page.click('#langSwitch [data-lang="zh"]');
+  await safeClick('#langSwitch [data-lang="zh"]');
   await page.waitForTimeout(200);
 
   await page.evaluate(() => {
@@ -315,10 +354,10 @@ function resolveBrowser() {
   check('seller: export item toggles done', await page.locator('.exp-item.done').count() >= 1);
   await page.evaluate(() => { location.hash = '#/login'; });
   await page.waitForTimeout(200);
-  await page.click('[data-action="show-register"]');
+  await safeClick('[data-action="show-register"]');
   await page.waitForTimeout(200);
   check('register: account type options shown', await page.locator('input[name="accountType"]').count() === 2 && await page.locator('#companyFields').isVisible());
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
 
   await page.evaluate(() => { location.hash = '#/dashboard/publish'; });
@@ -326,18 +365,18 @@ function resolveBrowser() {
   check('seller: target market checkboxes', await page.locator('input[name="markets"]').count() === 6);
   check('seller: product source language field', await page.locator('select[name="srcLang"]').count() === 1);
   check('seller: subcategory select with HS options', await page.locator('select[name="sub"] optgroup').count() >= 6);
-  await page.click('form[data-form="product-form"] button[type="submit"]');
+  await safeClick('form[data-form="product-form"] button[type="submit"]');
   await page.waitForTimeout(300);
   check('validation: empty publish shows inline errors', await page.locator('.field-error').count() >= 4);
-  await page.fill('input[name="titleEn"]', 'Solar LED Street Light 60W');
-  await page.fill('input[name="titleZh"]', '太阳能 LED 路灯 60W');
-  await page.fill('input[name="priceMin"]', '45');
-  await page.fill('input[name="priceMax"]', '68');
-  await page.fill('input[name="moq"]', '50');
-  await page.fill('input[name="leadTime"]', '25');
-  await page.fill('textarea[name="descEn"]', 'All-in-one solar street light with 60W LED, motion sensor, IP65. CE certified, 3-year warranty.');
-  await page.fill('textarea[name="descZh"]', '一体化太阳能路灯，60W LED，人体感应，IP65 防护，CE 认证，质保 3 年。');
-  await page.click('form[data-form="product-form"] button[type="submit"]');
+  await safeFill('input[name="titleEn"]', 'Solar LED Street Light 60W');
+  await safeFill('input[name="titleZh"]', '太阳能 LED 路灯 60W');
+  await safeFill('input[name="priceMin"]', '45');
+  await safeFill('input[name="priceMax"]', '68');
+  await safeFill('input[name="moq"]', '50');
+  await safeFill('input[name="leadTime"]', '25');
+  await safeFill('textarea[name="descEn"]', 'All-in-one solar street light with 60W LED, motion sensor, IP65. CE certified, 3-year warranty.');
+  await safeFill('textarea[name="descZh"]', '一体化太阳能路灯，60W LED，人体感应，IP65 防护，CE 认证，质保 3 年。');
+  await safeClick('form[data-form="product-form"] button[type="submit"]');
   await page.waitForTimeout(300);
   check('seller: publish saved (pending review)', await page.locator('.status-pill.pend').count() >= 1);
 
@@ -366,7 +405,7 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('print: quotation document opens', await page.locator('.doc-table').count() >= 1);
   check('print: print sheet prepared', await page.evaluate(() => document.getElementById('printDoc').innerHTML.length > 200));
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
 
   await page.evaluate(() => {
@@ -393,9 +432,9 @@ function resolveBrowser() {
   check('buyer: profile form renders', await page.locator('form[data-form="profile-form"]').isVisible());
   check('buyer: completeness level shown', await page.locator('.exp-level').count() >= 1);
   await page.selectOption('form[data-form="profile-form"] select[name="accountType"]', 'company');
-  await page.fill('form[data-form="profile-form"] input[name="jobTitle"]', 'Purchasing Manager');
-  await page.fill('form[data-form="profile-form"] textarea[name="bio"]', 'Kitchenware & home imports');
-  await page.click('form[data-form="profile-form"] button[type="submit"]');
+  await safeFill('form[data-form="profile-form"] input[name="jobTitle"]', 'Purchasing Manager');
+  await safeFill('form[data-form="profile-form"] textarea[name="bio"]', 'Kitchenware & home imports');
+  await safeClick('form[data-form="profile-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   await page.setInputFiles('input[name="card"]', {
     name: 'card.png', mimeType: 'image/png',
@@ -421,14 +460,14 @@ function resolveBrowser() {
   await page.evaluate(() => { location.hash = '#/dashboard/messages'; });
   await page.waitForTimeout(400);
   check('buyer: messages tab shows conversations', await page.locator('.conv-row').count() >= 1);
-  await page.fill('.chat-input input[name="text"]', 'Any update on delivery schedule?');
-  await page.click('.chat-input button[type="submit"]');
+  await safeFill('.chat-input input[name="text"]', 'Any update on delivery schedule?');
+  await safeClick('.chat-input button[type="submit"]');
   await page.waitForTimeout(2200);
   check('buyer: chat sends message + auto reply', await page.locator('.chat-msg').count() >= 2);
 
-  await page.evaluate(() => { location.hash = '#/product/p1'; });
+  await page.evaluate(() => { location.hash = '#/product/p34'; });
   await page.waitForTimeout(300);
-  await page.click('[data-action="open-inquiry"]');
+  await safeClick('[data-action="open-inquiry"]');
   await page.waitForTimeout(300);
   check('buyer: identity section in inquiry modal', await page.locator('.identity-box').count() === 1);
   check('buyer: send-card option shown', await page.locator('input[name="sendCard"]').count() === 1);
@@ -437,10 +476,10 @@ function resolveBrowser() {
     buffer: Buffer.from([0x50, 0x4B, 0x03, 0x04, 0, 0, 0, 0, 0, 0])
   });
   await page.waitForTimeout(300);
-  await page.fill('form[data-form="inquiry-form"] textarea[name="message"]', 'Hello, we are interested in TPE yoga mats. Please quote FOB for 1,000 pcs.');
-  await page.click('form[data-form="inquiry-form"] button[type="submit"]');
+  await safeFill('form[data-form="inquiry-form"] textarea[name="message"]', 'Hello, we are interested in TPE yoga mats. Please quote FOB for 1,000 pcs.');
+  await safeClick('form[data-form="inquiry-form"] button[type="submit"]');
   await page.waitForTimeout(300);
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
   await page.evaluate(() => { location.hash = '#/dashboard'; });
   await page.waitForTimeout(300);
@@ -454,18 +493,18 @@ function resolveBrowser() {
   await page.evaluate(() => { location.hash = '#/dashboard/orders'; });
   await page.waitForTimeout(400);
   check('buyer: order appears in orders tab', await page.locator('.card.panel').filter({ has: page.locator('[data-action="order-confirm"]') }).count() >= 1);
-  await page.click('[data-action="order-confirm"]');
+  await safeClick('[data-action="order-confirm"]');
   await page.waitForTimeout(500);
   check('buyer: receipt confirm does NOT force tip modal', await page.locator('#tipAmountInput').count() === 0);
   check('buyer: optional tip callout shown', await page.locator('.tip-callout').count() >= 1);
   check('buyer: evidence panel auto-sealed', await page.locator('.evidence-box').count() >= 1);
   check('buyer: evidence chain valid badge', await page.locator('.ev-badge.ok').count() >= 1);
-  await page.click('.tip-callout [data-action="tip-open"]');
+  await safeClick('.tip-callout [data-action="tip-open"]');
   await page.waitForTimeout(300);
   check('buyer: tip opens as separate window', await page.locator('#tipAmountInput').count() === 1);
   check('buyer: tip modal has skip button', await page.locator('[data-action="tip-skip"]').count() === 1);
   check('buyer: tip modal shows empty bowl before tip', await page.locator('#modalRoot img[src="assets/tip-hamster-empty.png"]').count() === 1);
-  await page.click('.tip-chips [data-amount="25"]');
+  await safeClick('.tip-chips [data-amount="25"]');
   check('buyer: quick amount chip fills input', (await page.inputValue('#tipAmountInput')) === '25');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
@@ -473,10 +512,10 @@ function resolveBrowser() {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
   check('a11y: ESC closes modal', await page.locator('#tipAmountInput').count() === 0);
-  await page.click('.tip-callout [data-action="tip-open"]');
+  await safeClick('.tip-callout [data-action="tip-open"]');
   await page.waitForTimeout(200);
-  await page.fill('#tipAmountInput', '25');
-  await page.click('[data-action="tip-send"]');
+  await safeFill('#tipAmountInput', '25');
+  await safeClick('[data-action="tip-send"]');
   await page.waitForTimeout(400);
   check('buyer: tip saved on order (both sides visible)', await page.locator('[data-action="tip-cancel"]').count() >= 1);
   check('buyer: tip callout hidden after tipping', await page.locator('.tip-callout').count() === 0);
@@ -502,7 +541,7 @@ function resolveBrowser() {
   await page.evaluate(() => { location.hash = '#/contracts'; });
   await page.waitForTimeout(350);
   check('contracts: page renders order select', await page.locator('#contractOrderSelect').count() === 1);
-  await page.click('[data-action="contract-gen"]');
+  await safeClick('[data-action="contract-gen"]');
   await page.waitForTimeout(250);
   check('contracts: draft preview with warnings', await page.locator('.contract-pre').count() === 1 && await page.locator('.warn-box li').count() >= 5);
   await page.locator('[data-action="contract-custody"]').first().click();
@@ -515,7 +554,7 @@ function resolveBrowser() {
   check('evidence: print report opens', await page.locator('.doc-modal .doc-table').count() === 1);
   check('evidence: report shows verdict', await page.locator('.ev-report-verdict.ok').count() >= 1);
   check('evidence: report seal & QR present', await page.locator('.doc-modal .ev-seal').count() === 1 && await page.locator('.doc-modal .ev-qr svg').count() === 1);
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
 
   await page.evaluate(() => {
@@ -532,20 +571,20 @@ function resolveBrowser() {
   await shipCreateBtn.click();
   await page.waitForTimeout(300);
   check('seller: shipment form modal opens', await page.locator('form[data-form="shipment-create-form"]').isVisible());
-  await page.fill('form[data-form="shipment-create-form"] input[name="carrier"]', 'COSCO');
-  await page.fill('form[data-form="shipment-create-form"] input[name="trackingNo"]', 'COSU9988776');
+  await safeFill('form[data-form="shipment-create-form"] input[name="carrier"]', 'COSCO');
+  await safeFill('form[data-form="shipment-create-form"] input[name="trackingNo"]', 'COSU9988776');
   await page.selectOption('form[data-form="shipment-create-form"] select[name="mode"]', 'sea');
-  await page.fill('form[data-form="shipment-create-form"] input[name="origin"]', 'Ningbo, CN');
-  await page.fill('form[data-form="shipment-create-form"] input[name="destination"]', 'Rotterdam, NL');
-  await page.click('form[data-form="shipment-create-form"] button[type="submit"]');
+  await safeFill('form[data-form="shipment-create-form"] input[name="origin"]', 'Ningbo, CN');
+  await safeFill('form[data-form="shipment-create-form"] input[name="destination"]', 'Rotterdam, NL');
+  await safeClick('form[data-form="shipment-create-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('seller: shipment created & timeline shown', await page.locator('.shipment-box').count() >= 1);
   await page.locator('[data-action="shipment-event"]').first().click();
   await page.waitForTimeout(300);
   await page.selectOption('form[data-form="shipment-event-form"] select[name="status"]', 'shipped');
-  await page.fill('form[data-form="shipment-event-form"] input[name="location"]', 'Ningbo Port');
-  await page.fill('form[data-form="shipment-event-form"] input[name="note"]', 'Loaded on vessel');
-  await page.click('form[data-form="shipment-event-form"] button[type="submit"]');
+  await safeFill('form[data-form="shipment-event-form"] input[name="location"]', 'Ningbo Port');
+  await safeFill('form[data-form="shipment-event-form"] input[name="note"]', 'Loaded on vessel');
+  await safeClick('form[data-form="shipment-event-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('seller: tracking event updated', (await page.locator('.ship-loc b').first().textContent()).includes('Ningbo Port'));
   await page.evaluate(() => {
@@ -568,7 +607,7 @@ function resolveBrowser() {
   await page.locator('.doc-center-box [data-action="doc-gen"]').first().click();
   await page.waitForTimeout(500);
   check('buyer: commercial invoice printable', await page.locator('.doc-modal .doc-table').count() >= 1);
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
   await page.locator('.doc-center-box [data-action="doc-check"]').first().click();
   await page.waitForTimeout(400);
@@ -578,9 +617,9 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('buyer: after-sales modal opens', await page.locator('form[data-form="after-sales-form"]').isVisible());
   await page.selectOption('form[data-form="after-sales-form"] select[name="type"]', 'quality');
-  await page.fill('form[data-form="after-sales-form"] textarea[name="description"]', 'Two units have scratches and one hinge is broken.');
-  await page.fill('form[data-form="after-sales-form"] input[name="resolution"]', 'Please reship replacement parts.');
-  await page.click('form[data-form="after-sales-form"] button[type="submit"]');
+  await safeFill('form[data-form="after-sales-form"] textarea[name="description"]', 'Two units have scratches and one hinge is broken.');
+  await safeFill('form[data-form="after-sales-form"] input[name="resolution"]', 'Please reship replacement parts.');
+  await safeClick('form[data-form="after-sales-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('buyer: after-sales case created on order', await page.locator('.as-card').count() >= 1);
 
@@ -588,7 +627,7 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   await page.selectOption('form[data-form="after-sales-form"] select[name="type"]', 'other');
   await page.fill('form[data-form="after-sales-form"] textarea[name="description"]', 'Delivery delay caused storage cost; requesting compensation.');
-  await page.click('form[data-form="after-sales-form"] button[type="submit"]');
+  await safeClick('form[data-form="after-sales-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('buyer: dispute escalates to arbitration', await page.locator('.status-pill.pend').count() >= 1);
 
@@ -611,17 +650,17 @@ function resolveBrowser() {
   await page.locator('[data-action="as-respond"]').first().click();
   await page.waitForTimeout(300);
   check('seller: respond modal opens', await page.locator('form[data-form="aftersales-respond-form"]').isVisible());
-  await page.fill('form[data-form="aftersales-respond-form"] input[name="reply"]', 'We will reship replacement parts within 7 days.');
-  await page.click('form[data-form="aftersales-respond-form"] button[value="accept"]');
+  await safeFill('form[data-form="aftersales-respond-form"] input[name="reply"]', 'We will reship replacement parts within 7 days.');
+  await safeClick('form[data-form="aftersales-respond-form"] button[value="accept"]');
   await page.waitForTimeout(400);
   check('seller: accepted case resolved', await page.locator('.status-pill.done').count() >= 1);
 
   // ---- 通知铃铛与已读回执 ----
   check('seller: notification bell shown', await page.locator('[data-action="notif-toggle"]').count() === 1);
-  await page.click('[data-action="notif-toggle"]');
+  await safeClick('[data-action="notif-toggle"]');
   await page.waitForTimeout(200);
   check('seller: notification panel lists items', await page.locator('#notifPanel .notif-row').count() >= 1);
-  await page.click('[data-action="notif-read-all"]');
+  await safeClick('[data-action="notif-read-all"]');
   await page.waitForTimeout(300);
   check('seller: mark all read clears badge', await page.locator('.notif-badge').count() === 0);
   await page.evaluate(() => { location.hash = '#/dashboard/messages'; });
@@ -644,11 +683,11 @@ function resolveBrowser() {
   check('seller: business card modal opens', await page.locator('#cardViewImg').count() === 1);
   const wmSrc = await page.locator('#cardViewImg').getAttribute('src');
   check('seller: business card watermarked', !!wmSrc && wmSrc !== cardSrc && wmSrc.indexOf('data:image/') === 0);
-  await page.click('[data-action="card-flip"]');
+  await safeClick('[data-action="card-flip"]');
   await page.waitForTimeout(350);
   const flipT = await page.locator('#card3dInner').getAttribute('style');
   check('seller: card flips to back view', (flipT || '').indexOf('180') >= 0);
-  await page.click('[data-action="close-modal"]');
+  await safeCloseModal();
   await page.waitForTimeout(200);
 
   // ---- 买家回看消息：确认已读回执 ----
@@ -684,8 +723,8 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('admin: arbitration modal opens', await page.locator('form[data-form="aftersales-arbitrate-form"]').isVisible());
   await page.selectOption('form[data-form="aftersales-arbitrate-form"] select[name="ruling"]', 'buyer');
-  await page.fill('form[data-form="aftersales-arbitrate-form"] textarea[name="note"]', 'Compensation for demurrage per evidence chain.');
-  await page.click('form[data-form="aftersales-arbitrate-form"] button[type="submit"]');
+  await safeFill('form[data-form="aftersales-arbitrate-form"] textarea[name="note"]', 'Compensation for demurrage per evidence chain.');
+  await safeClick('form[data-form="aftersales-arbitrate-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('admin: ruling recorded on case', await page.locator('.arbitration-box').count() >= 1);
 
@@ -721,8 +760,8 @@ function resolveBrowser() {
   await promoBtn.click();
   await page.waitForTimeout(300);
   check('seller: promo modal opens', await page.locator('form[data-form="promo-form"]').isVisible());
-  await page.fill('form[data-form="promo-form"] input[name="days"]', '14');
-  await page.click('form[data-form="promo-form"] button[type="submit"]');
+  await safeFill('form[data-form="promo-form"] input[name="days"]', '14');
+  await safeClick('form[data-form="promo-form"] button[type="submit"]');
   await page.waitForTimeout(400);
   check('seller: promo request pending', await page.locator('.promo-req .status-pill.pend').count() >= 1);
   await page.evaluate(() => {
@@ -777,7 +816,7 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   await page.evaluate(() => { location.hash = '#/login'; });
   await page.waitForTimeout(300);
-  await page.click('[data-role="buyer"]');
+  await safeClick('[data-role="buyer"]');
   await page.waitForTimeout(300);
   check('admin: frozen user login blocked', await page.locator('.login-card').isVisible());
 

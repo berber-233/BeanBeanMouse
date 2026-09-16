@@ -142,8 +142,6 @@ function render() {
   else if (path === '/compliance') { app.innerHTML = renderCompliance(); bindCompliancePage(); }
   else if (path === '/disputes') { app.innerHTML = renderDisputes(); bindDisputesPage(); }
   else if (path === '/feedback') { app.innerHTML = renderFeedback(); }
-  else if (path === '/videos') { app.innerHTML = renderVideos(); }
-  else if (path === '/about') { app.innerHTML = renderAbout(); }
   else if (path === '/customs') { app.innerHTML = renderCustoms(); }
   else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path === '/insurance') { app.innerHTML = renderInsurance(); bindInsurancePage(); }
@@ -281,142 +279,59 @@ function closeHelp() {
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
-/* ---------- 门面（pet0.2 首页） ---------- */
-const VIDEO_SHOWCASE = [
-  { id: 'v1', platform: 'bilibili', url: '', pet: 'hamster',
-    zh: { title: '仓鼠用三层笼入住实拍', by: '客户投稿 · 上海' },
-    en: { title: 'Hamster moving into the 3-tier cage', by: 'Customer video · Shanghai' } },
-  { id: 'v2', platform: 'youtube', url: '', pet: 'cat',
-    zh: { title: '猫爬架组装与承重测试', by: '客户投稿 · 德国' },
-    en: { title: 'Cat tree assembly & weight test', by: 'Customer video · Germany' } },
-  { id: 'v3', platform: 'douyin', url: '', pet: 'dog-large',
-    zh: { title: '金毛试用加厚胸背带', by: '客户投稿 · 加拿大' },
-    en: { title: 'Golden retriever testing the padded harness', by: 'Customer video · Canada' } }
-];
-
-function storefrontArt() {
-  return 'assets/pet/hero-desk-hamster.png';
-}
-
 function renderHome() {
-  document.title = 'BeanBeanMouse · ' + t('sfTitle');
-  const live = liveProducts();
-  const subs = (CATEGORIES[0] && CATEGORIES[0].subs) || [];
-  const featured = live.slice().sort((a, b) => (b.orders || 0) - (a.orders || 0)).slice(0, 8);
+  document.title = 'BeanBeanMouse · ' + t('heroTitle');
+  const live = state.products.filter(isLive);
+  /* 首发垂直：宠物用品优先展示（小试用品类） */
+  const featured = live.filter(p => p.featured || p.promoted)
+    .sort((a, b) => (b.promoted ? 1 : 0) - (a.promoted ? 1 : 0) || ((b.cat === 'pet' ? 1 : 0) - (a.cat === 'pet' ? 1 : 0)))
+    .slice(0, 6);
   const hotKw = state.lang === 'zh'
-    ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂', '智能喂食器']
-    : ['hamster cage', 'cat tree', 'large dog harness', 'cat litter', 'smart feeder'];
-  const subIco = id => 'assets/pixel/sub/' + id.replace('pet-', '') + '.png';
-  return '<section class="storefront">'
-    + '<div class="store-inner">'
-    + '<div class="store-copy">'
-    + '<p class="store-eyebrow">🐹 ' + esc(t('sfEyebrow')) + '</p>'
-    + '<h1 class="store-title">' + t('sfTitle') + '</h1>'
-    + '<p class="store-sub">' + t('sfSub') + '</p>'
+    ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂盆', '宠物饮水机']
+    : ['hamster cage', 'cat litter', 'large dog harness', 'cat fountain', 'pet feeder'];
+  const catEmoji = { machinery: '⚙️', electronics: '💡', textiles: '👕', furniture: '🛋️', chemicals: '🧪', auto: '🚗', sports: '🏕️', gifts: '🎁', hardware: '🔧', pet: '🐾' };
+  /* 分类像素图标（2026-09-11 AI 出图，洋红底抠透明）；缺图时回退到 emoji */
+  const catIcon = id => 'assets/pixel/ui/' + id + '.png';
+  return '<section class="hero">'
+    + '<div class="hero-inner">'
+    + '<div class="hero-pilot">🐾 ' + esc(t('heroPilot')) + '</div>'
+    + '<h1>' + t('heroTitle') + '</h1>'
+    + '<p>' + t('heroSub') + '</p>'
     + '<form class="hero-search" data-form="home-search">'
     + '<input type="search" id="homeKw" placeholder="' + t('searchPlaceholder') + '" aria-label="' + t('searchPlaceholder') + '">'
     + '<button type="submit" class="btn btn-accent">' + icon('search') + t('searchBtn') + '</button>'
     + '</form>'
-    + '<div class="store-cta">'
-    + '<a class="btn btn-accent btn-lg" href="#/products" data-nav="/products">' + t('sfCtaShop') + '</a>'
-    + '<a class="btn btn-ghost btn-lg" href="#/videos" data-nav="/videos">' + t('sfCtaVideo') + '</a>'
-    + '<button type="button" class="btn btn-ghost btn-lg" data-action="catreq-open">' + t('sfCtaAsk') + '</button>'
-    + '</div>'
-    + '<div class="store-trust">'
-    + ['trustOem', 'trustShip', 'trustInspect', 'trustAfter'].map(k => '<span class="trust-chip">' + t(k) + '</span>').join('')
-    + '</div>'
     + '<div class="hero-popular">' + t('popular') + hotKw.map(k => '<a href="#/products?kw=' + encodeURIComponent(k) + '" data-nav="/products?kw=' + encodeURIComponent(k) + '">' + esc(k) + '</a>').join('') + '</div>'
     + '</div>'
-    + '<div class="store-art">'
-    + '<img src="' + storefrontArt() + '" alt="' + esc(t('sfArtAlt')) + '" width="720" height="720" decoding="async">'
-    + '<div class="store-art-note">' + esc(t('sfArtNote')) + '</div>'
-    + '</div>'
-    + '</div>'
+    /* 预留：今日交易成功案例实时滚动条（后续接入实时数据流后替换此占位） */
+    + '<div class="hero-deals" id="heroDeals"><span class="hero-deals-hint">' + esc(t('heroDealsHint')) + '</span></div>'
     + '</section>'
     + '<div class="container page">'
-    /* 8 个细分 */
     + '<section class="section"><div class="section-head"><h2>' + t('catStripTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAllCats') + ' →</a></div>'
-    + '<div class="sub-grid">' + subs.map(s => {
-      const count = live.filter(p => p.sub === s.id).length;
-      return '<a class="sub-card" href="#/products?cat=pet&sub=' + s.id + '" data-nav="/products?cat=pet&sub=' + s.id + '">'
-        + '<img class="sub-ico" src="' + subIco(s.id) + '" alt="" width="44" height="44" loading="lazy" decoding="async">'
-        + '<span class="sub-name">' + langObj(s) + '</span>'
-        + '<span class="sub-count">' + count + ' ' + t('totalProducts') + '</span>'
+    + '<div class="cat-strip" role="list">' + CATEGORIES.map(c =>
+      '<a class="cat-pill" href="#/products?cat=' + c.id + '" data-nav="/products?cat=' + c.id + '" role="listitem">'
+      + '<span class="cat-pill-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 55%),hsl(' + ((c.hue + 45) % 360) + ' 65% 40%))">'
+      + '<img class="pixel-ico" src="' + catIcon(c.id) + '" alt="" width="22" height="22" loading="lazy" decoding="async">'
+      + '</span>'
+      + '<span class="cat-pill-name">' + langObj(c) + '</span></a>'
+    ).join('') + '</div></section>'
+    + '<section class="section"><div class="section-head"><h2>' + t('categoriesTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
+    + '<div class="cat-grid">' + CATEGORIES.slice(0, 6).map(c => {
+      const count = live.filter(p => p.cat === c.id).length;
+      return '<a class="cat-card" href="#/products?cat=' + c.id + '" data-nav="/products?cat=' + c.id + '">'
+        + '<div class="cat-ico" style="background:linear-gradient(135deg,hsl(' + c.hue + ' 70% 52%),hsl(' + ((c.hue + 45) % 360) + ' 65% 38%))">'
+        + '<img class="pixel-ico" src="' + catIcon(c.id) + '" alt="" width="34" height="34" loading="lazy" decoding="async">'
+        + '</div>'
+        + '<div class="name">' + langObj(c) + '</div>'
+        + '<div class="count">' + count + ' ' + t('totalProducts') + '</div>'
         + '</a>';
     }).join('') + '</div></section>'
-    /* 精选商品 */
     + '<section class="section"><div class="section-head"><h2>' + t('featuredTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
     + '<div class="product-grid">' + featured.map(productCard).join('') + '</div></section>'
-    /* 视频墙预告 */
-    + '<section class="section"><div class="section-head"><h2>' + t('videoWallTitle') + '</h2><a href="#/videos" class="small" data-nav="/videos">' + t('videoWallMore') + ' →</a></div>'
-    + '<p class="section-note">' + t('videoWallDesc') + '</p>'
-    + '<div class="video-grid">' + VIDEO_SHOWCASE.map(videoCard).join('') + '</div></section>'
-    /* 服务承诺 */
-    + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
-    + '<div class="promise-grid">' + [
-      ['promise1T', 'promise1D'], ['promise2T', 'promise2D'], ['promise3T', 'promise3D'], ['promise4T', 'promise4D']
-    ].map(x => '<div class="promise-card"><h3>' + t(x[0]) + '</h3><p>' + t(x[1]) + '</p></div>').join('') + '</div></section>'
-    /* 关于我们预告 */
-    + '<section class="section about-teaser">'
-    + '<div class="about-teaser-art"><img src="assets/pet/about-hamster.png" alt="" width="360" height="360" loading="lazy" decoding="async"></div>'
-    + '<div class="about-teaser-copy"><h2>' + t('aboutTeaserTitle') + '</h2><p>' + t('aboutTeaserDesc') + '</p>'
-    + '<a class="btn btn-accent" href="#/about" data-nav="/about">' + t('aboutMore') + '</a></div></section>'
     + '<div class="cta-band">'
-    + '<div><h2>' + t('askCtaTitle') + '</h2><p>' + t('askCtaDesc') + '</p></div>'
-    + '<button type="button" class="btn btn-accent btn-lg" data-action="catreq-open">' + t('askCtaBtn') + '</button>'
+    + '<div><h2>' + t('sellerCtaTitle') + '</h2><p>' + t('sellerCtaDesc') + '</p></div>'
+    + '<a class="btn btn-accent btn-lg" href="#/dashboard" data-nav="/dashboard">' + icon('sparkle') + t('sellerCtaBtn') + '</a>'
     + '</div>'
-    + '</div>';
-}
-
-function videoCard(v) {
-  const x = langObj(v);
-  const badge = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', upload: '自营' }[v.platform] || v.platform;
-  const play = v.url ? '<a class="video-play" href="' + esc(v.url) + '" target="_blank" rel="noopener noreferrer">▶</a>'
-    : '<span class="video-play video-play--soon" aria-hidden="true">▶</span>';
-  return '<article class="video-card">'
-    + '<div class="video-thumb"><img src="assets/pet/video-' + esc(v.pet) + '.jpg" alt="" width="480" height="270" loading="lazy" decoding="async">'
-    + play + '<span class="video-badge">' + esc(badge) + '</span></div>'
-    + '<h3 class="oneline" title="' + esc(x.title) + '">' + esc(x.title) + '</h3>'
-    + '<p class="video-by oneline" title="' + esc(x.by) + '">' + esc(x.by) + '</p>'
-    + '</article>';
-}
-
-function renderVideos() {
-  document.title = t('videoWallTitle') + ' · BeanBeanMouse';
-  const list = (state.videos && state.videos.length) ? state.videos : VIDEO_SHOWCASE;
-  return '<div class="container page">'
-    + '<section class="section"><h1 class="page-title">' + t('videoWallTitle') + '</h1>'
-    + '<p class="section-note">' + t('videoWallDesc') + '</p>'
-    + '<div class="video-grid video-grid--full">' + list.map(videoCard).join('') + '</div>'
-    + '<div class="notice"><strong>' + t('videoNoticeTitle') + '</strong><p>' + t('videoNoticeDesc') + '</p></div>'
-    + '<div class="section-actions"><button type="button" class="btn btn-accent" data-action="catreq-open">' + t('videoSubmit') + '</button></div>'
-    + '</section></div>';
-}
-
-function renderAbout() {
-  document.title = t('aboutTitle') + ' · BeanBeanMouse';
-  const c = [
-    { k: 'aboutContactEmail', v: '694113406@qq.com', href: 'mailto:694113406@qq.com' },
-    { k: 'aboutContactWechat', v: t('aboutPending'), href: '' },
-    { k: 'aboutContactPhone', v: t('aboutPending'), href: '' },
-    { k: 'aboutContactAddress', v: t('aboutPending'), href: '' }
-  ];
-  return '<div class="container page">'
-    + '<section class="section about-hero">'
-    + '<div class="about-art"><img src="assets/pet/about-hamster.png" alt="' + esc(t('aboutArtAlt')) + '" width="520" height="520" decoding="async"></div>'
-    + '<div class="about-copy"><h1>' + t('aboutTitle') + '</h1>'
-    + '<p>' + t('aboutP1') + '</p><p>' + t('aboutP2') + '</p>'
-    + '<h2 class="about-sub">' + t('aboutContactTitle') + '</h2>'
-    + '<ul class="contact-list">' + c.map(x => {
-        const val = x.href ? '<a href="' + x.href + '">' + esc(x.v) + '</a>' : '<span class="muted">' + esc(x.v) + '</span>';
-        return '<li><span class="contact-k">' + t(x.k) + '</span>' + val + '</li>';
-      }).join('') + '</ul>'
-    + '<p class="small muted">' + t('aboutContactNote') + '</p>'
-    + '</div></section>'
-    + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
-    + '<div class="promise-grid">' + [
-      ['promise1T', 'promise1D'], ['promise2T', 'promise2D'], ['promise3T', 'promise3D'], ['promise4T', 'promise4D']
-    ].map(x => '<div class="promise-card"><h3>' + t(x[0]) + '</h3><p>' + t(x[1]) + '</p></div>').join('') + '</div></section>'
     + '</div>';
 }
 
@@ -1786,9 +1701,6 @@ function registerFormHtml() {
     + '<div class="field"><label>' + t('regCompanyWebsite') + '</label><input class="input" name="companyWebsite"></div>'
     + '<div class="field"><label>' + t('regContact') + '</label><input class="input" name="contact"></div>'
     + '<div class="field"><label>' + t('regScope') + '</label><input class="input" name="businessScope"></div>'
-    + '<div class="sup-docs"><h4>' + t('supDocTitle') + '</h4><ul>'
-    + ['supDoc1', 'supDoc2', 'supDoc3', 'supDoc4', 'supDoc5', 'supDoc6'].map(k => '<li>' + t(k) + '</li>').join('')
-    + '</ul><p class="small">' + t('supDocNote') + '</p></div>'
     + '</div>'
     + '<div class="form-note">💡 ' + t('regNote') + '</div>'
     + '<button type="submit" class="btn btn-primary btn-block">' + t('regSubmit') + '</button>'

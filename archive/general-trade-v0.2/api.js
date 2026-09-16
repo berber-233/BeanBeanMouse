@@ -1,0 +1,1422 @@
+/* ============================================================
+ * BeanBeanMouse（豆豆鼠）前端数据层（阶段 0）
+ * ------------------------------------------------------------
+ * 页面所有数据统一通过 window.api 访问，不再直接读写 localStorage。
+ * 当前 mode = 'mock'：用 localStorage 模拟后端（带网络延迟与错误语义）；
+ * 接入真实后端时，把 API_CONFIG.mode 改为 'http' 并填写 baseUrl，
+ * 各服务已预留 http 分支（与 docs/openapi.yaml 对应）。
+ * ============================================================ */
+
+const API_CONFIG = {
+  mode: 'mock',           // 'mock' | 'http'
+  baseUrl: '',            // 例如 'https://api.beanbeanmouse.example.com'
+  latencyMs: 80           // 模拟网络延迟
+};
+
+const API_STORE_KEY = (typeof window !== 'undefined' && window.__TB_STORE_KEY__) || 'bridgetrade_v1';
+
+const api = { config: API_CONFIG };
+
+/* ---------- 基础设施 ---------- */
+function apiDelay(ms) {
+  return new Promise(r => setTimeout(r, ms === undefined ? api.config.latencyMs : ms));
+}
+function apiClone(x) { return JSON.parse(JSON.stringify(x)); }
+
+/* 本地 mock 存储适配（将来替换为服务端） */
+const apiStorage = {
+  getState() {
+    try {
+      const raw = localStorage.getItem(API_STORE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  },
+  setState(s) {
+    try {
+      localStorage.setItem(API_STORE_KEY, JSON.stringify(s));
+      api.storage.full = false;
+    } catch (e) {
+      api.storage.full = true;
+    }
+  },
+  /* 通知应用层数据已变化（应用层监听后重载并重绘） */
+  notifyChanged() {
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('api:changed'));
+  }
+};
+api.storage = apiStorage;
+
+/* 通用 HTTP 请求（真实后端时使用；需要时补充鉴权头） */
+async function apiRequest(path, options = {}) {
+  const { method = 'GET', body, token } = options;
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const res = await fetch(api.config.baseUrl + path, {
+    method: method,
+    headers: headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try { const j = await res.json(); msg = j.message || msg; } catch (e) { /* 忽略 */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+/* ---------- mock 数据辅助（仅本地演示用） ---------- */
+function mockState() { return apiStorage.getState() || {}; }
+function mockProducts() { return mockState().products || []; }
+function mockFindProduct(id) { return mockProducts().find(p => p.id === id); }
+function mockFindUser(email) {
+  const u = String(email || '').trim().toLowerCase();
+  return (mockState().users || []).find(x => String(x.email).toLowerCase() === u);
+}
+function mockSave(st) { apiStorage.setState(st); apiStorage.notifyChanged(); }
+
+/* ============================================================
+ * 服务：账号与认证
+ * ============================================================ */
+api.auth = {
+  async register({ email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName, turnstileToken } = {}) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/auth/register', {
+        method: 'POST',
+        body: { email, password, role, name, homepage, companyName, country, city, registrationNo, licenseNo, companyWebsite, contact, businessScope, accountType, jobTitle, bizName, turnstileToken }
+      });
+    }
+    await apiDelay();
+    if (String(homepage || '').trim() !== '') throw new Error('BOT_DETECTED');
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRe.test(String(email || ''))) throw new Error('VALIDATION');
+    if (String(password || '').length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) throw new Error('VALIDATION');
+    if (!['buyer', 'seller'].includes(role) || !name) throw new Error('VALIDATION');
+    const st = mockState();
+    const lower = String(email).trim().toLowerCase();
+    if ((st.users || []).some(u => String(u.email || '').toLowerCase() === lower)) throw new Error('EMAIL_EXISTS');
+    if (role === 'seller' && (!String(companyName || '').trim() || !String(country || '').trim())) throw new Error('VALIDATION');
+    const id = 'u-' + Date.now();
+    const user = {
+      id, email: lower, name: String(name).trim(), role, status: 'active', emailVerified: true,
+      sellerId: role === 'seller' ? 's-' + Date.now() : undefined,
+      accountType: accountType === 'individual' ? 'individual' : 'company',
+      jobTitle: String(jobTitle || '').trim(),
+      bizName: String(bizName || '').trim(),
+      joinedAt: Date.now()
+    };
+    st.users = st.users || [];
+    st.users.push(user);
+    if (role === 'seller') {
+      st.companies = st.companies || [];
+      st.companies.push({
+        sellerId: user.sellerId, userId: id, name: String(companyName).trim(), country: String(country).trim(),
+        city: String(city || '').trim(), registrationNo: String(registrationNo || '').trim(), licenseNo: String(licenseNo || '').trim(),
+        website: String(companyWebsite || '').trim(), contact: String(contact || '').trim(), businessScope: String(businessScope || '').trim(),
+        status: 'pending', rejectReason: '', createdAt: Date.now()
+      });
+    }
+    st.user = user;
+    mockSave(st);
+    return { user: apiClone(user), emailVerified: true, message: 'demo verified' };
+  },
+  async verifyEmail(token) {
+    if (api.config.mode === 'http') return apiRequest('/auth/verify-email', { method: 'POST', body: { token } });
+    await apiDelay();
+    return { ok: true, user: mockState().user ? apiClone(mockState().user) : null };
+  },
+  async resendVerification(email) {
+    if (api.config.mode === 'http') return apiRequest('/auth/resend-verification', { method: 'POST', body: { email } });
+    await apiDelay();
+    return { ok: true };
+  },
+  async login({ email, password, role } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/auth/login', { method: 'POST', body: { email, password } });
+    await apiDelay();
+    const u = mockFindUser(email) || (role ? { id: 'u-' + role, role: role, name: email ? email.split('@')[0] : 'Guest', email: email || '', status: 'active' } : null);
+    if (!u) throw new Error('INVALID_CREDENTIALS');
+    if (u.status === 'frozen') throw new Error('ACCOUNT_FROZEN');
+    return { token: 'mock-token-' + u.id, user: apiClone(u) };
+  },
+  async me(token) {
+    if (api.config.mode === 'http') return apiRequest('/auth/me', { token });
+    await apiDelay();
+    return mockState().user ? apiClone(mockState().user) : null;
+  },
+  async logout() {
+    if (api.config.mode === 'http') return apiRequest('/auth/logout', { method: 'POST' });
+    const st = mockState();
+    st.user = null;
+    mockSave(st);
+    return { ok: true };
+  }
+};
+
+/* ============================================================
+ * 服务：产品
+ * ============================================================ */
+api.products = {
+  async list({ kw, cat, min, max, origin, includeOffline = false } = {}) {
+    if (api.config.mode === 'http') {
+      const qs = new URLSearchParams({ kw: kw || '', cat: cat || '', origin: origin || '' });
+      const r = await apiRequest('/products?' + qs.toString());
+      return r.items || [];
+    }
+    await apiDelay();
+    let list = mockProducts().filter(p => includeOffline || !p.status || p.status === 'on');
+    if (cat) list = list.filter(p => p.cat === cat);
+    if (origin) list = list.filter(p => p.country === origin);
+    if (kw) {
+      const k = String(kw).toLowerCase();
+      list = list.filter(p => {
+        const hay = ((p.en && p.en.title + ' ' + (p.en.desc || '')) + ' ' + (p.zh && p.zh.title)).toLowerCase();
+        return hay.includes(k);
+      });
+    }
+    if (min != null || max != null) {
+      list = list.filter(p => (min == null || p.priceMax >= +min) && (max == null || p.priceMin <= +max));
+    }
+    return apiClone(list);
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id));
+    await apiDelay();
+    const p = mockFindProduct(id);
+    if (!p) throw new Error('NOT_FOUND');
+    return apiClone(p);
+  },
+  async create(payload) {
+    if (api.config.mode === 'http') return apiRequest('/products', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const sellerId = st.user && st.user.sellerId ? st.user.sellerId : 's1';
+    const prod = Object.assign({
+      id: 'api' + Date.now(),
+      sellerId: sellerId,
+      status: 'pending',
+      featured: false,
+      hot: false,
+      addedAt: Date.now()
+    }, apiClone(payload));
+    st.products.unshift(prod);
+    mockSave(st);
+    return apiClone(prod);
+  },
+  async review(id, { action, reason } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id) + '/review', { method: 'POST', body: { action, reason } });
+    await apiDelay();
+    const st = mockState();
+    const p = st.products.find(x => x.id === id);
+    if (!p) throw new Error('NOT_FOUND');
+    if (action === 'approve') { p.status = 'on'; p.rejectReason = ''; }
+    else if (action === 'reject') { p.status = 'rejected'; p.rejectReason = reason || 'rejected'; }
+    else throw new Error('INVALID_ACTION');
+    mockSave(st);
+    return apiClone(p);
+  }
+};
+
+/* ============================================================
+ * 服务：企业认证
+ * ============================================================ */
+api.companies = {
+  async apply(payload) {
+    if (api.config.mode === 'http') return apiRequest('/companies', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const sid = st.user && st.user.sellerId ? st.user.sellerId : 's1';
+    st.companies = st.companies || [];
+    const exist = st.companies.find(x => x.sellerId === sid);
+    const rec = Object.assign({
+      sellerId: sid, userId: st.user ? st.user.id : null, name: '', country: '', city: '', registrationNo: '',
+      licenseNo: '', website: '', contact: '', businessScope: '', status: 'pending', rejectReason: '', createdAt: Date.now()
+    }, apiClone(payload || {}), { status: 'pending', rejectReason: '' });
+    if (exist) { Object.assign(exist, rec); }
+    else st.companies.push(rec);
+    mockSave(st);
+    return apiClone(exist || rec);
+  },
+  async mine() {
+    if (api.config.mode === 'http') return apiRequest('/companies/mine');
+    await apiDelay();
+    const st = mockState();
+    const sid = st.user && st.user.sellerId ? st.user.sellerId : null;
+    return apiClone((st.companies || []).find(x => x.sellerId === sid) || null);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/companies');
+      return r.items || [];
+    }
+    await apiDelay();
+    return apiClone(mockState().companies || []);
+  },
+  async verify(sellerId) {
+    if (api.config.mode === 'http') return apiRequest('/companies/' + encodeURIComponent(sellerId) + '/verify', { method: 'PUT' });
+    await apiDelay();
+    const st = mockState();
+    const c = (st.companies || []).find(x => x.sellerId === sellerId);
+    if (!c) throw new Error('NOT_FOUND');
+    c.status = 'approved';
+    mockSave(st);
+    return apiClone(c);
+  }
+};
+
+/* ============================================================
+ * 服务：交易订单与小费打赏（买家确认签收 = 交易达成）
+ * ============================================================ */
+api.orders = {
+  async create({ inquiryId, total, currency } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders', { method: 'POST', body: { inquiryId, total, currency } });
+    await apiDelay();
+    const st = mockState();
+    const i = (st.inquiries || []).find(x => x.id === inquiryId);
+    if (!i) throw new Error('NOT_FOUND');
+    const p = (st.products || []).find(x => x.id === i.productId);
+    const amount = total != null ? +total : (i.quote ? +i.quote.price : NaN);
+    if (!(amount > 0)) throw new Error('VALIDATION');
+    const o = {
+      id: 'o' + Date.now(), inquiryId, productId: i.productId, buyerId: st.user ? st.user.id : i.buyerId,
+      sellerId: p ? p.sellerId : i.sellerId, status: 'created', total: amount, currency: currency || 'USD',
+      quantity: i.qty || null, unit: i.unit || (p ? p.unit : null),
+      createdAt: Date.now(), receiptConfirmedAt: null, tips: []
+    };
+    st.orders = st.orders || [];
+    st.orders.unshift(o);
+    mockPushEvidence(st, o.id, 'order_create', o.id, { total: amount, currency: currency || 'USD', inquiryId });
+    mockSave(st);
+    return apiClone(o);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/orders');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    let rows = st.orders || [];
+    if (u) {
+      if (u.role === 'admin') rows = rows;
+      else rows = rows.filter(o => o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
+    }
+    return apiClone(rows);
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id));
+    await apiDelay();
+    const o = (mockState().orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    return apiClone(o);
+  },
+  async confirmReceipt(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/confirm-receipt', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.status !== 'created') throw new Error('INVALID_STATUS');
+    o.status = 'complete';
+    o.receiptConfirmedAt = Date.now();
+    mockPushEvidence(st, id, 'receipt_confirmed', id, { status: 'complete' });
+    mockSave(st);
+    return apiClone(o);
+  },
+  async cancel(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/cancel', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.status !== 'created') throw new Error('INVALID_STATUS');
+    o.status = 'cancelled';
+    mockSave(st);
+    return apiClone(o);
+  },
+  async tip(id, { amount, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/tips', { method: 'POST', body: { amount, note } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.status !== 'complete') throw new Error('ORDER_NOT_COMPLETE');
+    const amt = Number(amount);
+    if (!(amt > 0) || amt > 10000) throw new Error('VALIDATION');
+    o.tips = o.tips || [];
+    const tip = {
+      id: 't' + Date.now(), orderId: id, fromUserId: st.user.id,
+      toUserId: st.user.id === o.buyerId ? o.sellerId : o.buyerId,
+      amount: amt, currency: o.currency || 'USD', note: String(note || '').slice(0, 200), status: 'active', createdAt: Date.now(), cancelledAt: null
+    };
+    o.tips.push(tip);
+    mockPushEvidence(st, id, 'tip_create', tip.id, { amount: amt, currency: o.currency || 'USD', note: String(note || '').slice(0, 200) });
+    mockSave(st);
+    return apiClone(tip);
+  },
+  async tips(id) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/tips');
+    await apiDelay();
+    const o = (mockState().orders || []).find(x => x.id === id);
+    return apiClone(o ? o.tips || [] : []);
+  },
+  async cancelTip(id, tipId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(id) + '/tips/' + encodeURIComponent(tipId) + '/cancel', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === id);
+    const tip = o && (o.tips || []).find(x => x.id === tipId);
+    if (!tip) throw new Error('NOT_FOUND');
+    if (tip.status !== 'active') throw new Error('INVALID_STATUS');
+    tip.status = 'cancelled';
+    tip.cancelledAt = Date.now();
+    mockPushEvidence(st, id, 'tip_cancel', tipId, {});
+    mockSave(st);
+    return apiClone(tip);
+  }
+};
+
+/* ============================================================
+ * 服务：第三方存证（流程证据哈希链）
+ * ============================================================ */
+function mockEvidenceHash(str) {
+  let h = 0;
+  for (const ch of String(str || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h.toString(16).padStart(8, '0');
+}
+function mockPushEvidence(st, orderId, kind, refId, snapshot) {
+  st.evidence = st.evidence || [];
+  const chain = st.evidence.filter(x => x.orderId === orderId);
+  const prev = chain[chain.length - 1];
+  const rec = {
+    id: 'ev' + Date.now() + Math.random().toString(36).slice(2, 6), orderId, actorId: st.user ? st.user.id : null,
+    kind: String(kind || 'manual').slice(0, 32), refId: refId || null,
+    snapshot: snapshot || {}, prevHash: prev ? prev.contentHash : 'GENESIS',
+    chainIndex: prev ? prev.chainIndex + 1 : 0, createdAt: Date.now()
+  };
+  rec.contentHash = mockEvidenceHash(rec.prevHash + '|' + rec.chainIndex + '|' + rec.kind + '|' + JSON.stringify(rec.snapshot));
+  st.evidence.push(rec);
+  return rec;
+}
+api.evidence = {
+  async list(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/evidence?orderId=' + encodeURIComponent(orderId));
+    await apiDelay();
+    const st = mockState();
+    const items = (st.evidence || []).filter(x => x.orderId === orderId).sort((a, b) => a.chainIndex - b.chainIndex);
+    return { orderId, total: items.length, verified: true, broken: [], items: apiClone(items) };
+  },
+  async create(orderId, { kind, refId, snapshot } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/evidence', { method: 'POST', body: { orderId, kind, refId, snapshot } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    const rec = mockPushEvidence(st, orderId, kind, refId, snapshot);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async verify(id) {
+    if (api.config.mode === 'http') return apiRequest('/evidence/' + encodeURIComponent(id) + '/verify', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.evidence || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    const chain = (st.evidence || []).filter(x => x.orderId === rec.orderId).sort((a, b) => a.chainIndex - b.chainIndex);
+    let prev = 'GENESIS', broken = [];
+    for (let i = 0; i < chain.length; i++) {
+      const r = chain[i];
+      const expect = mockEvidenceHash(prev + '|' + i + '|' + r.kind + '|' + JSON.stringify(r.snapshot));
+      if (expect !== r.contentHash) broken.push(r.id);
+      prev = r.contentHash;
+    }
+    return { id, orderId: rec.orderId, chainValid: broken.length === 0, total: chain.length, broken };
+  }
+};
+
+/* ============================================================
+ * 服务：货物物流（买卖双方实时可见）
+ * ============================================================ */
+api.shipments = {
+  async list(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/shipments');
+    await apiDelay();
+    return apiClone((mockState().shipments || []).filter(s => s.orderId === orderId));
+  },
+  async create(orderId, payload = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/shipments', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    const now = Date.now();
+    const s = {
+      id: 'sh' + now, orderId, carrier: payload.carrier || '', trackingNo: payload.trackingNo || '',
+      mode: ['land', 'sea', 'air'].includes(payload.mode) ? payload.mode : 'land',
+      containerType: payload.containerType || 'LCL',
+      vessel: payload.vessel || '', billNo: payload.billNo || '',
+      freightTerms: payload.freightTerms || 'Prepaid', telexRelease: !!payload.telexRelease,
+      status: 'processing', origin: payload.origin || '', destination: payload.destination || '',
+      currentLocation: payload.origin || '', etd: payload.etd || null, eta: payload.eta || null,
+      remark: payload.remark || '', createdAt: now, updatedAt: now,
+      events: [{ id: 'se' + now, status: 'processing', location: payload.origin || '', note: '物流单已创建', eventTime: now }]
+    };
+    st.shipments = st.shipments || [];
+    st.shipments.push(s);
+    mockPushEvidence(st, orderId, 'shipment_create', s.id, { carrier: payload.carrier || '', trackingNo: payload.trackingNo || '' });
+    mockSave(st);
+    return apiClone(s);
+  },
+  async addEvent(orderId, shipmentId, payload = {}) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/shipments/' + encodeURIComponent(shipmentId) + '/events', { method: 'POST', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const s = (st.shipments || []).find(x => x.id === shipmentId && x.orderId === orderId);
+    if (!s) throw new Error('NOT_FOUND');
+    const allowed = ['processing', 'packed', 'shipped', 'in_transit', 'customs', 'out_for_delivery', 'delivered', 'exception'];
+    const status = String(payload.status || '').toLowerCase();
+    if (!allowed.includes(status)) throw new Error('INVALID_STATUS');
+    const ev = {
+      id: 'se' + Date.now(), status, location: payload.location || s.currentLocation || '',
+      note: payload.note || '', eventTime: payload.eventTime || Date.now()
+    };
+    s.events = s.events || [];
+    s.events.push(ev);
+    s.status = status;
+    s.currentLocation = ev.location;
+    s.updatedAt = Date.now();
+    mockPushEvidence(st, orderId, 'shipment_event', shipmentId, { status, location: ev.location, note: ev.note });
+    mockSave(st);
+    return apiClone(s);
+  }
+};
+
+/* ============================================================
+ * 服务：卖家推广（提交 -> 管理员审核 -> 产品标记 promoted）
+ * ============================================================ */
+api.promotions = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/promotions');
+    await apiDelay();
+    const st = mockState();
+    let rows = st.promotions || [];
+    if (st.user && st.user.role !== 'admin') rows = rows.filter(x => x.sellerId === (st.user.sellerId || st.user.id));
+    return { items: apiClone(rows), total: rows.length };
+  },
+  async create({ productId, days, budget, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/promotions', { method: 'POST', body: { productId, days, budget, note } });
+    await apiDelay();
+    const st = mockState();
+    const p = (st.products || []).find(x => x.id === productId);
+    if (!p) throw new Error('NOT_FOUND');
+    const rec = {
+      id: 'pr' + Date.now(), productId, sellerId: st.user ? (st.user.sellerId || st.user.id) : null,
+      days: Math.max(1, Math.min(90, Math.round(Number(days) || 7))),
+      budget: budget || 'basic', note: note || '', status: 'pending', rejectReason: '', createdAt: Date.now()
+    };
+    st.promotions = st.promotions || [];
+    st.promotions.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async review(id, { action, reason } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/promotions/' + encodeURIComponent(id) + '/review', { method: 'POST', body: { action, reason } });
+    await apiDelay();
+    const st = mockState();
+    const r = (st.promotions || []).find(x => x.id === id);
+    if (!r) throw new Error('NOT_FOUND');
+    r.status = action === 'approve' ? 'approved' : 'rejected';
+    r.rejectReason = action === 'reject' ? String(reason || '') : '';
+    const p = (st.products || []).find(x => x.id === r.productId);
+    if (p) p.promoted = action === 'approve';
+    mockSave(st);
+    return apiClone(r);
+  }
+};
+
+/* ============================================================
+ * 服务：品类需求（没找到想要的品类 → 记录 → 平台邀请供应商）
+ * ============================================================ */
+api.categoryRequests = {
+  async create({ name, description, targetMarkets } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/category-requests', { method: 'POST', body: { name, description, targetMarkets } });
+    await apiDelay();
+    if (!String(name || '').trim()) throw new Error('VALIDATION');
+    const st = mockState();
+    const rec = {
+      id: 'cr' + Date.now(), userId: st.user ? st.user.id : null, name: String(name).trim(),
+      description: String(description || ''), targetMarkets: Array.isArray(targetMarkets) ? targetMarkets : [],
+      status: 'new', note: '', createdAt: Date.now(), updatedAt: Date.now()
+    };
+    st.categoryRequests = st.categoryRequests || [];
+    st.categoryRequests.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/category-requests');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    let rows = st.categoryRequests || [];
+    if (st.user && st.user.role !== 'admin') rows = rows.filter(x => x.userId === st.user.id);
+    return apiClone(rows);
+  },
+  async setStatus(id, { status, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/category-requests/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status, note } });
+    await apiDelay();
+    const st = mockState();
+    const r = (st.categoryRequests || []).find(x => x.id === id);
+    if (!r) throw new Error('NOT_FOUND');
+    r.status = status;
+    r.note = String(note || '');
+    r.updatedAt = Date.now();
+    mockSave(st);
+    return apiClone(r);
+  }
+};
+
+/* ============================================================
+ * 服务：询盘与报价
+ * ============================================================ */
+api.inquiries = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/inquiries');
+    await apiDelay();
+    return apiClone(mockState().inquiries || []);
+  },
+  async create({ productId, qty, unit, message, name, email, company, country, payment, attachments, buyerType, jobTitle, card, cardName } = {}) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/inquiries', { method: 'POST', body: { productId, qty, unit, message, name, email, company, country, payment, attachments, buyerType, jobTitle, card, cardName } });
+    }
+    await apiDelay();
+    if (!productId || !qty || !message) throw new Error('REQUIRED_FIELDS');
+    const st = mockState();
+    const inq = {
+      id: 'i' + Date.now(),
+      productId: productId,
+      sellerId: (mockFindProduct(productId) || {}).sellerId || 's1',
+      buyerId: st.user ? st.user.id : 'guest',
+      name: name || 'Guest',
+      email: email || '',
+      company: company || '',
+      country: country || '',
+      qty: qty,
+      unit: unit || 'pcs',
+      payment: payment || null,
+      message: message,
+      attachments: Array.isArray(attachments) ? attachments.slice(0, 8) : [],
+      buyerType: buyerType || null,
+      jobTitle: jobTitle || '',
+      card: card || null,
+      cardName: cardName || '',
+      createdAt: Date.now(),
+      status: 'new',
+      reply: ''
+    };
+    st.inquiries.unshift(inq);
+    mockSave(st);
+    return apiClone(inq);
+  },
+  async addQuote(inquiryId, quote) {
+    if (api.config.mode === 'http') return apiRequest('/inquiries/' + encodeURIComponent(inquiryId) + '/quote', { method: 'POST', body: quote });
+    await apiDelay();
+    const st = mockState();
+    const i = st.inquiries.find(x => x.id === inquiryId);
+    if (!i) throw new Error('NOT_FOUND');
+    i.quote = apiClone(quote);
+    if (Array.isArray(quote.replyAttachments)) i.replyAttachments = quote.replyAttachments.slice(0, 8);
+    i.status = 'quoted';
+    mockSave(st);
+    return apiClone(i);
+  }
+};
+
+/* ============================================================
+ * 服务：消息（WebSocket 阶段实现，当前为占位）
+ * ============================================================ */
+api.messages = {
+  async list(conversationId) {
+    if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/messages');
+    await apiDelay();
+    const st = mockState();
+    const conv = (st.conversations || {})[conversationId];
+    return apiClone(conv ? conv.messages : []);
+  },
+  async send(conversationId, text, opts = {}) {
+    if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/messages', { method: 'POST', body: { text } });
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('UNAUTHORIZED');
+    if (!String(text || '').trim()) throw new Error('VALIDATION');
+    st.conversations = st.conversations || {};
+    const conv = (st.conversations[conversationId] = st.conversations[conversationId] || { id: conversationId, messages: [] });
+    const senderId = opts.sender || u.id;
+    const sender = (st.users || []).find(x => x.id === senderId) || {};
+    const msg = {
+      id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5),
+      conversationId,
+      fromUserId: senderId,
+      fromName: opts.fromName || sender.name || u.name || '',
+      text: String(text).trim().slice(0, 2000),
+      attachments: [],
+      at: Date.now()
+    };
+    conv.messages.push(msg);
+    mockSave(st);
+    return apiClone(msg);
+  },
+  async readers(conversationId) {
+    if (api.config.mode === 'http') return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/read');
+    await apiDelay();
+    const st = mockState();
+    const rows = (st.convReadAt || {})[conversationId] || {};
+    return apiClone({ conversationId, readers: Object.entries(rows).map(([userId, lastReadAt]) => ({ userId, lastReadAt })) });
+  },
+  async markRead(conversationId, lastReadAt) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/conversations/' + encodeURIComponent(conversationId) + '/read', { method: 'POST', body: { lastReadAt } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('UNAUTHORIZED');
+    st.convReadAt = st.convReadAt || {};
+    st.convReadAt[conversationId] = st.convReadAt[conversationId] || {};
+    st.convReadAt[conversationId][u.id] = lastReadAt || Date.now();
+    mockSave(st);
+    return apiClone({ conversationId, userId: u.id, lastReadAt: st.convReadAt[conversationId][u.id] });
+  },
+  /* 实时订阅：http 模式经 WS 接收新消息 / 已读事件（mock 模式返回空订阅） */
+  live(conversationId, handler) {
+    if (api.config.mode !== 'http' || typeof WebSocket === 'undefined') return () => {};
+    const base = String(api.config.baseUrl || '').replace(/\/+$/, '').replace(/^http/, 'ws');
+    const st = mockState();
+    const token = st.token || (st.user && st.user.token) || '';
+    let ws;
+    try {
+      ws = new WebSocket(base + '/ws?token=' + encodeURIComponent(token));
+    } catch (e) { return () => {}; }
+    let opened = false;
+    ws.onopen = () => {
+      opened = true;
+      try { ws.send(JSON.stringify({ type: 'join', conversationId })); } catch (e) { /* 忽略 */ }
+    };
+    ws.onmessage = e => {
+      try {
+        const m = JSON.parse(e.data);
+        if (handler) handler(m);
+      } catch (err) { /* 忽略非 JSON 帧 */ }
+    };
+    return () => {
+      try {
+        if (opened) ws.send(JSON.stringify({ type: 'join', conversationId: '' }));
+        ws.close();
+      } catch (e) { /* 忽略 */ }
+    };
+  }
+};
+
+/* ============================================================
+ * 服务：翻译（真实服务由服务端代理，前端不直连第三方）
+ * ============================================================ */
+api.translate = {
+  async text(text, target, source) {
+    if (api.config.mode === 'http') return apiRequest('/translate', { method: 'POST', body: { text, target, source } });
+    await apiDelay();
+    return { text: String(text || ''), target: target, source: source || null, mode: 'mock', note: '演示：真实翻译由服务端代理' };
+  }
+};
+
+/* ============================================================
+ * 服务：防伪验真
+ * ============================================================ */
+api.antiFake = {
+  /* 仅演示用：与服务端签发逻辑保持一致（正式版由后端签发） */
+  codeOf(productId) {
+    const p = mockFindProduct(productId);
+    if (!p) return '';
+    let s = 0;
+    const seed = p.id + ':' + p.sellerId + ':' + (p.en ? p.en.title : '');
+    for (const ch of seed) s = (s * 31 + ch.charCodeAt(0)) % 97;
+    return 'TB-' + String(p.id).toUpperCase().replace(/[^A-Z0-9]/g, '') + '-' + String(s).padStart(2, '0');
+  },
+  async verify(code) {
+    if (api.config.mode === 'http') return apiRequest('/anti-fake/verify', { method: 'POST', body: { code } });
+    await apiDelay();
+    const c = String(code || '').trim().toUpperCase();
+    const p = mockProducts().find(x => api.antiFake.codeOf(x.id) === c);
+    if (!p) throw new Error('CODE_NOT_FOUND');
+    return { genuine: true, code: c, productId: p.id, verifiedAt: new Date().toISOString() };
+  }
+};
+
+/* ============================================================
+ * 服务：资讯
+ * ============================================================ */
+api.news = {
+  async list(params) {
+    if (api.config.mode === 'http') {
+      const qs = new URLSearchParams(params || {});
+      const r = await apiRequest('/news?' + qs.toString());
+      return r.items || [];
+    }
+    await apiDelay();
+    return apiClone(typeof NEWS_ITEMS !== 'undefined' ? NEWS_ITEMS : []);
+  },
+  async sources() {
+    if (api.config.mode === 'http') return apiRequest('/news/sources');
+    await apiDelay();
+    return apiClone(typeof SOURCE_DIRECTORY !== 'undefined' ? SOURCE_DIRECTORY : []);
+  }
+};
+
+/* ============================================================
+ * 服务：通知与管理
+ * ============================================================ */
+api.notifications = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/notifications');
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    let rows = st.notifications || [];
+    if (u && u.role !== 'admin') rows = rows.filter(n => n.toUserId === u.id);
+    return apiClone(rows.slice().sort((a, b) => b.createdAt - a.createdAt));
+  },
+  async unreadCount() {
+    const rows = await api.notifications.list();
+    return rows.filter(n => !n.read).length;
+  },
+  async markRead(id) {
+    if (api.config.mode === 'http') return apiRequest('/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const n = (st.notifications || []).find(x => x.id === id);
+    if (!n) throw new Error('NOT_FOUND');
+    n.read = true;
+    mockSave(st);
+    return apiClone(n);
+  },
+  async markAllRead() {
+    if (api.config.mode === 'http') return apiRequest('/notifications/read-all', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    (st.notifications || []).forEach(n => { if (!n.read) n.read = true; });
+    mockSave(st);
+    return { ok: true };
+  }
+};
+
+api.admin = {
+  async overview() {
+    if (api.config.mode === 'http') return apiRequest('/admin/overview');
+    await apiDelay();
+    const st = mockState();
+    return {
+      products: st.products.length,
+      pendingReviews: st.products.filter(p => p.status === 'pending').length,
+      inquiries: (st.inquiries || []).length,
+      users: (st.users || []).length
+    };
+  },
+  async logs() {
+    if (api.config.mode === 'http') return apiRequest('/admin/logs');
+    await apiDelay();
+    return apiClone(mockState().logs || []);
+  }
+};
+
+api.files = {
+  async upload(file) {
+    if (api.config.mode === 'http') {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(api.config.baseUrl + '/files', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+    await apiDelay();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error('READ_ERROR'));
+      r.readAsDataURL(file);
+    });
+    const st = mockState();
+    st.files = st.files || {};
+    const id = 'f' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const rec = {
+      id, name: String(file.name || 'file'), type: file.type || '',
+      size: file.size || 0, dataUrl, createdAt: Date.now()
+    };
+    st.files[id] = rec;
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/files/' + encodeURIComponent(id));
+    await apiDelay();
+    const f = (mockState().files || {})[id];
+    if (!f) throw new Error('NOT_FOUND');
+    return apiClone(f);
+  },
+  async del(id) {
+    if (api.config.mode === 'http') return apiRequest('/files/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    if (st.files && st.files[id]) {
+      delete st.files[id];
+      mockSave(st);
+      return { ok: true };
+    }
+    throw new Error('NOT_FOUND');
+  }
+};
+
+/* ============================================================
+ * 服务：第三方运输保险（试点自营 + 合作保险商框架）
+ * ============================================================ */
+const MOCK_INSURANCE_PROVIDERS = [
+  {
+    id: 'prov-bbm-pilot', name: '豆豆鼠护航计划（平台试点）', region: 'GLOBAL', enabled: 1, sort: 1,
+    tiers: {
+      basic:    { label: '基础保障', rate: 0.005, minPremium: 3,  coverage: '运输途中意外损坏（免赔 20%，最高赔偿订单金额）' },
+      standard: { label: '标准保障', rate: 0.010, minPremium: 5,  coverage: '损坏 / 灭失 + 延误补贴（免赔 10%）' },
+      premium:  { label: '尊享保障', rate: 0.015, minPremium: 10, coverage: '全损 / 损坏 / 延误 + 关税损失（免赔 5%）' }
+    }
+  },
+  { id: 'prov-partner-a', name: '合作保险商 A（接入洽谈中）', region: 'GLOBAL', enabled: 0, sort: 2, tiers: {} },
+  { id: 'prov-partner-b', name: '合作保险商 B（接入洽谈中）', region: 'GLOBAL', enabled: 0, sort: 3, tiers: {} }
+];
+
+api.insurance = {
+  async providers() {
+    if (api.config.mode === 'http') return apiRequest('/insurances/providers');
+    await apiDelay();
+    return apiClone(MOCK_INSURANCE_PROVIDERS);
+  },
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/insurances');
+    await apiDelay();
+    const st = mockState();
+    return apiClone((st.insurances || []).filter(x => x.userId === (st.user && st.user.id)));
+  },
+  async create({ orderId, providerId, tier }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/insurances', { method: 'POST', body: { orderId, providerId, tier } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o || o.buyerId !== (st.user && st.user.id)) throw new Error('FORBIDDEN');
+    if (!['created', 'complete'].includes(o.status)) throw new Error('VALIDATION');
+    if ((st.insurances || []).some(x => x.orderId === orderId && x.status === 'active')) throw new Error('DUPLICATE');
+    const prov = MOCK_INSURANCE_PROVIDERS.find(p => p.id === providerId && p.enabled === 1);
+    if (!prov) throw new Error('NOT_FOUND');
+    const t = prov.tiers[tier];
+    if (!t) throw new Error('VALIDATION');
+    const total = Number(o.total) || 0;
+    const premium = Math.max(Number(t.minPremium) || 3, Math.round(total * (Number(t.rate) || 0.01) * 100) / 100);
+    const ins = {
+      id: 'ins' + Date.now(), orderId, userId: st.user.id, providerId: prov.id, providerName: prov.name,
+      tier, tierLabel: t.label, premium, currency: o.currency || 'USD', coverage: t.coverage,
+      status: 'active', createdAt: Date.now(), updatedAt: Date.now()
+    };
+    st.insurances = st.insurances || [];
+    st.insurances.push(ins);
+    mockPushEvidence(st, orderId, 'insurance_create', ins.id, { provider: prov.name, tier, premium });
+    mockSave(st);
+    return apiClone(ins);
+  },
+  async cancel(id) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/insurances/' + encodeURIComponent(id) + '/cancel', { method: 'POST' });
+    }
+    await apiDelay();
+    const st = mockState();
+    const row = (st.insurances || []).find(x => x.id === id && x.userId === (st.user && st.user.id));
+    if (!row) throw new Error('FORBIDDEN');
+    if (row.status !== 'active') throw new Error('INVALID_STATUS');
+    row.status = 'cancelled';
+    row.updatedAt = Date.now();
+    mockSave(st);
+    return apiClone(row);
+  }
+};
+
+/* ============================================================
+ * 服务：合同草案保管（30 天电子保管 + 哈希留痕）
+ * ============================================================ */
+api.contracts = {
+  async custody({ orderId, draftText }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/contracts/custody', { method: 'POST', body: { orderId, draftText } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o || (o.buyerId !== (st.user && st.user.id) && o.sellerId !== (st.user && st.user.id))) {
+      throw new Error('FORBIDDEN');
+    }
+    const exist = (st.contracts || []).find(x => x.orderId === orderId);
+    if (exist) return apiClone(exist);
+    const text = String(draftText || '').trim();
+    if (!text) throw new Error('VALIDATION');
+    const rec = {
+      id: 'ct' + Date.now(), orderId, userId: st.user.id, draftText: text,
+      contractHash: mockEvidenceHash(text), status: 'active',
+      createdAt: Date.now(), expiresAt: Date.now() + 30 * 24 * 3600 * 1000
+    };
+    st.contracts = st.contracts || [];
+    st.contracts.push(rec);
+    mockPushEvidence(st, orderId, 'contract_custody', rec.id, { hash: rec.contractHash, keepDays: 30 });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/contracts');
+    await apiDelay();
+    const st = mockState();
+    return apiClone((st.contracts || []).filter(x => x.userId === (st.user && st.user.id)));
+  },
+  async get(id) {
+    if (api.config.mode === 'http') return apiRequest('/contracts/' + encodeURIComponent(id));
+    await apiDelay();
+    const st = mockState();
+    const row = (st.contracts || []).find(x => x.id === id);
+    if (!row) throw new Error('NOT_FOUND');
+    return apiClone(row);
+  }
+};
+
+/* ============================================================
+ * 服务：出口资质清单（卖家维护，平台按品类提示缺口）
+ * ============================================================ */
+api.exports = {
+  async getReadiness(sellerId) {
+    if (api.config.mode === 'http') return apiRequest('/exports/readiness/' + encodeURIComponent(sellerId));
+    await apiDelay();
+    const st = mockState();
+    const rows = (st.exportReadiness || {})[sellerId] || {};
+    const items = (typeof EXPORT_READINESS_ITEMS !== 'undefined' ? EXPORT_READINESS_ITEMS : [])
+      .map(x => ({ id: x.id, optional: !!x.optional, done: !!rows[x.id], updatedAt: rows[x.id + ':ts'] || null }));
+    const core = items.filter(x => !x.optional);
+    const done = items.filter(x => x.done).length;
+    const score = items.length ? Math.round(done / items.length * 100) : 0;
+    return { sellerId, score, coreDone: core.filter(x => x.done).length, coreTotal: core.length, items };
+  },
+  async setItem(sellerId, itemId, done) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/exports/readiness/' + encodeURIComponent(sellerId), { method: 'PUT', body: { itemId, done } });
+    }
+    await apiDelay();
+    const st = mockState();
+    st.exportReadiness = st.exportReadiness || {};
+    const rows = (st.exportReadiness[sellerId] = st.exportReadiness[sellerId] || {});
+    rows[itemId] = !!done;
+    rows[itemId + ':ts'] = Date.now();
+    mockSave(st);
+    return api.exports.getReadiness(sellerId);
+  },
+  async reset(sellerId) {
+    if (api.config.mode === 'http') return apiRequest('/exports/readiness/' + encodeURIComponent(sellerId), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.exportReadiness = st.exportReadiness || {};
+    st.exportReadiness[sellerId] = {};
+    mockSave(st);
+    return api.exports.getReadiness(sellerId);
+  }
+};
+
+/* ============================================================
+ * 服务：订单单据中心（商业发票 / 装箱单 / 原产地证 / 提单参考）
+ * ============================================================ */
+api.documents = {
+  async list(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/documents');
+    await apiDelay();
+    const st = mockState();
+    return apiClone((st.orderDocs || {})[orderId] || { generated: {}, consistency: null, checkedAt: null });
+  },
+  async generate(orderId, type) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/orders/' + encodeURIComponent(orderId) + '/documents', { method: 'POST', body: { type } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (!['CI', 'PL', 'CO', 'BL'].includes(type)) throw new Error('VALIDATION');
+    st.orderDocs = st.orderDocs || {};
+    const rec = (st.orderDocs[orderId] = st.orderDocs[orderId] || { generated: {}, consistency: null, checkedAt: null });
+    rec.generated[type] = Date.now();
+    rec.consistency = api.documents.consistencyOf(st, o);
+    rec.checkedAt = Date.now();
+    mockPushEvidence(st, orderId, 'document_generated', type, { docType: type });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  /* 一致性检查：品名 / HS 编码 / 数量 / 唛头 */
+  consistencyOf(st, o) {
+    const p = (st.products || []).find(x => x.id === o.productId);
+    const issues = [];
+    if (!p || !((p.en && p.en.title) || (p.zh && p.zh.title))) issues.push('title');
+    if (!p || !p.hsCode) issues.push('hs');
+    if (!o.quantity || !(Number(o.quantity) > 0)) issues.push('qty');
+    if (!o.shippingMarks) issues.push('marks');
+    return issues.length === 0 ? 'pass' : 'warn';
+  },
+  async consistency(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/documents/consistency');
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    const status = api.documents.consistencyOf(st, o);
+    st.orderDocs = st.orderDocs || {};
+    const rec = (st.orderDocs[orderId] = st.orderDocs[orderId] || { generated: {}, consistency: null, checkedAt: null });
+    rec.consistency = status;
+    rec.checkedAt = Date.now();
+    mockSave(st);
+    return apiClone({ orderId, status, checkedAt: rec.checkedAt });
+  }
+};
+
+/* ============================================================
+ * 服务：售后与纠纷（买家申请 → 卖家回复 → 平台仲裁，全程存证）
+ * ============================================================ */
+api.afterSales = {
+  async create({ orderId, type, description, resolution, dispute }) {
+    if (api.config.mode === 'http') return apiRequest('/after-sales', { method: 'POST', body: { orderId, type, description, resolution, dispute } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (!st.user || o.buyerId !== st.user.id) throw new Error('FORBIDDEN');
+    if (!['created', 'complete'].includes(o.status)) throw new Error('INVALID_STATUS');
+    if (!String(description || '').trim() || !String(type || '').trim()) throw new Error('VALIDATION');
+    const rec = {
+      id: 'as' + Date.now(),
+      orderId,
+      buyerId: st.user.id,
+      sellerId: o.sellerId,
+      type: String(type).trim(),
+      description: String(description).trim(),
+      resolution: String(resolution || '').trim(),
+      status: dispute ? 'arbitrating' : 'new',
+      dispute: !!dispute,
+      sellerReply: '',
+      ruling: '',
+      rulingNote: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    st.afterSales = st.afterSales || [];
+    st.afterSales.unshift(rec);
+    mockPushEvidence(st, orderId, dispute ? 'dispute_open' : 'after_sales_create', rec.id, {
+      type: rec.type, description: rec.description, dispute: rec.dispute
+    });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/after-sales');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    let rows = st.afterSales || [];
+    if (st.user) {
+      if (st.user.role === 'admin') rows = rows;
+      else if (st.user.role === 'seller') rows = rows.filter(x => x.sellerId === (st.user.sellerId || st.user.id));
+      else rows = rows.filter(x => x.buyerId === st.user.id);
+    }
+    return apiClone(rows.slice().sort((a, b) => b.updatedAt - a.updatedAt));
+  },
+  async respond(id, { action, reply }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/after-sales/' + encodeURIComponent(id) + '/respond', { method: 'POST', body: { action, reply } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.afterSales || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!st.user || rec.sellerId !== (st.user.sellerId || st.user.id)) throw new Error('FORBIDDEN');
+    if (!['new', 'responded'].includes(rec.status)) throw new Error('INVALID_STATUS');
+    rec.sellerReply = String(reply || '').trim();
+    rec.sellerAction = action === 'accept' ? 'accept' : 'reject';
+    rec.status = action === 'accept' ? 'resolved' : 'responded';
+    rec.updatedAt = Date.now();
+    mockPushEvidence(st, rec.orderId, 'after_sales_reply', rec.id, { action: rec.sellerAction, reply: rec.sellerReply });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async escalate(id) {
+    if (api.config.mode === 'http') return apiRequest('/after-sales/' + encodeURIComponent(id) + '/escalate', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.afterSales || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!st.user || (rec.buyerId !== st.user.id && rec.sellerId !== (st.user.sellerId || st.user.id))) throw new Error('FORBIDDEN');
+    if (!['new', 'responded'].includes(rec.status)) throw new Error('INVALID_STATUS');
+    rec.status = 'arbitrating';
+    rec.dispute = true;
+    rec.updatedAt = Date.now();
+    mockPushEvidence(st, rec.orderId, 'dispute_open', rec.id, { escalate: true });
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async arbitrate(id, { ruling, note }) {
+    if (api.config.mode === 'http') {
+      return apiRequest('/after-sales/' + encodeURIComponent(id) + '/arbitrate', { method: 'POST', body: { ruling, note } });
+    }
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.afterSales || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!st.user || st.user.role !== 'admin') throw new Error('FORBIDDEN');
+    if (rec.status !== 'arbitrating') throw new Error('INVALID_STATUS');
+    if (!['buyer', 'seller', 'compromise'].includes(ruling)) throw new Error('VALIDATION');
+    rec.ruling = ruling;
+    rec.rulingNote = String(note || '').trim();
+    rec.status = 'resolved';
+    rec.updatedAt = Date.now();
+    mockPushEvidence(st, rec.orderId, 'after_sales_ruling', rec.id, { ruling, note: rec.rulingNote });
+    mockSave(st);
+    return apiClone(rec);
+  }
+};
+
+/* ============================================================
+ * 服务：支付通道（先接入 PayPal 主题演示，后续扩展其他渠道）
+ * ============================================================ */
+api.payments = {
+  async providers() {
+    if (api.config.mode === 'http') return apiRequest('/payments/providers');
+    await apiDelay();
+    return apiClone([
+      { id: 'paypal', name: 'PayPal', enabled: 1, mode: 'sandbox', currencies: ['USD', 'EUR', 'GBP'] }
+    ]);
+  },
+  async checkout(orderId, providerId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/payments', { method: 'POST', body: { providerId } });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (o.payment && o.payment.status === 'paid') throw new Error('ALREADY_PAID');
+    o.payment = {
+      provider: providerId || 'paypal',
+      status: 'pending',
+      amount: Number(o.total || 0),
+      currency: o.currency || 'USD',
+      reference: 'PP-DEMO-' + String(orderId).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10) + '-' + Math.floor(1000 + Math.random() * 9000),
+      at: Date.now()
+    };
+    mockSave(st);
+    return apiClone(o.payment);
+  },
+  async markPaid(orderId) {
+    if (api.config.mode === 'http') return apiRequest('/orders/' + encodeURIComponent(orderId) + '/payments/paid', { method: 'POST' });
+    await apiDelay();
+    const st = mockState();
+    const o = (st.orders || []).find(x => x.id === orderId);
+    if (!o) throw new Error('NOT_FOUND');
+    if (!o.payment) o.payment = { provider: 'paypal', status: 'paid', amount: Number(o.total || 0), currency: o.currency || 'USD', reference: 'PP-DEMO', at: Date.now() };
+    o.payment.status = 'paid';
+    o.payment.paidAt = Date.now();
+    mockSave(st);
+    return apiClone(o.payment);
+  }
+};
+
+/* ============================================================
+ * 服务：合规筛查（演示：关键词命中 → 正式版接权威名单 API）
+ * ============================================================ */
+api.compliance = {
+  async screen(text) {
+    if (api.config.mode === 'http') return apiRequest('/compliance/screen', { method: 'POST', body: { text } });
+    await apiDelay();
+    const lower = String(text || '').toLowerCase();
+    const hits = (typeof SANCTION_KEYWORDS !== 'undefined' ? SANCTION_KEYWORDS : [])
+      .filter(kw => lower.includes(String(kw).toLowerCase()));
+    return {
+      text: String(text || ''),
+      hits,
+      clean: hits.length === 0,
+      note: 'demo screening only'
+    };
+  },
+  async screenProduct(productId) {
+    const p = mockFindProduct(productId);
+    if (!p) throw new Error('NOT_FOUND');
+    const text = ((p.en && p.en.title) || '') + ' ' + ((p.en && p.en.desc) || '') + ' ' + ((p.zh && p.zh.title) || '') + ' ' + ((p.zh && p.zh.desc) || '');
+    return api.compliance.screen(text);
+  }
+};
+
+/* ============================================================
+ * 服务：运费估算（演示参考值）
+ * ============================================================ */
+api.logistics = {
+  async estimate({ mode, weight, volume, container, origin, destination } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/logistics/estimate', { method: 'POST', body: { mode, weight, volume, container, origin, destination } });
+    await apiDelay();
+    const w = Math.max(0, Number(weight) || 0);
+    const v = Math.max(0, Number(volume) || 0);
+    const m = ['sea', 'air', 'land', 'courier'].includes(mode) ? mode : 'sea';
+    const chargeable = Math.max(w / 1000, v || 0);
+    let lo = 0, hi = 0;
+    if (m === 'sea') {
+      if (container === '20GP') { lo = 900; hi = 2200; }
+      else if (container === '40GP' || container === '40HQ') { lo = 1500; hi = 4200; }
+      else { lo = Math.round(chargeable * 55); hi = Math.round(chargeable * 120 + 60); }
+    } else if (m === 'air') {
+      lo = Math.round(chargeable * 340); hi = Math.round(chargeable * 620);
+    } else if (m === 'land') {
+      lo = Math.round(chargeable * 130); hi = Math.round(chargeable * 280);
+    } else {
+      lo = Math.max(18, Math.round(chargeable * 700)); hi = Math.max(35, Math.round(chargeable * 1300));
+    }
+    return {
+      mode: m,
+      currency: 'USD',
+      lo: Math.max(0, lo),
+      hi: Math.max(lo, hi),
+      weight: w,
+      volume: v,
+      chargeable,
+      container: container || 'LCL',
+      origin: String(origin || '').trim(),
+      destination: String(destination || '').trim(),
+      note: 'demo estimate only'
+    };
+  }
+};
+
+/* ============================================================
+ * 服务：优化建议收集（公开提交 -> 管理员跟进）
+ * ============================================================ */
+api.suggestions = {
+  async create({ type, content, contact } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/suggestions', { method: 'POST', body: { type, content, contact } });
+    await apiDelay();
+    if (!String(content || '').trim()) throw new Error('VALIDATION');
+    const st = mockState();
+    const rec = {
+      id: 'fb' + Date.now(),
+      userId: st.user ? st.user.id : null,
+      type: String(type || 'other').trim(),
+      content: String(content).trim(),
+      contact: String(contact || '').trim(),
+      status: 'new',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    st.suggestions = st.suggestions || [];
+    st.suggestions.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/suggestions');
+      return r.items || [];
+    }
+    await apiDelay();
+    const st = mockState();
+    let rows = st.suggestions || [];
+    if (st.user && st.user.role !== 'admin') rows = rows.filter(x => x.userId === st.user.id);
+    return apiClone(rows.slice().sort((a, b) => b.updatedAt - a.updatedAt));
+  },
+  async setStatus(id, { status } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/suggestions/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } });
+    await apiDelay();
+    const st = mockState();
+    const rec = (st.suggestions || []).find(x => x.id === id);
+    if (!rec) throw new Error('NOT_FOUND');
+    if (!['new', 'seen', 'done'].includes(status)) throw new Error('VALIDATION');
+    rec.status = status;
+    rec.updatedAt = Date.now();
+    mockSave(st);
+    return apiClone(rec);
+  }
+};
+
+/* ============================================================
+ * 服务：个人信息与名片（个体户 / 公司代表）
+ * ============================================================ */
+api.profile = {
+  async get() {
+    if (api.config.mode === 'http') return apiRequest('/profile');
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('NOT_FOUND');
+    const p = (st.profiles || {})[u.id] || {};
+    const card = u.businessCard || p.businessCard || null;
+    const fields = {
+      name: p.name != null ? p.name : (u.name || ''),
+      accountType: p.accountType != null ? p.accountType : (u.accountType || 'company'),
+      jobTitle: p.jobTitle != null ? p.jobTitle : (u.jobTitle || ''),
+      company: p.company != null ? p.company : (u.company || u.buyerCompany || ''),
+      country: p.country != null ? p.country : (u.country || u.buyerCountry || ''),
+      contact: p.contact != null ? p.contact : (u.contact || u.email || ''),
+      bio: p.bio || '',
+      bizName: p.bizName != null ? p.bizName : (u.bizName || '')
+    };
+    const keys = ['name', 'accountType', 'jobTitle', 'company', 'country', 'contact', 'bio'];
+    const filled = keys.filter(k => String(fields[k] || '').trim()).length;
+    const completeness = Math.round(filled / keys.length * 100);
+    return { userId: u.id, fields: apiClone(fields), card, cardName: u.businessCardName || p.businessCardName || '', completeness };
+  },
+  async save(payload = {}) {
+    if (api.config.mode === 'http') return apiRequest('/profile', { method: 'PUT', body: payload });
+    await apiDelay();
+    const st = mockState();
+    const u = st.user;
+    if (!u) throw new Error('NOT_FOUND');
+    st.profiles = st.profiles || {};
+    const p = (st.profiles[u.id] = st.profiles[u.id] || {});
+    ['name', 'accountType', 'jobTitle', 'company', 'country', 'contact', 'bio', 'bizName'].forEach(k => {
+      if (payload[k] !== undefined) p[k] = String(payload[k] || '').trim();
+    });
+    if (payload.businessCard !== undefined) {
+      if (payload.businessCard) {
+        u.businessCard = String(payload.businessCard);
+        u.businessCardName = String(payload.businessCardName || 'business-card').trim();
+        p.businessCard = u.businessCard;
+        p.businessCardName = u.businessCardName;
+      } else {
+        delete u.businessCard;
+        delete u.businessCardName;
+        delete p.businessCard;
+        delete p.businessCardName;
+      }
+    }
+    if (u.role === 'buyer') u.buyerCompany = p.company || u.buyerCompany || '';
+    else u.company = p.company || u.company || '';
+    if (p.country) u.buyerCountry = p.country;
+    mockSave(st);
+    return api.profile.get();
+  }
+};
+
+/* ============================================================
+ * 服务：名片模板（预设模板 + 自定义上传）
+ * ============================================================ */
+api.templates = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/card-templates');
+    await apiDelay();
+    return apiClone(typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []);
+  }
+};
+
+/* 暴露给页面与控制台测试 */
+window.api = api;

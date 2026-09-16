@@ -4,24 +4,104 @@ const STORE_KEY = 'bridgetrade_v1';
 window.__TB_STORE_KEY__ = STORE_KEY;
 
 const CATEGORIES = [
-  { id: 'pet', zh: '宠物用品', en: 'Pet Supplies', hue: 32, subs: [
+  { id: 'machinery', zh: '机械设备', en: 'Machinery', hue: 42, subs: [
+    { id: 'cnc', zh: '数控机床与金属加工', en: 'CNC & Metalworking', hs: '8456-8460' },
+    { id: 'packaging', zh: '包装与灌装机械', en: 'Packaging & Filling', hs: '8422-8424' },
+    { id: 'food-mach', zh: '食品加工机械', en: 'Food Processing', hs: '8434-8438' },
+    { id: 'textile-mach', zh: '纺织与制衣机械', en: 'Textile Machinery', hs: '8444-8453' },
+    { id: 'construction', zh: '工程与起重机械', en: 'Construction & Hoisting', hs: '8426-8431' },
+    { id: 'laser', zh: '激光与焊接设备', en: 'Laser & Welding', hs: '8456, 8515' }
+  ]},
+  { id: 'electronics', zh: '电子电器', en: 'Electronics', hue: 48, subs: [
+    { id: 'consumer', zh: '消费电子', en: 'Consumer Electronics', hs: '8517-8528' },
+    { id: 'components', zh: '电子元器件', en: 'Components', hs: '8532-8536' },
+    { id: 'appliances', zh: '家用电器', en: 'Home Appliances', hs: '8508-8516' },
+    { id: 'lighting', zh: '照明与灯饰', en: 'Lighting', hs: '8539, 9405' },
+    { id: 'ev-charging', zh: '新能源与充电', en: 'EV & Charging', hs: '8504, 8711' }
+  ]},
+  { id: 'textiles', zh: '纺织服装', en: 'Textiles & Apparel', hue: 20, subs: [
+    { id: 'fabric', zh: '面料与坯布', en: 'Fabric', hs: '5208-5212, 5407-5408' },
+    { id: 'yarn', zh: '纱线与辅料', en: 'Yarn & Accessories', hs: '5201-5207, 5401-5406' },
+    { id: 'garments', zh: '成衣与配饰', en: 'Garments & Accessories', hs: '6101-6217' },
+    { id: 'home-textile', zh: '家纺', en: 'Home Textiles', hs: '6301-6304' }
+  ]},
+  { id: 'furniture', zh: '家具家居', en: 'Furniture', hue: 32, subs: [
+    { id: 'living', zh: '客厅与卧室家具', en: 'Living & Bedroom', hs: '9401-9403' },
+    { id: 'office', zh: '办公家具', en: 'Office Furniture', hs: '9401' },
+    { id: 'outdoor', zh: '户外与庭院家具', en: 'Outdoor & Garden', hs: '9403' },
+    { id: 'bedding', zh: '床垫与寝具', en: 'Bedding', hs: '9404' }
+  ]},
+  { id: 'chemicals', zh: '化工原料', en: 'Chemicals', hue: 88, subs: [
+    { id: 'organic', zh: '有机化工品', en: 'Organic Chemicals', hs: '2901-2942' },
+    { id: 'inorganic', zh: '无机化工品', en: 'Inorganic Chemicals', hs: '2801-2853' },
+    { id: 'paints', zh: '涂料与颜料', en: 'Paints & Pigments', hs: '3208-3210' },
+    { id: 'plastics', zh: '塑料与树脂', en: 'Plastics & Resins', hs: '3901-3926' },
+    { id: 'fertilizer', zh: '肥料', en: 'Fertilizers', hs: '3101-3105' }
+  ]},
+  { id: 'auto', zh: '汽车配件', en: 'Auto Parts', hue: 14, subs: [
+    { id: 'parts', zh: '汽车零部件', en: 'Auto Parts', hs: '8708' },
+    { id: 'tires', zh: '轮胎', en: 'Tires', hs: '4011' },
+    { id: 'auto-lighting', zh: '车灯与电子', en: 'Lighting & Electronics', hs: '8512' },
+    { id: 'accessories', zh: '内外饰与用品', en: 'Interior & Accessories', hs: '8707, 8709' }
+  ]},
+  { id: 'sports', zh: '运动户外', en: 'Sports & Outdoors', hue: 130, subs: [
+    { id: 'camping', zh: '露营与户外装备', en: 'Camping & Outdoor Gear', hs: '6306, 7326' },
+    { id: 'fitness', zh: '健身与瑜伽', en: 'Fitness & Yoga', hs: '9506' },
+    { id: 'fishing', zh: '渔具', en: 'Fishing Gear', hs: '9507' },
+    { id: 'cycling', zh: '骑行配件', en: 'Cycling Accessories', hs: '8714' }
+  ]},
+  { id: 'gifts', zh: '礼品工艺品', en: 'Gifts & Crafts', hue: 350, subs: [
+    { id: 'music-box', zh: '音乐盒与八音盒', en: 'Music Boxes', hs: '9208' },
+    { id: 'ceramics', zh: '陶瓷与餐具礼盒', en: 'Ceramics & Tableware Sets', hs: '6912-6913' },
+    { id: 'plush', zh: '毛绒玩具', en: 'Plush Toys', hs: '9503' },
+    { id: 'candles', zh: '香薰与蜡烛', en: 'Scented Candles', hs: '3406' }
+  ]},
+  { id: 'hardware', zh: '五金工具', en: 'Hardware & Tools', hue: 24, subs: [
+    { id: 'hand-tools', zh: '手动工具', en: 'Hand Tools', hs: '8201-8207' },
+    { id: 'power-tools', zh: '电动工具', en: 'Power Tools', hs: '8467' },
+    { id: 'fasteners', zh: '紧固件与五金件', en: 'Fasteners & Hardware', hs: '7318' },
+    { id: 'locks', zh: '锁具与安防五金', en: 'Locks & Security Hardware', hs: '8301' }
+  ]},
+  { id: 'pet', zh: '宠物用品', en: 'Pet Supplies', hue: 280, subs: [
     { id: 'pet-hamster', zh: '仓鼠与小宠', en: 'Hamsters & Small Pets', hs: '9403, 3924, 4421' },
     { id: 'pet-cat', zh: '猫用品', en: 'Cat Supplies', hs: '3924, 9403, 4818' },
     { id: 'pet-dog-small', zh: '小型犬用品', en: 'Small Dog Supplies', hs: '4201, 9503' },
     { id: 'pet-dog-large', zh: '大型犬用品（金毛·边牧等）', en: 'Large Dog Supplies (Golden Retriever, Border Collie…)', hs: '4201, 9503, 6307' },
-    { id: 'pet-food', zh: '宠物食品与零食', en: 'Pet Food & Treats', hs: '2309, 0511' },
     { id: 'pet-grooming', zh: '美容与清洁', en: 'Grooming & Hygiene', hs: '3307, 9615' },
-    { id: 'pet-toys', zh: '玩具与训练', en: 'Toys & Training', hs: '9503, 4201' },
-    { id: 'pet-travel', zh: '出行与智能用品', en: 'Travel & Smart Gear', hs: '4202, 8517' }
+    { id: 'pet-toys', zh: '玩具与训练', en: 'Toys & Training', hs: '9503, 4201' }
   ]}
 ];
 
 const SELLERS = [
   {
-    id: 'bbm', verified: true, since: 2019, responseRate: 99, responseTime: '2h',
-    rating: 4.9, orders: 26800, country: 'CN',
-    zh: { company: '豆豆鼠宠物用品（自营出口）', city: '杭州' },
-    en: { company: 'BeanBeanMouse Pet Supplies (Direct Export)', city: 'Hangzhou' }
+    id: 's1', verified: true, since: 2012, responseRate: 96, responseTime: '2h',
+    rating: 4.8, orders: 12800, country: 'CN',
+    zh: { company: '杭州云帆机械有限公司', city: '杭州' },
+    en: { company: 'Hangzhou Yunfan Machinery Co., Ltd.', city: 'Hangzhou' }
+  },
+  {
+    id: 's2', verified: true, since: 2015, responseRate: 94, responseTime: '4h',
+    rating: 4.7, orders: 23000, country: 'CN',
+    zh: { company: '深圳新星电子科技有限公司', city: '深圳' },
+    en: { company: 'Shenzhen Nova Electronics Co., Ltd.', city: 'Shenzhen' }
+  },
+  {
+    id: 's3', verified: true, since: 2018, responseRate: 91, responseTime: '8h',
+    rating: 4.5, orders: 5600, country: 'VN',
+    zh: { company: '海防绿色生活贸易有限公司', city: '海防' },
+    en: { company: 'Hai Phong Green Living Trading Co.', city: 'Hai Phong' }
+  },
+  {
+    id: 's4', verified: true, since: 2010, responseRate: 93, responseTime: '5h',
+    rating: 4.6, orders: 8900, country: 'TR',
+    zh: { company: '伊斯坦布尔阿特拉斯工业出口公司', city: '伊斯坦布尔' },
+    en: { company: 'Istanbul Atlas Industrial Export Co.', city: 'Istanbul' }
+  },
+  {
+    id: 's5', verified: false, since: 2016, responseRate: 90, responseTime: '12h',
+    rating: 4.4, orders: 3100, country: 'IN',
+    zh: { company: '浦那草本原料出口公司', city: '浦那' },
+    en: { company: 'Pune Herbex Exports', city: 'Pune' }
   }
 ];
 
@@ -533,957 +613,6 @@ const PAYMENT_TERMS = [
   { zh: '30/70 定金+发货前付清', en: '30/70 deposit + balance before shipment' },
   { zh: 'O/A（赊销）', en: 'O/A (open account)' }
 ];
-/* ---------- pet0.2：宠物自营站数据整理（由 work/pet-data-patch.mjs 生成） ---------- */
-const PLATFORM_SELLER_ID = 'bbm';
-
-/* 结构化宠物属性：按细分给老商品补默认值（新商品自带覆盖） */
-const PET_ATTR_BY_SUB = {
-  'pet-hamster': { pets: ['hamster', 'small-pet'], petSize: 'small' },
-  'pet-cat': { pets: ['cat'], petSize: 'medium' },
-  'pet-dog-small': { pets: ['dog-small'], petSize: 'small' },
-  'pet-dog-large': { pets: ['dog-large'], petSize: 'large' },
-  'pet-food': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium' },
-  'pet-grooming': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium' },
-  'pet-toys': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium' },
-  'pet-travel': { pets: ['cat', 'dog-small'], petSize: 'medium' }
-};
-
-/* 只保留宠物商品，并统一归到平台自营主体 */
-for (let i = PRODUCTS.length - 1; i >= 0; i--) {
-  const p = PRODUCTS[i];
-  if (p.cat !== 'pet') { PRODUCTS.splice(i, 1); continue; }
-  p.sellerId = PLATFORM_SELLER_ID;
-  const attr = PET_ATTR_BY_SUB[p.sub] || { pets: ['cat'], petSize: 'medium' };
-  if (!p.pets) p.pets = attr.pets;
-  if (!p.petSize) p.petSize = attr.petSize;
-  if (!p.material) p.material = zhMaterialBySub(p.sub);
-}
-
-function zhMaterialBySub(sub) {
-  return ({
-    'pet-hamster': '环保塑料',
-    'pet-cat': '实木 / 塑料',
-    'pet-dog-small': '尼龙 / 网布',
-    'pet-dog-large': '尼龙 / 橡胶',
-    'pet-food': '食品级原料',
-    'pet-grooming': 'ABS / 硅胶',
-    'pet-toys': '食品级 TPR',
-    'pet-travel': 'PC / ABS'
-  })[sub] || '复合材料';
-}
-
-const PET_EXTRA = [
- {
-  "id": "p33",
-  "sub": "pet-hamster",
-  "min": 4.2,
-  "max": 6.8,
-  "moq": 300,
-  "lead": 18,
-  "certs": [
-   "CE"
-  ],
-  "hue": 34,
-  "rating": 4.6,
-  "orders": 3200,
-  "pets": [
-   "hamster",
-   "small-pet"
-  ],
-  "size": "small",
-  "material": "ABS + 金属网",
-  "en": {
-   "title": "3-Tier Hamster Cage with Tube Set",
-   "desc": "Three-level hamster cage with transparent tubes, exercise wheel, water bottle and hideout. Tool-free assembly, wire spacing 9mm for small pets.",
-   "features": [
-    "3 levels + tubes",
-    "Includes wheel & bottle",
-    "9mm wire spacing",
-    "Tool-free assembly"
-   ]
-  },
-  "zh": {
-   "title": "三层仓鼠笼 含管道套装",
-   "desc": "三层结构仓鼠笼，配透明连接管道、跑轮、饮水瓶与躲藏屋，免工具组装，钢丝间距 9mm 适配小宠。",
-   "features": [
-    "三层结构+管道",
-    "含跑轮与饮水瓶",
-    "钢丝间距 9mm",
-    "免工具组装"
-   ]
-  }
- },
- {
-  "id": "p34",
-  "sub": "pet-hamster",
-  "min": 2.8,
-  "max": 4.5,
-  "moq": 500,
-  "lead": 20,
-  "certs": [
-   "CE"
-  ],
-  "hue": 36,
-  "rating": 4.5,
-  "orders": 5100,
-  "pets": [
-   "hamster"
-  ],
-  "size": "small",
-  "material": "PP",
-  "en": {
-   "title": "Silent Hamster Exercise Wheel 21cm",
-   "desc": "Silent-bearing exercise wheel, 21cm diameter, stand or cage-mount, non-slip running surface. Under 30dB at normal running speed.",
-   "features": [
-    "Silent bearing",
-    "21cm diameter",
-    "Two mounting ways",
-    "Non-slip surface"
-   ]
-  },
-  "zh": {
-   "title": "仓鼠静音跑轮 21cm",
-   "desc": "静音轴承跑轮，直径 21cm，可立式也可挂笼，防滑跑面，正常奔跑噪音低于 30 分贝。",
-   "features": [
-    "静音轴承",
-    "直径 21cm",
-    "两种安装方式",
-    "防滑跑面"
-   ]
-  }
- },
- {
-  "id": "p35",
-  "sub": "pet-hamster",
-  "min": 3.5,
-  "max": 5.2,
-  "moq": 400,
-  "lead": 15,
-  "certs": [
-   "ISO9001"
-  ],
-  "hue": 38,
-  "rating": 4.4,
-  "orders": 2400,
-  "pets": [
-   "hamster",
-   "small-pet"
-  ],
-  "size": "small",
-  "material": "木屑",
-  "en": {
-   "title": "Dust-Free Small Pet Bedding 10L",
-   "desc": "Screened aspen bedding, dust-extracted twice, super absorbent and odour controlling. Safe for hamsters, guinea pigs and rabbits.",
-   "features": [
-    "Double dust-extracted",
-    "High absorbency",
-    "Odour control",
-    "10L compressed bag"
-   ]
-  },
-  "zh": {
-   "title": "小宠无尘垫料 10L",
-   "desc": "双层筛分杨木垫料，除尘率高于 99%，吸水量大且抑制异味，仓鼠、豚鼠、兔子通用。",
-   "features": [
-    "双层除尘",
-    "高吸水量",
-    "抑制异味",
-    "10L 压缩装"
-   ]
-  }
- },
- {
-  "id": "p36",
-  "sub": "pet-cat",
-  "min": 18,
-  "max": 32,
-  "moq": 100,
-  "lead": 25,
-  "certs": [
-   "CE",
-   "FSC"
-  ],
-  "hue": 30,
-  "rating": 4.8,
-  "orders": 6800,
-  "pets": [
-   "cat"
-  ],
-  "size": "medium",
-  "material": "实木 + 剑麻",
-  "en": {
-   "title": "Multi-Level Cat Tree 150cm with Sisal Posts",
-   "desc": "Floor-to-ceiling cat tree, 150cm, solid wood frame, sisal-wrapped posts, two condos and a hammock. Anti-tip strap included.",
-   "features": [
-    "150cm, 5 levels",
-    "Sisal scratching posts",
-    "2 condos + hammock",
-    "Anti-tip strap"
-   ]
-  },
-  "zh": {
-   "title": "多层猫爬架 150cm 剑麻款",
-   "desc": "150cm 多层猫爬架，实木框架，立柱缠剑麻耐抓，含两个猫窝与一个吊床，附防倾倒固定带。",
-   "features": [
-    "150cm 五层",
-    "剑麻耐抓立柱",
-    "两窝一吊床",
-    "防倾倒固定带"
-   ]
-  }
- },
- {
-  "id": "p37",
-  "sub": "pet-cat",
-  "min": 1.6,
-  "max": 2.6,
-  "moq": 1000,
-  "lead": 18,
-  "certs": [
-   "ISO9001"
-  ],
-  "hue": 28,
-  "rating": 4.7,
-  "orders": 15200,
-  "pets": [
-   "cat"
-  ],
-  "size": "medium",
-  "material": "豆腐渣",
-  "en": {
-   "title": "Tofu Cat Litter Flushable 6L",
-   "desc": "Plant-based tofu litter, dust-free, flushable and clumping fast. Light vanilla scent, safe if licked by cats.",
-   "features": [
-    "Flushable",
-    "Low dust",
-    "Fast clumping",
-    "Plant based"
-   ]
-  },
-  "zh": {
-   "title": "豆腐猫砂 可冲厕 6L",
-   "desc": "植物基豆腐猫砂，低粉尘、可冲厕、结团快，淡香草味，猫咪误食不担心。",
-   "features": [
-    "可冲厕",
-    "低粉尘",
-    "快速结团",
-    "植物基"
-   ]
-  }
- },
- {
-  "id": "p38",
-  "sub": "pet-cat",
-  "min": 7.5,
-  "max": 11.5,
-  "moq": 300,
-  "lead": 22,
-  "certs": [
-   "CE",
-   "RoHS"
-  ],
-  "hue": 26,
-  "rating": 4.6,
-  "orders": 4300,
-  "pets": [
-   "cat",
-   "dog-small"
-  ],
-  "size": "medium",
-  "material": "ABS + 304 不锈钢",
-  "en": {
-   "title": "Automatic Pet Water Fountain 2.5L",
-   "desc": "Quiet pump under 40dB, 2.5L capacity, triple filtration with replaceable cotton, visible water level and low-water shut-off.",
-   "features": [
-    "Under 40dB pump",
-    "2.5L capacity",
-    "Triple filtration",
-    "Dry-run protection"
-   ]
-  },
-  "zh": {
-   "title": "宠物自动饮水机 2.5L",
-   "desc": "静音水泵低于 40 分贝，2.5L 容量，三重过滤含可换棉芯，水位可视并带缺水断电保护。",
-   "features": [
-    "低于 40 分贝",
-    "2.5L 容量",
-    "三重过滤",
-    "缺水保护"
-   ]
-  }
- },
- {
-  "id": "p39",
-  "sub": "pet-dog-small",
-  "min": 3.2,
-  "max": 5.4,
-  "moq": 500,
-  "lead": 20,
-  "certs": [
-   "CE"
-  ],
-  "hue": 24,
-  "rating": 4.7,
-  "orders": 9100,
-  "pets": [
-   "dog-small"
-  ],
-  "size": "small",
-  "material": "尼龙 + 网布",
-  "en": {
-   "title": "Small Dog Harness with Reflective Trim",
-   "desc": "Step-in harness for small breeds, padded mesh chest, reflective piping for night walks, four adjustable points, sizes XS–M.",
-   "features": [
-    "Step-in design",
-    "Reflective piping",
-    "4-point adjustable",
-    "XS / S / M"
-   ]
-  },
-  "zh": {
-   "title": "小型犬胸背带 反光可调",
-   "desc": "小型犬免套头胸背带，胸口网布加厚减压，侧边反光条夜间可见，四处可调，尺码 XS–M。",
-   "features": [
-    "免套头穿脱",
-    "反光条设计",
-    "四处可调",
-    "XS/S/M 三码"
-   ]
-  }
- },
- {
-  "id": "p40",
-  "sub": "pet-dog-small",
-  "min": 4.5,
-  "max": 7.2,
-  "moq": 400,
-  "lead": 25,
-  "certs": [
-   "CE"
-  ],
-  "hue": 22,
-  "rating": 4.5,
-  "orders": 3600,
-  "pets": [
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "small",
-  "material": "PU + 摇粒绒",
-  "en": {
-   "title": "Waterproof Dog Raincoat with Reflective Stripe",
-   "desc": "PU-coated raincoat, taped seams, fleece lining, hood with elastic, harness opening. Available in 5 sizes with reflective back stripe.",
-   "features": [
-    "Waterproof PU shell",
-    "Warm fleece lining",
-    "Harness opening",
-    "5 sizes"
-   ]
-  },
-  "zh": {
-   "title": "宠物雨衣 防水反光条",
-   "desc": "PU 涂层防水雨衣，接缝压胶，内里摇粒绒保暖，带帽子与牵引开孔，背面反光条，5 个尺码。",
-   "features": [
-    "PU 防水面料",
-    "摇粒绒内里",
-    "牵引绳开孔",
-    "5 个尺码"
-   ]
-  }
- },
- {
-  "id": "p41",
-  "sub": "pet-dog-large",
-  "min": 6.8,
-  "max": 10.5,
-  "moq": 300,
-  "lead": 22,
-  "certs": [
-   "CE"
-  ],
-  "hue": 20,
-  "rating": 4.8,
-  "orders": 7200,
-  "pets": [
-   "dog-large"
-  ],
-  "size": "large",
-  "material": "尼龙 + 减压棉",
-  "en": {
-   "title": "Heavy-Duty Dog Harness for Large Breeds",
-   "desc": "Padded harness for 30–60kg dogs, weight-spreading chest plate, metal D-ring, neoprene lining, tested to 400kg pull.",
-   "features": [
-    "For 30–60kg dogs",
-    "Metal D-ring",
-    "Neoprene padding",
-    "400kg pull tested"
-   ]
-  },
-  "zh": {
-   "title": "大型犬加厚减压胸背带",
-   "desc": "面向 30–60kg 大型犬，胸板分散拉力，配金属 D 环与氯丁橡胶内衬，通过 400kg 拉力测试。",
-   "features": [
-    "适用 30–60kg",
-    "金属 D 环",
-    "氯丁橡胶内衬",
-    "400kg 拉力测试"
-   ]
-  }
- },
- {
-  "id": "p42",
-  "sub": "pet-dog-large",
-  "min": 2.9,
-  "max": 4.8,
-  "moq": 600,
-  "lead": 18,
-  "certs": [
-   "CE"
-  ],
-  "hue": 18,
-  "rating": 4.6,
-  "orders": 11400,
-  "pets": [
-   "dog-large"
-  ],
-  "size": "large",
-  "material": "天然橡胶",
-  "en": {
-   "title": "Indestructible Natural Rubber Chew Toy",
-   "desc": "Solid natural rubber chew toy for aggressive chewers, treat-stuffable, vanilla scented, dishwasher safe. Three sizes.",
-   "features": [
-    "For aggressive chewers",
-    "Treat stuffing hole",
-    "Food-grade rubber",
-    "3 sizes"
-   ]
-  },
-  "zh": {
-   "title": "大型犬耐咬橡胶玩具",
-   "desc": "天然实心橡胶材质，适合撕咬力强的犬种，中空可塞零食，香草味，可机洗，三个尺码。",
-   "features": [
-    "耐撕咬设计",
-    "可塞零食",
-    "食品级橡胶",
-    "三个尺码"
-   ]
-  }
- },
- {
-  "id": "p43",
-  "sub": "pet-dog-large",
-  "min": 3.6,
-  "max": 5.8,
-  "moq": 400,
-  "lead": 20,
-  "certs": [
-   "CE"
-  ],
-  "hue": 16,
-  "rating": 4.5,
-  "orders": 4800,
-  "pets": [
-   "dog-large",
-   "cat"
-  ],
-  "size": "large",
-  "material": "304 不锈钢 + 硅胶",
-  "en": {
-   "title": "Collapsible Double Dog Bowl with Silicone Base",
-   "desc": "Two stainless steel bowls in a folding silicone base, non-slip feet, carry strap. Ideal for travel, hiking and camping.",
-   "features": [
-    "Collapsible design",
-    "Non-slip silicone base",
-    "Two 400ml bowls",
-    "Carry strap"
-   ]
-  },
-  "zh": {
-   "title": "折叠双碗 不锈钢+硅胶底座",
-   "desc": "硅胶折叠底座内嵌两个 304 不锈钢碗，底部防滑，带提手，适合出行、徒步与露营。",
-   "features": [
-    "可折叠收纳",
-    "硅胶防滑底",
-    "双碗各 400ml",
-    "便携提手"
-   ]
-  }
- },
- {
-  "id": "p44",
-  "sub": "pet-food",
-  "min": 3.8,
-  "max": 6.2,
-  "moq": 500,
-  "lead": 30,
-  "certs": [
-   "HACCP",
-   "ISO22000"
-  ],
-  "hue": 40,
-  "rating": 4.8,
-  "orders": 13600,
-  "pets": [
-   "cat",
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "medium",
-  "material": "冻干鸡肉",
-  "en": {
-   "title": "Freeze-Dried Chicken Training Treats",
-   "desc": "Single-ingredient freeze-dried chicken breast, no additives or grains. High protein, easy to break, 100g resealable pouch.",
-   "features": [
-    "Single ingredient",
-    "No grain or additives",
-    "Easy to break",
-    "100g pouch"
-   ]
-  },
-  "zh": {
-   "title": "冻干鸡胸肉训练零食",
-   "desc": "单一原料冻干鸡胸肉，无添加剂无谷物，高蛋白易掰小块，适合训练奖励，100g 自封袋装。",
-   "features": [
-    "单一原料",
-    "无谷物添加",
-    "易掰小块",
-    "100g 自封袋"
-   ]
-  }
- },
- {
-  "id": "p45",
-  "sub": "pet-food",
-  "min": 1.5,
-  "max": 2.4,
-  "moq": 2000,
-  "lead": 28,
-  "certs": [
-   "HACCP"
-  ],
-  "hue": 42,
-  "rating": 4.7,
-  "orders": 18700,
-  "pets": [
-   "cat"
-  ],
-  "size": "medium",
-  "material": "湿粮罐装",
-  "en": {
-   "title": "Grain-Free Cat Wet Food Can 85g",
-   "desc": "Grain-free wet food with 70% meat content, no artificial colours, taurine added. Six flavours, 85g cans, 24 cans per carton.",
-   "features": [
-    "70% meat content",
-    "Grain free",
-    "Taurine added",
-    "6 flavours"
-   ]
-  },
-  "zh": {
-   "title": "无谷猫用主食罐 85g",
-   "desc": "无谷配方湿粮，肉含量 70%，无人工色素，添加牛磺酸，六种口味，85g 罐装，每箱 24 罐。",
-   "features": [
-    "肉含量 70%",
-    "无谷配方",
-    "添加牛磺酸",
-    "六种口味"
-   ]
-  }
- },
- {
-  "id": "p46",
-  "sub": "pet-food",
-  "min": 2.2,
-  "max": 3.6,
-  "moq": 800,
-  "lead": 25,
-  "certs": [
-   "HACCP"
-  ],
-  "hue": 44,
-  "rating": 4.5,
-  "orders": 7600,
-  "pets": [
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "medium",
-  "material": "洁牙棒",
-  "en": {
-   "title": "Dental Chew Sticks with Mint for Dogs",
-   "desc": "Textured dental chew sticks with mint and chlorophyll, reduces plaque and tartar, no rawhide. Sizes for small and large dogs.",
-   "features": [
-    "Mint + chlorophyll",
-    "No rawhide",
-    "Tartar reducing",
-    "Small / large sizes"
-   ]
-  },
-  "zh": {
-   "title": "犬用薄荷洁牙棒",
-   "desc": "带纹理洁牙棒，添加薄荷与叶绿素，帮助减少牙菌斑与牙结石，不含生皮，分小型犬与大型犬两种尺寸。",
-   "features": [
-    "薄荷+叶绿素",
-    "不含生皮",
-    "减少牙结石",
-    "双尺寸可选"
-   ]
-  }
- },
- {
-  "id": "p47",
-  "sub": "pet-grooming",
-  "min": 8.5,
-  "max": 13.5,
-  "moq": 200,
-  "lead": 25,
-  "certs": [
-   "CE",
-   "RoHS"
-  ],
-  "hue": 46,
-  "rating": 4.6,
-  "orders": 3900,
-  "pets": [
-   "cat",
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "medium",
-  "material": "ABS + 陶瓷刀头",
-  "en": {
-   "title": "Low-Noise Pet Clipper Kit with Ceramic Blade",
-   "desc": "Cordless clipper under 50dB, ceramic blade stays cool, 4 guide combs, 2-hour runtime, USB-C charging, for cats and dogs.",
-   "features": [
-    "Under 50dB",
-    "Ceramic blade",
-    "4 guide combs",
-    "USB-C, 2h runtime"
-   ]
-  },
-  "zh": {
-   "title": "宠物静音电推剪 陶瓷刀头",
-   "desc": "无线推剪噪音低于 50 分贝，陶瓷刀头不易发烫，含 4 个限位梳，续航 2 小时，USB-C 充电，猫犬通用。",
-   "features": [
-    "低于 50 分贝",
-    "陶瓷刀头",
-    "4 个限位梳",
-    "USB-C 续航 2h"
-   ]
-  }
- },
- {
-  "id": "p48",
-  "sub": "pet-grooming",
-  "min": 3.1,
-  "max": 5.2,
-  "moq": 500,
-  "lead": 20,
-  "certs": [
-   "OEKO-TEX"
-  ],
-  "hue": 48,
-  "rating": 4.7,
-  "orders": 8800,
-  "pets": [
-   "cat",
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "medium",
-  "material": "超细纤维",
-  "en": {
-   "title": "Microfibre Pet Drying Towel 80x40cm",
-   "desc": "Ultra-absorbent microfibre towel, absorbs 6x its weight, machine washable, with hand pockets for drying large dogs.",
-   "features": [
-    "Absorbs 6x weight",
-    "Hand pockets",
-    "Machine washable",
-    "80x40cm"
-   ]
-  },
-  "zh": {
-   "title": "宠物吸水毛巾 80x40cm",
-   "desc": "超细纤维吸水毛巾，可吸自重 6 倍水分，两侧带手插袋便于擦干大型犬，可机洗反复使用。",
-   "features": [
-    "吸水自重 6 倍",
-    "两侧手插袋",
-    "可机洗",
-    "80x40cm"
-   ]
-  }
- },
- {
-  "id": "p49",
-  "sub": "pet-grooming",
-  "min": 1.8,
-  "max": 3.2,
-  "moq": 800,
-  "lead": 18,
-  "certs": [
-   "CE"
-  ],
-  "hue": 50,
-  "rating": 4.5,
-  "orders": 10500,
-  "pets": [
-   "cat",
-   "dog-small"
-  ],
-  "size": "small",
-  "material": "硅胶",
-  "en": {
-   "title": "Silicone Pet Bath Brush with Shampoo Dispenser",
-   "desc": "Soft silicone massage brush with built-in shampoo bottle, 2.5mm rounded bristles, gentle on skin, easy to clean.",
-   "features": [
-    "Built-in dispenser",
-    "2.5mm soft bristles",
-    "Massage & clean",
-    "Easy to rinse"
-   ]
-  },
-  "zh": {
-   "title": "硅胶洗澡刷 带沐浴露仓",
-   "desc": "软硅胶按摩洗澡刷，内置沐浴露仓，2.5mm 圆头刷毛不伤皮肤，边洗边按摩，易冲洗。",
-   "features": [
-    "内置沐浴仓",
-    "2.5mm 软刷毛",
-    "按摩清洁二合一",
-    "易冲洗"
-   ]
-  }
- },
- {
-  "id": "p50",
-  "sub": "pet-toys",
-  "min": 1.2,
-  "max": 2.2,
-  "moq": 1000,
-  "lead": 18,
-  "certs": [
-   "CE"
-  ],
-  "hue": 52,
-  "rating": 4.6,
-  "orders": 16800,
-  "pets": [
-   "cat"
-  ],
-  "size": "small",
-  "material": "羽毛 + 木质杆",
-  "en": {
-   "title": "Interactive Cat Wand Toy Set with 5 Replacements",
-   "desc": "Retractable wand with five interchangeable heads (feather, bell, ribbon, mouse, fish), natural wood handle, no sharp edges.",
-   "features": [
-    "5 replaceable heads",
-    "Retractable wand",
-    "Natural wood handle",
-    "Safe bell"
-   ]
-  },
-  "zh": {
-   "title": "逗猫棒套装 含 5 个替换头",
-   "desc": "可伸缩逗猫棒，配羽毛、铃铛、丝带、老鼠、鱼形五个替换头，木质手柄无毛刺，收纳方便。",
-   "features": [
-    "5 个替换头",
-    "可伸缩杆身",
-    "木质把手",
-    "安全铃铛"
-   ]
-  }
- },
- {
-  "id": "p51",
-  "sub": "pet-toys",
-  "min": 2.4,
-  "max": 3.9,
-  "moq": 600,
-  "lead": 20,
-  "certs": [
-   "CE"
-  ],
-  "hue": 54,
-  "rating": 4.7,
-  "orders": 9200,
-  "pets": [
-   "cat",
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "medium",
-  "material": "食品级 TPR",
-  "en": {
-   "title": "Treat Dispensing Puzzle Ball",
-   "desc": "Adjustable-difficulty treat ball, food-grade TPR, dishwasher safe, slows eating and relieves boredom. Two sizes.",
-   "features": [
-    "Adjustable difficulty",
-    "Food-grade TPR",
-    "Dishwasher safe",
-    "Slows eating"
-   ]
-  },
-  "zh": {
-   "title": "漏食益智球",
-   "desc": "可调难度漏食球，食品级 TPR 材质，可洗碗机清洗，减缓进食速度、缓解无聊，两个尺码。",
-   "features": [
-    "难度可调",
-    "食品级 TPR",
-    "可机洗",
-    "减缓进食"
-   ]
-  }
- },
- {
-  "id": "p52",
-  "sub": "pet-travel",
-  "min": 14,
-  "max": 24,
-  "moq": 200,
-  "lead": 25,
-  "certs": [
-   "IATA",
-   "CE"
-  ],
-  "hue": 56,
-  "rating": 4.7,
-  "orders": 3400,
-  "pets": [
-   "cat",
-   "dog-small"
-  ],
-  "size": "medium",
-  "material": "PP + 金属门",
-  "en": {
-   "title": "IATA-Approved Airline Pet Carrier",
-   "desc": "IATA-compliant pet crate with steel door, ventilation on four sides, spring latches and tie-down points for airline travel.",
-   "features": [
-    "IATA compliant",
-    "4-side ventilation",
-    "Steel door + latch",
-    "Tie-down points"
-   ]
-  },
-  "zh": {
-   "title": "IATA 认证宠物航空箱",
-   "desc": "符合 IATA 运输标准，金属门配弹簧锁扣，四面通风，底部固定孔位，可托运。",
-   "features": [
-    "IATA 标准",
-    "四面通风",
-    "金属门+锁扣",
-    "底部固定孔"
-   ]
-  }
- },
- {
-  "id": "p53",
-  "sub": "pet-travel",
-  "min": 9.5,
-  "max": 15.5,
-  "moq": 300,
-  "lead": 22,
-  "certs": [
-   "CE"
-  ],
-  "hue": 58,
-  "rating": 4.6,
-  "orders": 5600,
-  "pets": [
-   "cat",
-   "dog-small"
-  ],
-  "size": "small",
-  "material": "PC + 透气网",
-  "en": {
-   "title": "Space Capsule Pet Backpack 360° Ventilated",
-   "desc": "Transparent capsule backpack with breathable mesh panels, padded straps, removable mat and internal safety leash.",
-   "features": [
-    "360° ventilation",
-    "Padded shoulder straps",
-    "Removable mat",
-    "Internal safety leash"
-   ]
-  },
-  "zh": {
-   "title": "太空舱宠物背包 全透气",
-   "desc": "透明太空舱背包，侧面大面积透气网，肩带加厚减压，内垫可拆洗，内置安全挂钩。",
-   "features": [
-    "四面透气",
-    "加厚肩带",
-    "内垫可拆洗",
-    "内置安全挂钩"
-   ]
-  }
- },
- {
-  "id": "p54",
-  "sub": "pet-travel",
-  "min": 11.5,
-  "max": 18.5,
-  "moq": 200,
-  "lead": 28,
-  "certs": [
-   "CE",
-   "RoHS"
-  ],
-  "hue": 60,
-  "rating": 4.5,
-  "orders": 2700,
-  "pets": [
-   "cat",
-   "dog-small",
-   "dog-large"
-  ],
-  "size": "medium",
-  "material": "ABS + 电子模块",
-  "en": {
-   "title": "Smart Pet Feeder 6L with App Control",
-   "desc": "6L WiFi feeder, 1–10 meals per day with portion control, voice recording, dual power (adapter + battery backup), BPA-free bin.",
-   "features": [
-    "6L sealed bin",
-    "App scheduling",
-    "Voice recording",
-    "Battery backup"
-   ]
-  },
-  "zh": {
-   "title": "智能宠物喂食器 6L WiFi",
-   "desc": "6L 密封粮桶，App 定时定量（每日 1–10 餐），支持录音呼唤，适配器+电池双供电，粮桶 BPA-free。",
-   "features": [
-    "6L 密封粮桶",
-    "App 定时定量",
-    "录音呼唤",
-    "断电电池续航"
-   ]
-  }
- }
-];
-
-for (const p of PET_EXTRA) {
-  PRODUCTS.push({
-    id: p.id, sellerId: PLATFORM_SELLER_ID, cat: 'pet', country: 'CN', sub: p.sub,
-    priceMin: p.min, priceMax: p.max, moq: p.moq, unit: 'pcs', leadTime: p.lead,
-    terms: ['FOB', 'CIF', 'EXW'], certs: p.certs, rating: p.rating, orders: p.orders, hue: p.hue,
-    pets: p.pets, petSize: p.size, material: p.material,
-    en: p.en, zh: p.zh
-  });
-}
-
-/* 宠物属性 → 展示标签 */
-const PET_LABELS = {
-  'hamster': { zh: '仓鼠', en: 'Hamster' },
-  'small-pet': { zh: '小宠', en: 'Small pet' },
-  'cat': { zh: '猫', en: 'Cat' },
-  'dog-small': { zh: '小型犬', en: 'Small dog' },
-  'dog-large': { zh: '大型犬', en: 'Large dog' }
-};
-const PET_SIZE_LABELS = {
-  'small': { zh: '小型', en: 'Small' },
-  'medium': { zh: '中型', en: 'Medium' },
-  'large': { zh: '大型', en: 'Large' }
-};
-function petLabel(code) { return PET_LABELS[code] || { zh: code, en: code }; }
-function petSizeLabel(code) { return PET_SIZE_LABELS[code] || { zh: code, en: code }; }
-
 const INCOTERMS = [
   { code: 'EXW', zh: '工厂交货：买方负责从工厂提货后的全部运输与费用', en: 'Ex Works: buyer arranges all transport after pickup at seller premises' },
   { code: 'FOB', zh: '装运港船上交货：卖方承担货物装船前的费用与风险', en: 'Free On Board: seller covers costs and risk until goods are on board' },
@@ -2177,11 +1306,11 @@ const I18N = {
     moq: '最小起订量', origin: '产地', certs: '认证', clearFilters: '清除筛选', sort: '排序',
     sortRecommended: '综合推荐', sortNewest: '最新上架', sortPriceAsc: '价格从低到高', sortPriceDesc: '价格从高到低',
     noResults: '未找到匹配的产品', noResultsHint: '试试调整筛选条件或更换关键词', searchResultsFor: '“{kw}”的搜索结果',
-    moqLabel: '起订量', verified: '自营 · 已核验', hot: '热销', new: '新品', sendInquiry: '向豆豆鼠询问', viewDetail: '查看详情',
+    moqLabel: '起订量', verified: '认证供应商', hot: '热销', new: '新品', sendInquiry: '发送询盘', viewDetail: '查看详情',
     priceRangeLabel: '价格区间', leadTime: '交货周期', terms: '贸易术语', originLabel: '产地', seller: '供应商', statusPill: '状态',
     responseRate: '回复率', responseTime: '平均响应', since: '成立年份', orders: '累计订单', unitLabel: '单位',
     productDetail: '产品详情', features: '产品特性', aboutSeller: '关于供应商', days: '天',
-    favorite: '收藏', favorited: '已收藏', inquiryTitle: '向豆豆鼠询问', quantity: '订购数量', message: '询盘内容',
+    favorite: '收藏', favorited: '已收藏', inquiryTitle: '发送询盘', quantity: '订购数量', message: '询盘内容',
     messagePlaceholder: '请填写您需要的数量、目标价格、包装要求等，供应商将尽快回复您。',
     contactName: '联系人', contactEmail: '邮箱', companyName: '公司名称', countryLabel: '国家/地区',
     send: '发送询盘', cancel: '取消', close: '关闭', required: '请填写必填项', invalidEmail: '邮箱格式不正确',
@@ -2226,15 +1355,7 @@ const I18N = {
     activeStatus: '正常', frozenStatus: '已冻结', sellerRoleLabel: '卖家', buyerRoleLabel: '买家',
     noPending: '暂无待审核产品', noCompanies: '暂无待认证企业', noUsers: '暂无用户',
     registerTab: '注册', loginTab: '登录', regTitle: '创建账号', regName: '姓名', regEmail: '邮箱',
-  regPassword: '密码（至少8位，含字母和数字）', regRole: '注册身份', regRoleBuyer: '客户（我要买）', regRoleSeller: '商家（供货 / 托管合作）',
-  supDocTitle: '合作需要的资质材料',
-  supDocNote: '提交后我们会在 3 个工作日内完成审核；通过后洽谈供货或托管合作（选品、包装、出口与售后由我们负责）。',
-  supDoc1: '营业执照或工厂登记证明',
-  supDoc2: '产品检测报告（CE / FCC / RoHS / 食品接触材料等）',
-  supDoc3: '商标注册证或品牌授权文件（如涉及）',
-  supDoc4: '生产许可或行业资质（食品、饲料类必需）',
-  supDoc5: '工厂 / 车间实拍照片与产能说明',
-  supDoc6: '出口报关与结算主体信息',
+    regPassword: '密码（至少8位，含字母和数字）', regRole: '注册身份', regRoleBuyer: '买家', regRoleSeller: '卖家',
     regCompanyName: '公司/工厂名称（需真实可查证）', regCountry: '所在国家/地区', regCity: '城市（选填）',
     regRegNo: '工商注册号/统一社会信用代码', regLicenseNo: '营业执照编号（选填）', regCompanyWebsite: '公司官网（选填）',
     regContact: '联系人/联系电话', regScope: '主营业务范围', regSubmit: '注册', regNote: '注册后需验证邮箱；卖家还需公司/工厂资料通过平台审核后才能发布产品。',
@@ -2371,55 +1492,7 @@ const I18N = {
     contractInspection: '检验', contractForceMajeure: '不可抗力', contractDispute: '争议解决', contractTitle2: '国际货物买卖合同草案'
     ,
     navExport: '出口准备', navLogistics: '物流指南', navCompliance: '合规中心', navDisputes: '售后纠纷',
-    footerTools: '贸易工具',
-  sfEyebrow: '宠物用品自营出口 · 从工厂到海外买家',
-  sfTitle: '把好用的宠物用品，送到全世界的毛孩子家里',
-  sfSub: '自有供应链，支持整柜出口与一件代发；猫、狗、仓鼠与小宠全线覆盖，可做 OEM/ODM 定制，从打样到清关我们全程跟进。',
-  sfArtAlt: '趴在桌边的豆豆鼠',
-  sfArtNote: '豆豆鼠 · 你的宠物用品出口搭档',
-  sfCtaShop: '看看商品',
-  sfCtaVideo: '客户实拍视频',
-  sfCtaAsk: '直接问我',
-  trustOem: 'OEM / ODM 定制',
-  trustShip: '7–15 天出货',
-  trustInspect: '出货前验货',
-  trustAfter: '售后 30 天响应',
-  videoWallTitle: '客户实拍视频墙',
-  videoWallDesc: '来自客户使用我们产品后回传的实拍视频，精选后展示。看真实使用效果，比看参数更有用。',
-  videoWallMore: '看全部视频',
-  videoNoticeTitle: '关于视频来源',
-  videoNoticeDesc: '视频由客户投稿并授权我们展示，仅用于产品使用效果参考，不构成产品性能承诺。转载请联系我们。',
-  videoSubmit: '我也想投稿',
-  promiseTitle: '我们怎么把货交到你手上',
-  promise1T: '先打样再量产',
-  promise1D: '确认样品与包装后再排产，样品费在批量订单中可抵扣。',
-  promise2T: '出货前验货',
-  promise2D: '提供出货前检验照片与视频，第三方验货可代为安排。',
-  promise3T: '单证齐全',
-  promise3D: '商业发票、装箱单、产地证、提单等按目的国要求准备。',
-  promise4T: '问题可追溯',
-  promise4D: '订单过程留痕，出现货损或争议时按约定流程处理。',
-  aboutTitle: '关于我们',
-  aboutArtAlt: '豆豆鼠吉祥物',
-  aboutP1: '豆豆鼠 BeanBeanMouse 做宠物用品的自营出口：猫、狗、仓鼠与小宠的笼具、用品、食品与智能设备。我们自己做选品、验货与出口单证，把中间环节压到最少。',
-  aboutP2: '我们也接受供应商的合作与托管：你负责生产，我们负责选品、包装、出口与售后，风险和库存由我们承担，收益按约定分成。',
-  aboutTeaserTitle: '我们是谁',
-  aboutTeaserDesc: '自营出口 + 供应商托管合作，做宠物用品这一件事。',
-  aboutMore: '了解我们',
-  aboutContactTitle: '联系方式',
-  aboutPending: '待补充',
-  aboutContactEmail: '邮箱',
-  aboutContactWechat: '微信',
-  aboutContactPhone: '电话',
-  aboutContactAddress: '地址',
-  aboutContactNote: '微信 / 电话 / 地址待补充，当前可先通过邮箱联系，我们 1 个工作日内回复。',
-  askCtaTitle: '有想找的宠物用品？',
-  askCtaDesc: '告诉我们品类、数量与目的国，我们 1 个工作日内给到报价与方案。',
-  askCtaBtn: '发起询问',
-  petsLabel: '适用宠物',
-  petSizeLabel: '适用体型',
-  materialLabel: '材质',
-  versionLabel: '版本 pet0.2（演示）',
+    footerTools: '贸易工具', versionLabel: '版本 0.2（演示）',
     exportTitle: '出口准备：资质与前置手续', exportSub: '出口不是“下单就发货”。先备齐经营资质、收汇、退税、许可证与商检手续，才能顺利报关、收汇与退税。',
     exportChecklistTitle: '出口资质清单', exportChecklistSub: '逐项核对你的出口资质；正式办理以主管部门最新规定为准。',
     exportWhat: '是什么', exportWho: '办理机构', exportWhen: '何时需要', exportTip: '提示',
@@ -2527,7 +1600,7 @@ const I18N = {
     attachTypeNotAllowed: '仅支持图片与 ZIP / RAR / 7Z 压缩包', attachmentCount: '个附件', attachmentLabel: '附件',
     exportConv: '导出对话', exportTxt: '导出 TXT', exportHtml: '导出 HTML（含图片）', exportConvHint: '导出询盘往来记录与附件清单，便于归档与留证。',
     regAccountType: '主体类型 *', regIndividual: '个体户 / 个人', regCompany: '公司代表', regBizName: '经营者 / 字号', regJobTitle: '职务（如：采购经理）',
-    regRoleHint: '客户用于采购与询价；商家用于供货或托管合作申请，需提交资质材料由我们审核。',
+    regRoleHint: '买家与卖家均可选择主体类型；向对方发送询盘时会显示你的身份标注。',
     feedbackTitle: '优化建议收集', feedbackSub: '页面、功能、内容或体验上的任何建议都可以告诉我们，运营团队会定期整理并回复。',
     feedbackType: '建议类型', feedbackTypePage: '页面 / 视觉', feedbackTypeFeature: '功能', feedbackTypeContent: '内容 / 信息', feedbackTypeUx: '体验 / 流程', feedbackTypeOther: '其他',
     feedbackContent: '建议内容 *', feedbackContact: '联系方式（可选）', feedbackSubmit: '提交建议', feedbackThanks: '感谢你的建议',
@@ -2556,11 +1629,11 @@ const I18N = {
     moq: 'Min. order', origin: 'Origin', certs: 'Certifications', clearFilters: 'Clear filters', sort: 'Sort',
     sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price low → high', sortPriceDesc: 'Price high → low',
     noResults: 'No matching products', noResultsHint: 'Try adjusting filters or keywords', searchResultsFor: 'Results for “{kw}”',
-    moqLabel: 'MOQ', verified: 'Direct from us', hot: 'Hot', new: 'New', sendInquiry: 'Ask BeanBeanMouse', viewDetail: 'View details',
+    moqLabel: 'MOQ', verified: 'Verified supplier', hot: 'Hot', new: 'New', sendInquiry: 'Send inquiry', viewDetail: 'View details',
     priceRangeLabel: 'Price range', leadTime: 'Lead time', terms: 'Trade terms', originLabel: 'Origin', seller: 'Supplier', statusPill: 'Status',
     responseRate: 'Response rate', responseTime: 'Avg. response', since: 'Since', orders: 'Total orders', unitLabel: 'Unit',
     productDetail: 'Product details', features: 'Key features', aboutSeller: 'About the supplier', days: 'days',
-    favorite: 'Favorite', favorited: 'Favorited', inquiryTitle: 'Ask BeanBeanMouse', quantity: 'Order quantity', message: 'Inquiry message',
+    favorite: 'Favorite', favorited: 'Favorited', inquiryTitle: 'Send an inquiry', quantity: 'Order quantity', message: 'Inquiry message',
     messagePlaceholder: 'Tell the supplier your quantity, target price, packaging requirements, etc.',
     contactName: 'Contact name', contactEmail: 'Email', companyName: 'Company', countryLabel: 'Country',
     send: 'Send inquiry', cancel: 'Cancel', close: 'Close', required: 'Please fill in required fields', invalidEmail: 'Invalid email format',
@@ -2605,15 +1678,7 @@ const I18N = {
     activeStatus: 'Active', frozenStatus: 'Frozen', sellerRoleLabel: 'Seller', buyerRoleLabel: 'Buyer',
     noPending: 'No pending products', noCompanies: 'No pending companies', noUsers: 'No users',
     registerTab: 'Sign up', loginTab: 'Log in', regTitle: 'Create account', regName: 'Name', regEmail: 'Email',
-  regPassword: 'Password (min 8 chars, letters + numbers)', regRole: 'Register as', regRoleBuyer: 'Client (I want to buy)', regRoleSeller: 'Supplier (supply / managed partnership)',
-  supDocTitle: 'Documents we require',
-  supDocNote: 'We review within 3 business days. Approved partners discuss supply or a managed partnership — we handle selection, packaging, export and after-sales.',
-  supDoc1: 'Business licence or factory registration',
-  supDoc2: 'Test reports (CE / FCC / RoHS / food-contact materials etc.)',
-  supDoc3: 'Trademark registration or brand authorisation (if applicable)',
-  supDoc4: 'Production licence or industry permit (required for food & feed)',
-  supDoc5: 'Factory / workshop photos and capacity statement',
-  supDoc6: 'Export declaration and settlement entity details',
+    regPassword: 'Password (min 8 chars, letters + numbers)', regRole: 'Register as', regRoleBuyer: 'Buyer', regRoleSeller: 'Seller',
     regCompanyName: 'Company / factory name (must be real & verifiable)', regCountry: 'Country / region', regCity: 'City (optional)',
     regRegNo: 'Business registration number', regLicenseNo: 'License number (optional)', regCompanyWebsite: 'Company website (optional)',
     regContact: 'Contact person / phone', regScope: 'Main business scope', regSubmit: 'Sign up', regNote: 'Verify your email after sign-up; sellers must pass company/factory verification before publishing.',
@@ -2751,55 +1816,7 @@ const I18N = {
     contractInspection: 'Inspection', contractForceMajeure: 'Force majeure', contractDispute: 'Dispute resolution', contractTitle2: 'Draft International Sale of Goods Contract'
     ,
     navExport: 'Export Readiness', navLogistics: 'Logistics Guide', navCompliance: 'Compliance Center', navDisputes: 'After-sales & Disputes',
-    footerTools: 'Trade tools',
-  sfEyebrow: 'Pet supplies, exported direct from our own supply chain',
-  sfTitle: 'Pet gear that actually works, shipped to pet parents worldwide',
-  sfSub: 'Full-container and dropship friendly. Cats, dogs, hamsters and small pets — with OEM/ODM customisation and support from sampling to customs clearance.',
-  sfArtAlt: 'BeanBeanMouse resting on a desk',
-  sfArtNote: 'BeanBeanMouse · your pet supplies export partner',
-  sfCtaShop: 'Browse products',
-  sfCtaVideo: 'Customer videos',
-  sfCtaAsk: 'Ask us directly',
-  trustOem: 'OEM / ODM',
-  trustShip: 'Ships in 7–15 days',
-  trustInspect: 'Pre-shipment inspection',
-  trustAfter: '30-day after-sales response',
-  videoWallTitle: 'Videos from our customers',
-  videoWallDesc: 'Real footage sent back by customers using our products, curated by us. Real use beats spec sheets.',
-  videoWallMore: 'See all videos',
-  videoNoticeTitle: 'About these videos',
-  videoNoticeDesc: 'Videos are submitted and licensed by customers for reference only and are not a performance guarantee. Contact us before reposting.',
-  videoSubmit: 'Submit your video',
-  promiseTitle: 'How your order reaches you',
-  promise1T: 'Sample before mass production',
-  promise1D: 'We confirm samples and packaging before production. Sample cost is deductible from bulk orders.',
-  promise2T: 'Pre-shipment inspection',
-  promise2D: 'Inspection photos and video before dispatch; third-party inspection can be arranged.',
-  promise3T: 'Complete documentation',
-  promise3D: 'Invoice, packing list, certificate of origin and B/L prepared to your destination requirements.',
-  promise4T: 'Traceable after-sales',
-  promise4D: 'Every order is logged, so damage or disputes follow an agreed process.',
-  aboutTitle: 'About us',
-  aboutArtAlt: 'BeanBeanMouse mascot',
-  aboutP1: 'BeanBeanMouse exports pet supplies directly: cages, daily gear, food and smart devices for cats, dogs, hamsters and small pets. We handle sourcing, inspection and export documents ourselves, cutting out the middle layer.',
-  aboutP2: 'We also partner with suppliers on a managed basis: you manufacture, we handle selection, packaging, export and after-sales. We carry the risk and inventory, and share the margin as agreed.',
-  aboutTeaserTitle: 'Who we are',
-  aboutTeaserDesc: 'Direct export plus managed supplier partnerships — focused on pet supplies only.',
-  aboutMore: 'More about us',
-  aboutContactTitle: 'Contact',
-  aboutPending: 'To be added',
-  aboutContactEmail: 'Email',
-  aboutContactWechat: 'WeChat',
-  aboutContactPhone: 'Phone',
-  aboutContactAddress: 'Address',
-  aboutContactNote: 'WeChat, phone and address will be added later. Email works today — we reply within one business day.',
-  askCtaTitle: 'Looking for a specific pet product?',
-  askCtaDesc: 'Tell us the category, quantity and destination country. You get a quote and plan within one business day.',
-  askCtaBtn: 'Start an enquiry',
-  petsLabel: 'Suitable for',
-  petSizeLabel: 'Pet size',
-  materialLabel: 'Material',
-  versionLabel: 'Version pet0.2 (demo)',
+    footerTools: 'Trade tools', versionLabel: 'Version 0.2 (demo)',
     exportTitle: 'Export Readiness: Qualifications & Formalities', exportSub: 'Exporting is not just "ship after order". Prepare your trading rights, FX receipts, tax rebate, licences and inspection before you can clear customs and get paid.',
     exportChecklistTitle: 'Export qualification checklist', exportChecklistSub: 'Review each item; always follow the latest rules of the competent authorities.',
     exportWhat: 'What it is', exportWho: 'Issuing body', exportWhen: 'When needed', exportTip: 'Tip',
@@ -2907,7 +1924,7 @@ const I18N = {
     attachTypeNotAllowed: 'Only images and ZIP / RAR / 7Z archives are allowed', attachmentCount: 'attachments', attachmentLabel: 'Attachment',
     exportConv: 'Export conversation', exportTxt: 'Export TXT', exportHtml: 'Export HTML (with images)', exportConvHint: 'Export inquiry thread and attachment list for your records.',
     regAccountType: 'Account type *', regIndividual: 'Individual / Sole proprietor', regCompany: 'Company representative', regBizName: 'Business name', regJobTitle: 'Job title (e.g. Purchasing Manager)',
-    regRoleHint: 'Clients register to buy and request quotes. Suppliers apply for supply or a managed partnership and must submit qualification documents for review.',
+    regRoleHint: 'Both buyers and sellers can choose an account type; it will be shown when you send inquiries.',
     feedbackTitle: 'Feedback & suggestions', feedbackSub: 'Tell us about pages, features, content or experience — our team reviews and responds periodically.',
     feedbackType: 'Suggestion type', feedbackTypePage: 'Page / visual', feedbackTypeFeature: 'Feature', feedbackTypeContent: 'Content / info', feedbackTypeUx: 'Experience / flow', feedbackTypeOther: 'Other',
     feedbackContent: 'Your suggestion *', feedbackContact: 'Contact (optional)', feedbackSubmit: 'Submit', feedbackThanks: 'Thank you!',
