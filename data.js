@@ -28,33 +28,35 @@ const SELLERS = [
 function pendingSeedProducts() {
   return [
     {
-      id: 'p15', sellerId: 's4', cat: 'furniture', country: 'TR', status: 'pending',
-      priceMin: 8.5, priceMax: 15, moq: 100, unit: 'pcs', leadTime: 20,
-      terms: ['FOB', 'CIF'], certs: [], rating: 0, orders: 0, hue: 340,
+      id: 'p15', sellerId: 'bbm', cat: 'pet', sub: 'pet-cat', country: 'CN', status: 'pending',
+      priceMin: 28, priceMax: 45, moq: 100, unit: 'pcs', leadTime: 22,
+      terms: ['FOB', 'CIF'], certs: ['CE', 'RoHS'], rating: 0, orders: 0, hue: 32,
+      pets: ['cat'], petSize: 'medium', material: 'ABS + 硅胶',
       en: {
-        title: 'Replica Luxury Watch Display Boxes',
-        desc: 'Premium watch display boxes with branded engraving, available in gift packaging. Replica designs of well-known brands accepted on request.',
-        features: ['Branded engraving', 'Gift packaging', 'Replica designs available']
+        title: 'Smart Self-Cleaning Cat Litter Box 6L',
+        desc: 'Automatic self-cleaning litter box with 6L waste drawer, weight sensing, app tracking and odour seal. Suitable for cats 3.5-8kg.',
+        features: ['Auto self-cleaning', 'Weight sensing + app', 'Odour-sealed drawer', 'For cats 3.5-8kg']
       },
       zh: {
-        title: '仿牌豪华手表展示盒',
-        desc: '高端手表展示盒，支持品牌刻字与礼盒包装，可按客户要求制作知名品牌仿制款式。',
-        features: ['品牌刻字', '礼盒包装', '可定制仿牌款式']
+        title: '智能自动清理猫砂盆 6L',
+        desc: '自动清理猫砂盆，6L 集便盒，带重量感应与 App 记录，密封除臭；适用 3.5-8kg 猫咪。',
+        features: ['自动清理', '重量感应 + App', '密封除臭集便盒', '适用 3.5-8kg']
       }
     },
     {
-      id: 'p16', sellerId: 's5', cat: 'textiles', country: 'IN', status: 'pending',
-      priceMin: 0.8, priceMax: 1.4, moq: 500, unit: 'pcs', leadTime: 22,
-      terms: ['CIF', 'EXW'], certs: ['OEKO-TEX'], rating: 0, orders: 0, hue: 95,
+      id: 'p16', sellerId: 'bbm', cat: 'pet', sub: 'pet-cat', country: 'CN', status: 'pending',
+      priceMin: 9.5, priceMax: 16, moq: 300, unit: 'pcs', leadTime: 20,
+      terms: ['CIF', 'EXW'], certs: ['OEKO-TEX'], rating: 0, orders: 0, hue: 30,
+      pets: ['cat', 'dog-small'], petSize: 'medium', material: '短绒面料 + 海绵',
       en: {
-        title: 'Organic Jute Shopping Bags with Cotton Lining',
-        desc: 'Eco-friendly jute shopping bags with cotton lining, 12 colors, custom logo printing with eco ink. Ideal for retail and supermarket promotion.',
-        features: ['Natural jute, cotton lining', 'Custom eco-ink printing', '12 colors in stock']
+        title: 'Replica Branded Pet Bed (compliance test fixture)',
+        desc: 'Plush pet bed with removable cushion, 3 sizes. Listing contains replica branded wording on purpose so the compliance screening has a case to catch.',
+        features: ['Removable cushion', '3 sizes', 'Non-slip base']
       },
       zh: {
-        title: '有机黄麻购物袋（棉内衬）',
-        desc: '环保黄麻购物袋，棉质内衬，12 色可选，支持环保油墨定制 LOGO，适用于零售与商超促销。',
-        features: ['天然黄麻 + 棉内衬', '环保油墨定制 LOGO', '12 色现货']
+        title: '仿牌宠物窝（合规审核演示用）',
+        desc: '短绒宠物窝，含可拆洗内垫，三种尺寸，底部防滑。标题故意保留"仿牌"字样，用于演示合规筛查拦截。',
+        features: ['可拆洗内垫', '三种尺寸', '底部防滑']
       }
     }
   ];
@@ -62,7 +64,7 @@ function pendingSeedProducts() {
 
 const PRODUCTS = [
   {
-    id: 'p1', sellerId: 's1', cat: 'machinery', country: 'CN', featured: true, hot: true,
+    id: 'p1', sellerId: 'bbm', cat: 'machinery', country: 'CN', featured: true, hot: true,
     priceMin: 12800, priceMax: 18600, moq: 1, unit: 'set', leadTime: 20,
     terms: ['FOB', 'CIF'], certs: ['CE', 'ISO9001'], rating: 4.9, orders: 320, hue: 210,
     en: {
@@ -77,7 +79,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p2', sellerId: 's2', cat: 'machinery', country: 'CN', featured: true,
+    id: 'p2', sellerId: 'bbm', cat: 'machinery', country: 'CN', featured: true,
     priceMin: 23500, priceMax: 32800, moq: 1, unit: 'set', leadTime: 35,
     terms: ['FOB', 'CIF'], certs: ['CE', 'ISO9001'], rating: 4.8, orders: 210, hue: 200,
     en: {
@@ -92,7 +94,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p3', sellerId: 's2', cat: 'electronics', country: 'CN', featured: true, hot: true,
+    id: 'p3', sellerId: 'bbm', cat: 'electronics', country: 'CN', featured: true, hot: true,
     priceMin: 2.8, priceMax: 4.5, moq: 1000, unit: 'pcs', leadTime: 15,
     terms: ['FOB', 'EXW'], certs: ['CE', 'FCC', 'RoHS'], rating: 4.7, orders: 15800, hue: 262,
     en: {
@@ -107,7 +109,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p4', sellerId: 's3', cat: 'electronics', country: 'VN', hot: true,
+    id: 'p4', sellerId: 'bbm', cat: 'electronics', country: 'VN', hot: true,
     priceMin: 6.5, priceMax: 9.8, moq: 500, unit: 'pcs', leadTime: 18,
     terms: ['FOB', 'CIF'], certs: ['CE', 'FCC', 'RoHS'], rating: 4.6, orders: 9200, hue: 275,
     en: {
@@ -122,7 +124,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p5', sellerId: 's1', cat: 'textiles', country: 'CN', featured: true,
+    id: 'p5', sellerId: 'bbm', cat: 'textiles', country: 'CN', featured: true,
     priceMin: 3.2, priceMax: 4.8, moq: 500, unit: 'kg', leadTime: 12,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX', 'GOTS'], rating: 4.8, orders: 5600, hue: 330,
     en: {
@@ -137,7 +139,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p6', sellerId: 's5', cat: 'textiles', country: 'IN',
+    id: 'p6', sellerId: 'bbm', cat: 'textiles', country: 'IN',
     priceMin: 2.1, priceMax: 3.6, moq: 200, unit: 'pcs', leadTime: 25,
     terms: ['CIF', 'EXW'], certs: ['OEKO-TEX'], rating: 4.5, orders: 2300, hue: 350,
     en: {
@@ -152,7 +154,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p7', sellerId: 's3', cat: 'furniture', country: 'VN', featured: true,
+    id: 'p7', sellerId: 'bbm', cat: 'furniture', country: 'VN', featured: true,
     priceMin: 680, priceMax: 950, moq: 10, unit: 'set', leadTime: 30,
     terms: ['FOB', 'CIF'], certs: ['FSC'], rating: 4.7, orders: 860, hue: 24,
     en: {
@@ -167,7 +169,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p8', sellerId: 's4', cat: 'furniture', country: 'TR',
+    id: 'p8', sellerId: 'bbm', cat: 'furniture', country: 'TR',
     priceMin: 420, priceMax: 560, moq: 20, unit: 'set', leadTime: 28,
     terms: ['FOB', 'CIF'], certs: [], rating: 4.4, orders: 1500, hue: 16,
     en: {
@@ -182,7 +184,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p9', sellerId: 's1', cat: 'chemicals', country: 'CN', featured: true,
+    id: 'p9', sellerId: 'bbm', cat: 'chemicals', country: 'CN', featured: true,
     priceMin: 780, priceMax: 940, moq: 10, unit: 'ton', leadTime: 14,
     terms: ['FOB', 'CIF'], certs: ['ISO9001', 'SGS'], rating: 4.8, orders: 7200, hue: 160,
     en: {
@@ -197,7 +199,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p10', sellerId: 's5', cat: 'chemicals', country: 'IN',
+    id: 'p10', sellerId: 'bbm', cat: 'chemicals', country: 'IN',
     priceMin: 4.9, priceMax: 6.8, moq: 200, unit: 'L', leadTime: 20,
     terms: ['CIF', 'EXW'], certs: ['ISO9001'], rating: 4.3, orders: 980, hue: 150,
     en: {
@@ -212,7 +214,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p11', sellerId: 's2', cat: 'auto', country: 'CN', featured: true, hot: true,
+    id: 'p11', sellerId: 'bbm', cat: 'auto', country: 'CN', featured: true, hot: true,
     priceMin: 28, priceMax: 42, moq: 100, unit: 'pcs', leadTime: 18,
     terms: ['FOB', 'EXW'], certs: ['CE', 'TÜV', 'RoHS'], rating: 4.9, orders: 4100, hue: 210,
     en: {
@@ -227,7 +229,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p12', sellerId: 's5', cat: 'auto', country: 'IN',
+    id: 'p12', sellerId: 'bbm', cat: 'auto', country: 'IN',
     priceMin: 310, priceMax: 450, moq: 5, unit: 'pcs', leadTime: 26,
     terms: ['FOB', 'CIF'], certs: ['ISO9001'], rating: 4.6, orders: 1300, hue: 355,
     en: {
@@ -242,7 +244,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p13', sellerId: 's2', cat: 'electronics', country: 'CN',
+    id: 'p13', sellerId: 'bbm', cat: 'electronics', country: 'CN',
     priceMin: 26, priceMax: 39, moq: 200, unit: 'pcs', leadTime: 15,
     terms: ['FOB', 'EXW'], certs: ['CE', 'FCC', 'RoHS'], rating: 4.5, orders: 6800, hue: 285,
     en: {
@@ -257,7 +259,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p14', sellerId: 's4', cat: 'machinery', country: 'TR',
+    id: 'p14', sellerId: 'bbm', cat: 'machinery', country: 'TR',
     priceMin: 2400, priceMax: 3600, moq: 1, unit: 'set', leadTime: 40,
     terms: ['FOB', 'CIF'], certs: ['CE'], rating: 4.7, orders: 420, hue: 190,
     en: {
@@ -272,7 +274,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p17', sellerId: 's3', cat: 'sports', country: 'VN', featured: true,
+    id: 'p17', sellerId: 'bbm', cat: 'sports', country: 'VN', featured: true,
     priceMin: 7.5, priceMax: 12, moq: 200, unit: 'pcs', leadTime: 25,
     terms: ['FOB', 'CIF'], certs: ['EN71', 'ISO9001'], rating: 4.6, orders: 4200, hue: 128,
     en: {
@@ -287,7 +289,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p18', sellerId: 's5', cat: 'sports', country: 'IN',
+    id: 'p18', sellerId: 'bbm', cat: 'sports', country: 'IN',
     priceMin: 3.2, priceMax: 5.5, moq: 500, unit: 'pcs', leadTime: 18,
     terms: ['FOB', 'CIF'], certs: ['SGS'], rating: 4.4, orders: 7600, hue: 145,
     en: {
@@ -302,7 +304,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p19', sellerId: 's4', cat: 'gifts', country: 'TR',
+    id: 'p19', sellerId: 'bbm', cat: 'gifts', country: 'TR',
     priceMin: 9.8, priceMax: 16, moq: 100, unit: 'pcs', leadTime: 28,
     terms: ['FOB', 'EXW'], certs: ['CE'], rating: 4.7, orders: 2900, hue: 350,
     en: {
@@ -317,7 +319,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p20', sellerId: 's4', cat: 'gifts', country: 'TR',
+    id: 'p20', sellerId: 'bbm', cat: 'gifts', country: 'TR',
     priceMin: 6.5, priceMax: 11, moq: 300, unit: 'set', leadTime: 22,
     terms: ['FOB', 'CIF'], certs: ['FDA'], rating: 4.5, orders: 5100, hue: 15,
     en: {
@@ -332,7 +334,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p21', sellerId: 's1', cat: 'hardware', country: 'CN', hot: true,
+    id: 'p21', sellerId: 'bbm', cat: 'hardware', country: 'CN', hot: true,
     priceMin: 18, priceMax: 29, moq: 100, unit: 'set', leadTime: 20,
     terms: ['FOB', 'CIF'], certs: ['CE', 'GS'], rating: 4.8, orders: 9400, hue: 30,
     en: {
@@ -347,7 +349,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p22', sellerId: 's1', cat: 'hardware', country: 'CN',
+    id: 'p22', sellerId: 'bbm', cat: 'hardware', country: 'CN',
     priceMin: 32, priceMax: 48, moq: 50, unit: 'set', leadTime: 25,
     terms: ['FOB', 'CIF'], certs: ['ISO9001'], rating: 4.6, orders: 3300, hue: 24,
     en: {
@@ -362,7 +364,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p23', sellerId: 's2', cat: 'pet', country: 'CN', hot: true,
+    id: 'p23', sellerId: 'bbm', cat: 'pet', country: 'CN', hot: true,
     sub: 'pet-cat',
     priceMin: 24, priceMax: 39, moq: 200, unit: 'pcs', leadTime: 15,
     terms: ['FOB', 'CIF'], certs: ['CE', 'RoHS'], rating: 4.7, orders: 8200, hue: 285,
@@ -378,7 +380,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p24', sellerId: 's4', cat: 'pet', country: 'TR',
+    id: 'p24', sellerId: 'bbm', cat: 'pet', country: 'TR',
     sub: 'pet-cat',
     priceMin: 12, priceMax: 18, moq: 150, unit: 'pcs', leadTime: 24,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.5, orders: 2100, hue: 275,
@@ -394,7 +396,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p25', sellerId: 's3', cat: 'pet', country: 'VN', sub: 'pet-hamster', featured: true, hot: true,
+    id: 'p25', sellerId: 'bbm', cat: 'pet', country: 'VN', sub: 'pet-hamster', featured: true, hot: true,
     priceMin: 8.5, priceMax: 15, moq: 100, unit: 'set', leadTime: 20,
     terms: ['FOB', 'CIF'], certs: ['EN71', 'ISO9001'], rating: 4.7, orders: 5600, hue: 282,
     en: {
@@ -409,7 +411,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p26', sellerId: 's5', cat: 'pet', country: 'IN', sub: 'pet-hamster',
+    id: 'p26', sellerId: 'bbm', cat: 'pet', country: 'IN', sub: 'pet-hamster',
     priceMin: 1.2, priceMax: 2.4, moq: 500, unit: 'bag', leadTime: 15,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.5, orders: 9800, hue: 290,
     en: {
@@ -424,7 +426,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p27', sellerId: 's4', cat: 'pet', country: 'TR', sub: 'pet-cat', featured: true,
+    id: 'p27', sellerId: 'bbm', cat: 'pet', country: 'TR', sub: 'pet-cat', featured: true,
     priceMin: 6.8, priceMax: 11, moq: 200, unit: 'set', leadTime: 22,
     terms: ['FOB', 'CIF'], certs: ['REACH'], rating: 4.6, orders: 7300, hue: 268,
     en: {
@@ -439,7 +441,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p28', sellerId: 's2', cat: 'pet', country: 'CN', sub: 'pet-cat', featured: true,
+    id: 'p28', sellerId: 'bbm', cat: 'pet', country: 'CN', sub: 'pet-cat', featured: true,
     priceMin: 13, priceMax: 21, moq: 150, unit: 'pcs', leadTime: 15,
     terms: ['FOB', 'CIF'], certs: ['CE', 'FDA', 'RoHS'], rating: 4.7, orders: 6100, hue: 200,
     en: {
@@ -454,7 +456,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p29', sellerId: 's3', cat: 'pet', country: 'VN', sub: 'pet-dog-small', hot: true,
+    id: 'p29', sellerId: 'bbm', cat: 'pet', country: 'VN', sub: 'pet-dog-small', hot: true,
     priceMin: 3.6, priceMax: 6.5, moq: 300, unit: 'set', leadTime: 18,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.6, orders: 8800, hue: 220,
     en: {
@@ -469,7 +471,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p30', sellerId: 's4', cat: 'pet', country: 'TR', sub: 'pet-dog-large', featured: true,
+    id: 'p30', sellerId: 'bbm', cat: 'pet', country: 'TR', sub: 'pet-dog-large', featured: true,
     priceMin: 9.8, priceMax: 16, moq: 150, unit: 'set', leadTime: 24,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.8, orders: 4700, hue: 240,
     en: {
@@ -484,7 +486,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p31', sellerId: 's5', cat: 'pet', country: 'IN', sub: 'pet-dog-large', hot: true,
+    id: 'p31', sellerId: 'bbm', cat: 'pet', country: 'IN', sub: 'pet-dog-large', hot: true,
     priceMin: 2.8, priceMax: 5.2, moq: 300, unit: 'pcs', leadTime: 16,
     terms: ['FOB', 'CIF'], certs: ['EN71'], rating: 4.5, orders: 11900, hue: 255,
     en: {
@@ -499,7 +501,7 @@ const PRODUCTS = [
     }
   },
   {
-    id: 'p32', sellerId: 's3', cat: 'pet', country: 'VN', sub: 'pet-grooming',
+    id: 'p32', sellerId: 'bbm', cat: 'pet', country: 'VN', sub: 'pet-grooming',
     priceMin: 2.2, priceMax: 4.0, moq: 400, unit: 'pcs', leadTime: 15,
     terms: ['FOB', 'CIF'], certs: ['OEKO-TEX'], rating: 4.4, orders: 6600, hue: 300,
     en: {
@@ -516,7 +518,7 @@ const PRODUCTS = [
 ].concat(pendingSeedProducts());
 
 const DEMO_USERS = {
-  seller: { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 's1', accountType: 'company', jobTitle: '外贸经理', company: '杭州云帆机械有限公司' },
+  seller: { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 'bbm', accountType: 'company', jobTitle: '外贸经理', company: '杭州云帆机械有限公司' },
   buyer:  { id: 'u-buyer',  role: 'buyer',  name: 'Thomas Müller', email: 'buyer@demo.com', buyerCompany: 'Müller GmbH', buyerCountry: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager' },
   admin:  { id: 'u-admin',  role: 'admin',  name: '平台管理员', email: 'admin@demo.com', accountType: 'company', jobTitle: '平台运营' }
 };
@@ -1529,6 +1531,11 @@ const MARKETS_BY_PRODUCT = {
   p29: ['EU', 'US', 'ASIA'], p30: ['EU', 'US'], p31: ['EU', 'US'], p32: ['EU', 'US', 'ASIA']
 };
 
+/* pet0.2：新增概念商品补默认目标市场（宠物用品主销欧美与亚洲） */
+for (const _p of PRODUCTS) {
+  if (!MARKETS_BY_PRODUCT[_p.id]) MARKETS_BY_PRODUCT[_p.id] = ['EU', 'US', 'ASIA'];
+}
+
 /* 演示用中英短语翻译库（正式版接入 AI 翻译服务） */
 const TRANSLATION_DICT = [
   ['您好', 'Hello'], ['你好', 'Hi'], ['感谢', 'Thank you'], ['谢谢', 'Thanks'], ['麻烦', 'Please'],
@@ -1671,10 +1678,10 @@ const COUNTRY_NAMES = {
 function buildUsers(now) {
   return [
     { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: '豆豆鼠运营部', country: 'CN', accountType: 'company', jobTitle: '平台运营', joinedAt: now - 864e5 * 220, status: 'active' },
-    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', sellerId: 's1', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
+    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', sellerId: 'bbm', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
     { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', company: 'Müller GmbH', country: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager', joinedAt: now - 864e5 * 90, status: 'active' },
-    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', sellerId: 's2', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
-    { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', sellerId: 's3', accountType: 'company', jobTitle: 'Export Manager', joinedAt: now - 864e5 * 60, status: 'active' },
+    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', sellerId: 'bbm', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
+    { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', sellerId: 'bbm', accountType: 'company', jobTitle: 'Export Manager', joinedAt: now - 864e5 * 60, status: 'active' },
     { id: 'u6', role: 'buyer', name: 'Maria Garcia', email: 'maria@iberia-sourcing.es', company: 'Iberia Sourcing', country: 'ES', accountType: 'individual', jobTitle: '店主', joinedAt: now - 864e5 * 40, status: 'active' },
     { id: 'u7', role: 'buyer', name: '田中一郎', email: 'tanaka@tokyo-trading.jp', company: 'Tokyo Trading', country: 'JP', accountType: 'company', jobTitle: '采购课长', joinedAt: now - 864e5 * 25, status: 'active' },
     { id: 'u8', role: 'buyer', name: 'Ahmed Al Farsi', email: 'ahmed@gulf-imports.ae', company: 'Gulf Imports', country: 'AE', accountType: 'company', jobTitle: 'Buyer', joinedAt: now - 864e5 * 8, status: 'active' }
@@ -3078,24 +3085,24 @@ function seedDemoData() {
     products: PRODUCTS.map(p => ({ ...p, hsCode: p.hsCode || HS_BY_CAT[p.cat] || '', markets: p.markets || MARKETS_BY_PRODUCT[p.id] || [] })),
     inquiries: [
       {
-        id: 'i1', productId: 'p1', sellerId: 's1', buyerId: 'u-buyer',
+        id: 'i1', productId: 'p1', sellerId: 'bbm', buyerId: 'u-buyer',
         name: 'Thomas Müller', email: 'thomas.mueller@muller-gmbh.de', company: 'Müller GmbH', country: 'DE',
         qty: 2, unit: 'set', message: 'Hello, we need 2 units of the 3000W laser cutter with exchange table. Could you quote CIF Hamburg including installation training?', createdAt: now - 1000 * 60 * 60 * 5, status: 'new', reply: ''
       },
       {
-        id: 'i2', productId: 'p3', sellerId: 's2', buyerId: 'u-buyer',
+        id: 'i2', productId: 'p3', sellerId: 'bbm', buyerId: 'u-buyer',
         name: 'Thomas Müller', email: 'thomas.mueller@muller-gmbh.de', company: 'Müller GmbH', country: 'DE',
         qty: 5000, unit: 'pcs', message: 'Please quote for 5,000 pcs with custom logo packaging. What is the price for the 2-color option?', createdAt: now - 1000 * 60 * 60 * 30, status: 'handled', reply: 'Hi Thomas, thanks for your inquiry. Price for 5,000 pcs with custom logo is USD 3.2/pc FOB Shenzhen. Lead time 15 days. We will send the packaging mockup tomorrow.'
       },
       {
-        id: 'i3', productId: 'p5', sellerId: 's1', buyerId: 'u-buyer',
+        id: 'i3', productId: 'p5', sellerId: 'bbm', buyerId: 'u-buyer',
         name: 'Sarah Johnson', email: 'sarah.j@greenloom.com', company: 'GreenLoom Textiles', country: 'US',
         qty: 1000, unit: 'kg', message: 'Hi, we are sourcing GOTS organic cotton jersey for our kids line. Do you have light blue in stock? Please quote CIF New York for 1,000 kg.', createdAt: now - 1000 * 60 * 60 * 52, status: 'new', reply: ''
       }
     ],
     orders: [
       {
-        id: 'o1', inquiryId: 'i1', productId: 'p1', buyerId: 'u-buyer', sellerId: 's1',
+        id: 'o1', inquiryId: 'i1', productId: 'p1', buyerId: 'u-buyer', sellerId: 'bbm',
         status: 'complete', total: 13500, currency: 'USD', quantity: 2, unit: 'set',
         shippingMarks: 'BBM / NINGBO→HAMBURG / C/NO.1-2',
         createdAt: now - 26 * 864e5, receiptConfirmedAt: now - 4 * 864e5,
