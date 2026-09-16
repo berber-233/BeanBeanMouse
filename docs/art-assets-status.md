@@ -9,13 +9,25 @@
 | 项 | 约定 |
 | --- | --- |
 | 图片模型 | `doubao-seedream-5-0-pro-260628`（火山方舟 `images/generations`，同步接口） |
-| 视频模型 | `doubao-seedance-2-5-260628`（异步任务，图生视频，首帧驱动） |
+| 视频模型 | `doubao-seedance-2-0-fast-260128`（异步任务，图生视频，首帧驱动）——**2026-09-16 起为默认**；下方 2026-09-11 的资产是用 `doubao-seedance-2-5-260628` 生成的 |
 | 出图口径 | **直接采用模型原始出图**，不做后期像素化 / 人工描摹；改动只限等比缩放、居中裁切、格式转换 |
 | 母版 | 原始出图留在 `outputs/art/**`、`outputs/video/**`（不部署，仅留存与重制） |
 | 网站用图 | `assets/**`，统一由 `work/build-art.ps1` 从母版生成（缩放 / 裁切 / 落位），可重复执行 |
 | 质检 | `work/png-stats.mjs`（色数、硬边比例、主色板）、`work/video-info.mjs`（时长/分辨率/体积）、`node test/verify.cjs` |
 
 技能与脚本：`~/.codex/skills/seedream-image`、`~/.codex/skills/seedance-video`（密钥在各自 `.env`，不入库）。
+
+## 模型配置变更（2026-09-16）
+
+| 项 | 变更后 | 说明 |
+| --- | --- | --- |
+| 图片（默认） | `doubao-seedream-5-0-pro-260628` | 唯一登记模型；别名 `5-0-pro` |
+| 图片（其他） | 不再登记 `doubao-seedream-5-0-260128` | 该 ID 服务端参数解析异常（任意合法参数都报 `InvalidParameter: unable to decode '' as int64`），按用户决定移除 |
+| 视频（默认） | `doubao-seedance-2-0-fast-260128` | 别名 `2-0-fast`；旧的 `2-5` / `2-0-mini` 别名已删除 |
+
+**图生视频实测（2026-09-16，空运场景首帧）**：`2-0-fast` 支持 `--image` 首帧驱动，出片 5.09s / 3.6MB（2-5 同场景为 5.06s / 5.6MB）；
+原始出片接缝 31.77（不循环），经 `work/make-loop2.mjs` 优化后**接缝 3.78 / 动感 6.39 / 背景动感 9.24 / 无硬切**，体积 404KB。
+结论：新默认模型可完整跑通「生成 → 循环优化 → 落位」流程，动作幅度与背景运动都比 2-5 更明显。
 
 ## 当前资产
 
