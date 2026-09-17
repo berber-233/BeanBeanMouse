@@ -359,15 +359,15 @@ function renderHome() {
     + '<div class="promise-grid">' + [
       ['promise1T', 'promise1D'], ['promise2T', 'promise2D'], ['promise3T', 'promise3D'], ['promise4T', 'promise4D']
     ].map(x => '<div class="promise-card"><h3>' + t(x[0]) + '</h3><p>' + t(x[1]) + '</p></div>').join('') + '</div></section>'
+    + '<div class="cta-band">'
+    + '<div><h2>' + t('askCtaTitle') + '</h2><p>' + t('askCtaDesc') + '</p></div>'
+    + '<button type="button" class="btn btn-accent btn-lg" data-action="catreq-open">' + t('askCtaBtn') + '</button>'
+    + '</div>'
     /* 关于我们预告 */
     + '<section class="section about-teaser">'
     + '<div class="about-teaser-art"><img src="assets/pet/about-hamster.png" alt="" width="360" height="360" loading="lazy" decoding="async"></div>'
     + '<div class="about-teaser-copy"><h2>' + t('aboutTeaserTitle') + '</h2><p>' + t('aboutTeaserDesc') + '</p>'
     + '<a class="btn btn-accent" href="#/about" data-nav="/about">' + t('aboutMore') + '</a></div></section>'
-    + '<div class="cta-band">'
-    + '<div><h2>' + t('askCtaTitle') + '</h2><p>' + t('askCtaDesc') + '</p></div>'
-    + '<button type="button" class="btn btn-accent btn-lg" data-action="catreq-open">' + t('askCtaBtn') + '</button>'
-    + '</div>'
     + '</div>';
 }
 
@@ -478,7 +478,7 @@ function renderProducts(params) {
   const certs = (params.get('certs') || '').split(',').filter(Boolean);
   const origins = Array.from(new Set(liveProducts().map(p => p.country)));
   const catObj = CATEGORIES.find(c => c.id === cat) || null;
-  const catSubs = catObj ? (catObj.subs || []) : [];
+  const catSubs = catObj ? (catObj.subs || []) : (CATEGORIES[0] ? (CATEGORIES[0].subs || []) : []);
 
   let list = liveProducts();
   if (kw) {

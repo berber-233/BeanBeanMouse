@@ -119,9 +119,11 @@ function applyViewerLang(root) {
 function loadState() {
   try {
     const s = api.storage.getState();
-    if (s && Array.isArray(s.products) && s.products.length && s.inquiries && s.favorites) return s;
+    /* 版本不符（演示数据换过）就丢弃旧缓存重建，否则老访客会一直看到过期目录 */
+    if (s && s.dataVersion === DATA_VERSION && Array.isArray(s.products) && s.products.length && s.inquiries && s.favorites) return s;
   } catch (e) { /* 忽略并重建 */ }
   const fresh = seedDemoData();
+  fresh.dataVersion = DATA_VERSION;
   api.storage.setState(fresh);
   return fresh;
 }
@@ -791,7 +793,24 @@ function handleAction(el) {
     }
     case 'logout': logout(false); break;
     case 'switch-role': logout(false, true); break;
-    case 'go-dashboard': go('/dashboard'); break;
+      case 'go-dashboard': go('/dashboard'); break;
+      case 'toggle-nav': {
+        const nav = $('.main-nav');
+        if (nav) {
+          const open = nav.classList.toggle('open');
+          el.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        break;
+      }
+      case 'toggle-user-menu': {
+        const menu = $('#userMenu');
+        if (menu) {
+          const willOpen = menu.hidden;
+          menu.hidden = !willOpen;
+          el.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        }
+        break;
+      }
     case 'close-modal': closeModal(); break;
     case 'delete-product': deleteProduct(id); break;
     case 'toggle-status': toggleStatus(id); break;
@@ -1025,13 +1044,20 @@ function renderHeader() {
   }
   if (u) {
     ua.innerHTML = bellHtml +
-      '<button type="button" class="user-chip" data-action="go-dashboard">'
+      '<button type="button" class="user-chip" data-action="toggle-user-menu" aria-haspopup="true" aria-expanded="false">'
       + '<span class="avatar">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span>'
       + '<span>' + esc(u.name) + '</span>'
       + '<span class="role-tag">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span>'
       + '</button>'
-      + '<a class="icon-btn" href="#/dashboard/profile" data-nav="/dashboard/profile" title="' + t('profileTab') + '" aria-label="' + t('profileTab') + '">' + icon('users') + '</a>'
-      + '<button type="button" class="icon-btn" data-action="logout" title="' + t('logout') + '" aria-label="' + t('logout') + '">' + icon('logout') + '</button>';
+      + '<div class="user-menu" id="userMenu" hidden role="menu">'
+            + '<div class="user-menu-head"><b>' + esc(u.name || '') + '</b><span class="small muted oneline">' + esc(u.email || '') + '</span></div>'
+            + '<a role="menuitem" href="#/dashboard/profile" data-nav="/dashboard/profile">' + icon('users') + t('profileTab') + '</a>'
+            + '<a role="menuitem" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + icon('message') + t('myInquiries') + '</a>'
+            + '<a role="menuitem" href="#/dashboard/favorites" data-nav="/dashboard/favorites">' + icon('sparkle') + t('favorite') + '</a>'
+            + '<a role="menuitem" href="#/dashboard" data-nav="/dashboard">' + icon('box') + t('dashboard') + '</a>'
+            + '<button type="button" role="menuitem" class="user-menu-out" data-action="logout">' + icon('log') + t('logout') + '</button>'
+            + '</div>'
+      ;
   } else {
     ua.innerHTML = '<a class="btn btn-sm btn-primary" href="#/login">' + t('login') + '</a>';
   }

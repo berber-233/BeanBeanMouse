@@ -2,6 +2,9 @@
 
 const STORE_KEY = 'bridgetrade_v1';
 window.__TB_STORE_KEY__ = STORE_KEY;
+/* 演示数据结构版本：改动演示数据后往上加，老访客的本地缓存会自动重建，
+ * 避免他们一直看到过期目录（例如旧的非宠物商品）。 */
+const DATA_VERSION = 'pet0.2';
 
 const CATEGORIES = [
   { id: 'pet', zh: '宠物用品', en: 'Pet Supplies', hue: 32, subs: [
@@ -2434,6 +2437,7 @@ const I18N = {
   petSizeLabel: '适用体型',
   materialLabel: '材质',
   versionLabel: '版本 pet0.2（演示）',
+  demoNote: '演示版本说明：站内商品图片、价格、企业与订单等均为示例数据，正式上线前会替换为真实信息；请勿据此下单或对外引用。',
     exportTitle: '出口准备：资质与前置手续', exportSub: '出口不是“下单就发货”。先备齐经营资质、收汇、退税、许可证与商检手续，才能顺利报关、收汇与退税。',
     exportChecklistTitle: '出口资质清单', exportChecklistSub: '逐项核对你的出口资质；正式办理以主管部门最新规定为准。',
     exportWhat: '是什么', exportWho: '办理机构', exportWhen: '何时需要', exportTip: '提示',
@@ -2814,6 +2818,7 @@ const I18N = {
   petSizeLabel: 'Pet size',
   materialLabel: 'Material',
   versionLabel: 'Version pet0.2 (demo)',
+  demoNote: 'Demo build: product images, prices, company profiles and orders on this site are sample data and will be replaced before launch. Do not place orders or cite them.',
     exportTitle: 'Export Readiness: Qualifications & Formalities', exportSub: 'Exporting is not just "ship after order". Prepare your trading rights, FX receipts, tax rebate, licences and inspection before you can clear customs and get paid.',
     exportChecklistTitle: 'Export qualification checklist', exportChecklistSub: 'Review each item; always follow the latest rules of the competent authorities.',
     exportWhat: 'What it is', exportWho: 'Issuing body', exportWhen: 'When needed', exportTip: 'Tip',
