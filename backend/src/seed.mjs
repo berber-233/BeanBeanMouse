@@ -42,25 +42,25 @@ export async function seedIfEmpty() {
 
   const products = [
     {
-      id: 'p1', sellerId, companyId: c1, category: 'machinery', sub: 'laser', hsCode: '8456.11', country: 'CN',
-      priceMin: 12800, priceMax: 16800, moq: 1, unit: 'set', leadTime: 30, terms: ['FOB', 'CIF'], certs: ['CE'],
+      id: 'p1', sellerId, companyId: c1, category: 'pet', sub: 'pet-hamster', hsCode: '9403.90', country: 'CN',
+      priceMin: 4.2, priceMax: 6.8, moq: 300, unit: 'pcs', leadTime: 18, terms: ['FOB', 'CIF'], certs: ['CE'],
       srcLang: 'zh', status: 'on',
-      en: { title: '3000W Fiber Laser Cutting Machine', description: 'CNC fiber laser cutter with exchange table, 3kW, suitable for sheet metal cutting.', features: ['3kW fiber laser', 'Exchange table', 'CE certified'] },
-      zh: { title: '3000W 光纤激光切割机', description: '数控光纤激光切割机，含交换工作台，3kW，适用于钣金切割。', features: ['3kW 光纤激光', '交换工作台', 'CE 认证'] }
+      en: { title: '3-Tier Hamster Cage with Tube Set', description: 'Three-level hamster cage with transparent tubes, exercise wheel, water bottle and hideout. Tool-free assembly, 9mm wire spacing for small pets.', features: ['3 levels + tubes', 'Includes wheel & bottle', '9mm wire spacing', 'Tool-free assembly'] },
+      zh: { title: '三层仓鼠笼 含管道套装', description: '三层结构仓鼠笼，配透明连接管道、跑轮、饮水瓶与躲藏屋，免工具组装，钢丝间距 9mm 适配小宠。', features: ['三层结构+管道', '含跑轮与饮水瓶', '钢丝间距 9mm', '免工具组装'] }
     },
     {
-      id: 'p2', sellerId, companyId: c1, category: 'electronics', sub: 'ev-charging', hsCode: '8504.40', country: 'CN',
-      priceMin: 3.2, priceMax: 4.8, moq: 1000, unit: 'pcs', leadTime: 15, terms: ['FOB', 'EXW'], certs: ['CE', 'RoHS'],
+      id: 'p2', sellerId, companyId: c1, category: 'pet', sub: 'pet-cat', hsCode: '3924.90', country: 'CN',
+      priceMin: 7.5, priceMax: 11.5, moq: 300, unit: 'pcs', leadTime: 22, terms: ['FOB', 'EXW'], certs: ['CE', 'RoHS'],
       srcLang: 'en', status: 'on',
-      en: { title: 'GaN Fast Charger 65W USB-C', description: '65W GaN fast charger with USB-C PD3.0, compact design, CE & RoHS.', features: ['65W GaN', 'USB-C PD3.0', 'CE & RoHS'] },
-      zh: { title: '65W 氮化镓快充充电器', description: '65W 氮化镓快充充电器，USB-C PD3.0，小巧便携，CE/RoHS 认证。', features: ['65W 氮化镓', 'USB-C PD3.0', 'CE/RoHS'] }
+      en: { title: 'Automatic Pet Water Fountain 2.5L', description: 'Quiet pump under 40dB, 2.5L capacity, triple filtration with replaceable cotton, visible water level and low-water shut-off.', features: ['Under 40dB pump', '2.5L capacity', 'Triple filtration', 'Dry-run protection'] },
+      zh: { title: '宠物自动饮水机 2.5L', description: '静音水泵低于 40 分贝，2.5L 容量，三重过滤含可换棉芯，水位可视并带缺水断电保护。', features: ['低于 40 分贝', '2.5L 容量', '三重过滤', '缺水保护'] }
     },
     {
-      id: 'p3', sellerId, companyId: c1, category: 'textiles', sub: 'fabric', hsCode: '5208.11', country: 'CN',
-      priceMin: 2.8, priceMax: 3.6, moq: 500, unit: 'kg', leadTime: 20, terms: ['FOB'], certs: ['GOTS'],
+      id: 'p3', sellerId, companyId: c1, category: 'pet', sub: 'pet-hamster', hsCode: '6307.90', country: 'CN',
+      priceMin: 9.5, priceMax: 16, moq: 300, unit: 'pcs', leadTime: 20, terms: ['CIF', 'EXW'], certs: ['OEKO-TEX'],
       srcLang: 'zh', status: 'pending',
-      en: { title: 'Organic Cotton Jersey Fabric', description: 'GOTS organic cotton jersey, 180gsm, natural dye options.', features: ['GOTS certified', '180gsm', 'Natural dyes'] },
-      zh: { title: '有机棉针织面料', description: 'GOTS 有机棉针织面料，180gsm，可选天然染色。', features: ['GOTS 认证', '180gsm', '天然染色'] }
+      en: { title: 'Replica Branded Pet Bed (compliance test fixture)', description: 'Plush pet bed with removable cushion, 3 sizes. Listing keeps replica wording on purpose so compliance screening has a case to catch.', features: ['Removable cushion', '3 sizes', 'Non-slip base'] },
+      zh: { title: '仿牌宠物窝（合规审核演示用）', description: '短绒宠物窝，含可拆洗内垫，三种尺寸，底部防滑。标题故意保留“仿牌”字样，用于演示合规筛查拦截。', features: ['可拆洗内垫', '三种尺寸', '底部防滑'] }
     }
   ];
 

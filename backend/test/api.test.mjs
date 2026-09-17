@@ -155,8 +155,8 @@ let newSellerToken, newSellerUserId;
   check('products list -> paginated live products', r.status === 200 && Array.isArray(r.data.items) && r.data.items.length === 2 && r.data.total === 2 && r.data.items.every(p => p.status === 'on'));
 }
 {
-  const r = await req('/products?kw=charger');
-  check('products keyword search', r.status === 200 && r.data.items.length === 1 && /charger/i.test(r.data.items[0].translations.en.title));
+  const r = await req('/products?kw=fountain');
+  check('products keyword search', r.status === 200 && r.data.items.length === 1 && /fountain/i.test(r.data.items[0].translations.en.title));
 }
 {
   const r = await req('/products/p1');

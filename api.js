@@ -8,8 +8,10 @@
  * ============================================================ */
 
 const API_CONFIG = {
-  mode: 'mock',           // 'mock' | 'http'
-  baseUrl: '',            // 例如 'https://api.beanbeanmouse.example.com'
+  /* 线上走真实后端（同源 /api，由 Cloudflare Pages Functions 提供）；
+   * 本地用 file:// 打开时仍走 mock，这样前端回归测试不依赖后端。 */
+  mode: (typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) ? 'http' : 'mock',
+  baseUrl: '/api',
   latencyMs: 80           // 模拟网络延迟
 };
 
