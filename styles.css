@@ -1618,6 +1618,31 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   .footer-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ==================== 移动端打磨（为后续做 App 预留规范） ==================== */
+/* 触控目标统一到 40px 以上（iOS 建议 44px），避免手机上"点不准" */
+@media (max-width: 640px) {
+  .btn, .icon-btn, .nav-toggle, .user-chip { min-height: 40px; }
+  .main-nav a, .footer-links a, .footer-links button, .user-menu a, .user-menu button {
+    min-height: 42px; display: flex; align-items: center;
+  }
+  /* 门面按钮竖排占满，拇指可达 */
+  .store-cta { flex-direction: column; }
+  .store-cta .btn { width: 100%; justify-content: center; }
+  .store-title { font-size: 22px; line-height: 1.32; }
+  .store-sub { font-size: 14px; }
+  .storefront { padding: 24px 0 20px; }
+  .section { padding-top: 18px; padding-bottom: 18px; }
+  .sub-card { min-height: 54px; }
+  .video-grid, .promise-grid { grid-template-columns: 1fr; }
+  .user-menu { right: -6px; left: auto; min-width: 200px; }
+  /* 手机端点击反馈更明显 */
+  .product-card:active, .sub-card:active, .video-card:active { transform: scale(.985); }
+}
+@media (hover: none) {
+  /* 触屏没有 hover：省略号的完整内容靠长按/点按触发系统菜单，这里给可点区域足够的纵向空间 */
+  .oneline { line-height: 1.5; }
+}
+
 /* 2. 品类速览：8 个入口排成对称网格（4×2 / 窄屏 2×4），不再出现 6+2 的残缺行 */
 .sub-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .sub-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

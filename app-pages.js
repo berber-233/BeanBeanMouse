@@ -533,10 +533,6 @@ function renderProducts(params) {
     + '<div class="products-layout">'
     + '<aside class="card filter-panel" id="filterPanel">'
     + '<h3>' + icon('filter') + t('filters') + '</h3>'
-    + '<div class="filter-group"><h4>' + t('category') + '</h4><div class="radio-row">'
-    + '<label class="' + (cat === '' ? 'active' : '') + '"><input type="radio" name="cat" value="" ' + (cat === '' ? 'checked' : '') + '>' + t('allCategories') + '</label>'
-    + CATEGORIES.map(c => '<label class="' + (cat === c.id ? 'active' : '') + '"><input type="radio" name="cat" value="' + c.id + '" ' + (cat === c.id ? 'checked' : '') + '>' + langObj(c) + '</label>').join('')
-    + '</div></div>'
     + (catSubs.length
       ? '<div class="filter-group"><h4>' + t('subFilter') + '</h4><div class="radio-row">'
         + '<label class="' + (sub === '' ? 'active' : '') + '"><input type="radio" name="sub" value="" ' + (sub === '' ? 'checked' : '') + '>' + t('allSubs') + '</label>'
@@ -3689,7 +3685,7 @@ function sideNav(items, activeTab) {
     + items.map(it =>
       '<a href="#/dashboard/' + it.tab + '" data-nav="/dashboard/' + it.tab + '" class="' + (activeTab === it.tab ? 'active' : '') + '">' + icon(it.icon) + it.label + (it.count ? '<span class="badge-dot">' + it.count + '</span>' : '') + '</a>'
     ).join('')
-    + '<a href="#/login" data-nav="/login" data-action="switch-role">' + icon('users') + t('switchRole') + '</a>'
+    + '<a href="#/" data-nav="/" data-action="logout" class="side-out">' + icon('logout') + t('logout') + '</a>'
     + '</nav></aside>';
 }
 

@@ -2189,7 +2189,7 @@ const I18N = {
     trust2Title: '询盘直达', trust2Desc: '站内询盘 + 邮件双通道通知，时差不再是障碍。',
     trust3Title: '多语言支持', trust3Desc: '中英双语界面与产品信息，服务全球买家。',
     sellerCtaTitle: '成为供应商，免费入驻', sellerCtaDesc: '发布产品立即获得全球买家询盘，按效果付费，前期零成本。', sellerCtaBtn: '进入卖家工作台',
-    footerTagline: '连接全球买家与优质供应商的 B2B 贸易平台（演示原型）', rights: '© 2026 BeanBeanMouse 演示原型 · 仅用于设计演示',
+    footerTagline: '宠物用品自营出口 · 豆豆鼠 BeanBeanMouse（演示版）', rights: '© 2026 BeanBeanMouse 演示原型 · 仅用于设计演示',
     resultsCount: '个结果', filters: '筛选', category: '品类', priceRange: '价格区间 (USD)', minPrice: '最低价', maxPrice: '最高价',
     moq: '最小起订量', origin: '产地', certs: '认证', clearFilters: '清除筛选', sort: '排序',
     sortRecommended: '综合推荐', sortNewest: '最新上架', sortPriceAsc: '价格从低到高', sortPriceDesc: '价格从高到低',
@@ -2218,7 +2218,7 @@ const I18N = {
     myInquiries: '我的询盘', myFavorites: '我的收藏', noInquiriesYet: '还没有发送过询盘', noFavoritesYet: '还没有收藏产品',
     sentAt: '发送于', statusNew: '待回复', statusReplied: '供应商已回复', sellerReply: '供应商回复',
     loginTitle: '体验登录', loginDesc: '这是一个演示原型，选择角色即可体验完整流程，无需注册。',
-    loginTag: '全球 B2B 贸易平台', loginTrust1: '企业实名审核', loginTrust2: '25+ 语言实时沟通', loginTrust3: '防伪与存证',
+    loginTag: '宠物用品自营出口', loginTrust1: '企业实名审核', loginTrust2: '25+ 语言实时沟通', loginTrust3: '防伪与存证',
     asBuyer: '以买家身份体验', asSeller: '以卖家身份体验', asGuest: '游客浏览',
     asAdmin: '以平台管理员身份体验', adminDesc: '审核产品、认证企业、管理用户、查看平台数据',
     loginNote: '提示：所有数据仅保存在您本地浏览器中，刷新不丢失。',
@@ -2569,7 +2569,7 @@ const I18N = {
     trust2Title: 'Inquiry delivery', trust2Desc: 'In-app + email notifications bridge time zones.',
     trust3Title: 'Multilingual', trust3Desc: 'Bilingual UI and product data serve global buyers.',
     sellerCtaTitle: 'Become a supplier — free to join', sellerCtaDesc: 'Get inquiries from global buyers with zero upfront cost.', sellerCtaBtn: 'Open seller dashboard',
-    footerTagline: 'A B2B trade platform connecting global buyers and trusted suppliers (demo prototype)', rights: '© 2026 BeanBeanMouse demo prototype · For design demonstration only',
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse demo prototype · For design demonstration only',
     resultsCount: 'results', filters: 'Filters', category: 'Category', priceRange: 'Price range (USD)', minPrice: 'Min', maxPrice: 'Max',
     moq: 'Min. order', origin: 'Origin', certs: 'Certifications', clearFilters: 'Clear filters', sort: 'Sort',
     sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price low → high', sortPriceDesc: 'Price high → low',
@@ -2598,7 +2598,7 @@ const I18N = {
     myInquiries: 'My inquiries', myFavorites: 'My favorites', noInquiriesYet: 'No inquiries sent yet', noFavoritesYet: 'No favorites yet',
     sentAt: 'Sent at', statusNew: 'Awaiting reply', statusReplied: 'Supplier replied', sellerReply: 'Supplier reply',
     loginTitle: 'Try the demo', loginDesc: 'This is a prototype. Pick a role to experience the full flow — no registration needed.',
-    loginTag: 'Global B2B trade platform', loginTrust1: 'Verified companies', loginTrust2: '25+ languages, real-time', loginTrust3: 'Anti-counterfeit & evidence',
+    loginTag: 'Pet supplies, exported direct', loginTrust1: 'Verified companies', loginTrust2: '25+ languages, real-time', loginTrust3: 'Anti-counterfeit & evidence',
     asBuyer: 'Continue as buyer', asSeller: 'Continue as seller', asGuest: 'Browse as guest',
     asAdmin: 'Continue as platform admin', adminDesc: 'Review products, verify companies, manage users and view platform data',
     loginNote: 'Note: all data is stored locally in your browser and survives refresh.',
@@ -2978,7 +2978,7 @@ Object.assign(I18N, {
     sendInquiry: '見積依頼を送信', moqLabel: '最小注文数量', verified: '認証済みサプライヤー',
     favorite: 'お気に入り', favorited: 'お気に入り済み', filters: 'フィルター', clearFilters: 'フィルターをクリア',
     noResults: '該当する製品が見つかりません', noResultsHint: '条件を変えてお試しください',
-    footerTagline: '世界中のバイヤーと信頼できるサプライヤーをつなぐB2B貿易プラットフォーム（デモ版）', rights: '© 2026 BeanBeanMouse デモ版・デザイン確認用'
+    footerTagline: 'Pet supplies exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse デモ版・デザイン確認用'
   },
   ko: {
     home: '홈', marketplace: '제품 시장', navNews: '무역 정보', dashboard: '대시보드',
@@ -2991,7 +2991,7 @@ Object.assign(I18N, {
     sendInquiry: '견적 문의 보내기', moqLabel: '최소 주문량', verified: '인증된 공급업체',
     favorite: '즐겨찾기', favorited: '즐겨찾기됨', filters: '필터', clearFilters: '필터 지우기',
     noResults: '일치하는 제품이 없습니다', noResultsHint: '조건을 조정해 보세요',
-    footerTagline: '전 세계 바이어와 신뢰할 수 있는 공급업체를 연결하는 B2B 무역 플랫폼(데모)', rights: '© 2026 BeanBeanMouse 데모 · 디자인 확인용'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse 데모 · 디자인 확인용'
   },
   es: {
     home: 'Inicio', marketplace: 'Mercado', navNews: 'Noticias', dashboard: 'Panel',
@@ -3004,7 +3004,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Cantidad mínima', verified: 'Proveedor verificado',
     favorite: 'Favorito', favorited: 'Favorito añadido', filters: 'Filtros', clearFilters: 'Limpiar filtros',
     noResults: 'No se encontraron productos', noResultsHint: 'Ajusta los filtros e inténtalo de nuevo',
-    footerTagline: 'Plataforma B2B que conecta compradores globales con proveedores confiables (demo)', rights: '© 2026 BeanBeanMouse demo · solo para diseño'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse demo · solo para diseño'
   },
   fr: {
     home: 'Accueil', marketplace: 'Marché', navNews: 'Actualités', dashboard: 'Tableau de bord',
@@ -3017,7 +3017,7 @@ Object.assign(I18N, {
     sendInquiry: 'Envoyer une demande', moqLabel: 'Quantité minimale', verified: 'Fournisseur vérifié',
     favorite: 'Favori', favorited: 'Déjà favori', filters: 'Filtres', clearFilters: 'Effacer les filtres',
     noResults: 'Aucun produit trouvé', noResultsHint: 'Essayez d’ajuster les filtres',
-    footerTagline: 'Plateforme B2B reliant acheteurs mondiaux et fournisseurs de confiance (démo)', rights: '© 2026 BeanBeanMouse démo · démonstration de design'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse démo · démonstration de design'
   },
   de: {
     home: 'Startseite', marketplace: 'Marktplatz', navNews: 'Handelsnachrichten', dashboard: 'Dashboard',
@@ -3030,7 +3030,7 @@ Object.assign(I18N, {
     sendInquiry: 'Anfrage senden', moqLabel: 'Mindestbestellmenge', verified: 'Verifizierter Lieferant',
     favorite: 'Favorit', favorited: 'Als Favorit gespeichert', filters: 'Filter', clearFilters: 'Filter zurücksetzen',
     noResults: 'Keine passenden Produkte', noResultsHint: 'Passen Sie die Filter an',
-    footerTagline: 'B2B-Plattform, die globale Käufer und vertrauenswürdige Lieferanten verbindet (Demo)', rights: '© 2026 BeanBeanMouse Demo · nur zur Designprüfung'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse Demo · nur zur Designprüfung'
   },
   pt: {
     home: 'Início', marketplace: 'Mercado', navNews: 'Notícias', dashboard: 'Painel',
@@ -3043,7 +3043,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Quantidade mínima', verified: 'Fornecedor verificado',
     favorite: 'Favorito', favorited: 'Favoritado', filters: 'Filtros', clearFilters: 'Limpar filtros',
     noResults: 'Nenhum produto encontrado', noResultsHint: 'Ajuste os filtros e tente novamente',
-    footerTagline: 'Plataforma B2B que conecta compradores globais e fornecedores confiáveis (demonstração)', rights: '© 2026 BeanBeanMouse demo · apenas para design'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse demo · apenas para design'
   },
   ru: {
     home: 'Главная', marketplace: 'Рынок', navNews: 'Новости', dashboard: 'Панель',
@@ -3056,7 +3056,7 @@ Object.assign(I18N, {
     sendInquiry: 'Отправить запрос', moqLabel: 'Мин. объём заказа', verified: 'Проверенный поставщик',
     favorite: 'Избранное', favorited: 'В избранном', filters: 'Фильтры', clearFilters: 'Сбросить фильтры',
     noResults: 'Товары не найдены', noResultsHint: 'Измените условия фильтра',
-    footerTagline: 'B2B-платформа, соединяющая покупателей и проверенных поставщиков (демо)', rights: '© 2026 BeanBeanMouse демо · только для дизайна'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse демо · только для дизайна'
   }
 });
 

@@ -141,7 +141,8 @@ function resolveBrowser() {
   check('products: grid > 0', allCount > 0);
   check('products: filter panel visible', await page.locator('#filterPanel').isVisible());
   check('products: search bar present', await page.locator('.products-search').count() === 1);
-  check('products: category filter covers all', await page.locator('#filterPanel input[name="cat"]').count() >= 2);
+  /* 品类筛选已简化为细分（原来的"全部用品/宠物用品"与站点单品类重复，已删除） */
+  check('products: category filter covers all', await page.locator('#filterPanel input[name="sub"]').count() >= 2);
   check('products: AI demo image used on cards', await page.locator('.product-card img[src^="assets/products/"]').count() > 0);
   const firstCardImg = page.locator('.product-card img[src^="assets/products/"]').first();
   await firstCardImg.scrollIntoViewIfNeeded();
