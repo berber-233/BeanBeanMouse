@@ -10,3 +10,10 @@
 
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
+
+# 根目录脚本/样式跟着版本走：默认 4 小时缓存会让用户看到旧版（旧品类、旧文案），改为立即校验
+/*.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.css
+  Cache-Control: public, max-age=0, must-revalidate

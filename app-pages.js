@@ -135,7 +135,7 @@ function render() {
   const app = $('#app');
   if (path === '' || path === '/') app.innerHTML = renderHome();
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
-  else if (path === '/news') { app.innerHTML = renderNews(params); bindNewsPage(); }
+  else if (path === '/news') { app.innerHTML = renderHome(); }   /* 贸易资讯模块已封存（2026-09-17），暂不展示 */
   else if (path === '/guide') { app.innerHTML = renderGuide(); }
   else if (path === '/export') { app.innerHTML = renderExport(); }
   else if (path === '/logistics') { app.innerHTML = renderLogistics(); bindLogisticsPage(); }

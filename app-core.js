@@ -1030,6 +1030,7 @@ function renderHeader() {
       + '<span>' + esc(u.name) + '</span>'
       + '<span class="role-tag">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span>'
       + '</button>'
+      + '<a class="icon-btn" href="#/dashboard/profile" data-nav="/dashboard/profile" title="' + t('profileTab') + '" aria-label="' + t('profileTab') + '">' + icon('users') + '</a>'
       + '<button type="button" class="icon-btn" data-action="logout" title="' + t('logout') + '" aria-label="' + t('logout') + '">' + icon('logout') + '</button>';
   } else {
     ua.innerHTML = '<a class="btn btn-sm btn-primary" href="#/login">' + t('login') + '</a>';

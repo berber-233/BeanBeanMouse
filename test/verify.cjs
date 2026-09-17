@@ -166,18 +166,18 @@ function resolveBrowser() {
   // ---- 贸易资讯 ----
   await page.evaluate(() => { location.hash = '#/news'; });
   await page.waitForTimeout(300);
-  check('news: page renders >= 10 items', await page.locator('.news-card').count() >= 10);
-  check('news: policy brief 3 cards', await page.locator('.brief-card').count() === 3);
-  check('news: source directory 10', await page.locator('.source-card').count() === 10);
-  check('news: every item has source link', await page.locator('.news-card a[href^="http"]').count() >= 10);
-  check('news: fx strip visible', await page.locator('.fx-strip').isVisible());
-  check('news: disclaimer visible', await page.locator('.news-disclaimer').isVisible());
-  check('news: sync bar visible', await page.locator('.news-sync').isVisible());
-  check('news: integration note visible', await page.locator('.news-integration').isVisible());
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: page renders >= 10 items', await page.locator('.news-card */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: policy brief 3 cards', await page.locator('.brief-card'). */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: source directory 10', await page.locator('.source-card'). */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: every item has source link', await page.locator('.news-ca */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: fx strip visible', await page.locator('.fx-strip').isVisi */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: disclaimer visible', await page.locator('.news-disclaimer */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: sync bar visible', await page.locator('.news-sync').isVis */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: integration note visible', await page.locator('.news-inte */
   await safeClick('[data-action="refresh-news"]');
   await page.waitForTimeout(300);
-  check('news: refresh works', await page.locator('.news-sync').isVisible());
-  check('news: no horizontal overflow', await noOverflow());
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: refresh works', await page.locator('.news-sync').isVisibl */
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: no horizontal overflow', await noOverflow()); */
 
   await page.evaluate(() => { location.hash = '#/guide'; });
   await page.waitForTimeout(300);
@@ -251,14 +251,15 @@ function resolveBrowser() {
   await page.evaluate(() => { location.hash = '#/news?cat=tariff'; });
   await page.waitForTimeout(300);
   const tariffCount = await page.locator('.news-card').count();
-  check('news: category filter works', tariffCount > 0 && tariffCount < 10);
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: category filter works', tariffCount > 0 && tariffCount <  */
 
   await page.evaluate(() => { location.hash = '#/news'; });
   await page.waitForTimeout(300);
-  await page.locator('#newsRegionGroup input[value="GLOBAL"]').uncheck();
+  /* 贸易资讯模块已封存（用户 2026-09-17）：该元素不再存在，容错跳过，避免整轮中断 */
+  await page.locator('#newsRegionGroup input[value="GLOBAL"]').uncheck({ timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(300);
-  check('news: region filter works', await page.locator('.news-card').count() === 6);
-  await page.locator('#newsRegionGroup input[value="GLOBAL"]').check();
+  /* 贸易资讯模块已封存（用户 2026-09-17）：check('news: region filter works', await page.locator('.news-card').co */
+  await page.locator('#newsRegionGroup input[value="GLOBAL"]').check({ timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(300);
 
   await page.evaluate(() => { location.hash = '#/product/p33'; });
