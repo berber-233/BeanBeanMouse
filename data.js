@@ -11,7 +11,7 @@ const CATEGORIES = [
     { id: 'pet-hamster', zh: '仓鼠与小宠', en: 'Hamsters & Small Pets', hs: '9403, 3924, 4421' },
     { id: 'pet-cat', zh: '猫用品', en: 'Cat Supplies', hs: '3924, 9403, 4818' },
     { id: 'pet-dog-small', zh: '小型犬用品', en: 'Small Dog Supplies', hs: '4201, 9503' },
-    { id: 'pet-dog-large', zh: '大型犬用品（金毛·边牧等）', en: 'Large Dog Supplies (Golden Retriever, Border Collie…)', hs: '4201, 9503, 6307' },
+    { id: 'pet-dog-large', zh: '大型犬用品', en: 'Large Dog Supplies', hs: '4201, 9503, 6307' },
     { id: 'pet-food', zh: '宠物食品与零食', en: 'Pet Food & Treats', hs: '2309, 0511' },
     { id: 'pet-grooming', zh: '美容与清洁', en: 'Grooming & Hygiene', hs: '3307, 9615' },
     { id: 'pet-toys', zh: '玩具与训练', en: 'Toys & Training', hs: '9503, 4201' },
