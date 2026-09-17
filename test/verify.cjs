@@ -547,7 +547,7 @@ function resolveBrowser() {
   check('buyer: escort scene & phase bar present', await page.locator('.transport-scene').count() >= 1 && await page.locator('.phase-bar .phase').count() === 3);
   check('buyer: sea shipment scene shown', await page.locator('.transport-scene[src*="transport-sea.webm"]').count() >= 1);
   check('buyer: transport video is muted + looping + playsinline with poster', await page.locator('video.transport-scene').first().evaluate(v =>
-    v.hasAttribute('muted') && v.hasAttribute('loop') && v.hasAttribute('playsinline') && /transport-(land|sea|air)-poster\.jpg$/.test(v.getAttribute('poster') || '')));
+    v.hasAttribute('muted') && v.hasAttribute('loop') && v.hasAttribute('playsinline') && /transport-(land|sea|air)-poster\.png$/.test(v.getAttribute('poster') || '')));
   const sceneVideo = page.locator('video.transport-scene').first();
   await sceneVideo.scrollIntoViewIfNeeded();
   check('buyer: transport video starts playing when visible', await sceneVideo.evaluate(async v => {

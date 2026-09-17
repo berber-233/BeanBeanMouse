@@ -197,7 +197,7 @@ function productCard(p) {
     + '<button type="button" class="fav-btn ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" aria-label="' + t('favorite') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + '</button>'
     + '</div>'
     + '<div class="body">'
-    + '<h3 class="title"' + l10nAttrs(p.id, 'title', baseContentLang(p), viewProductText(p, 'title')) + '>' + esc(viewProductText(p, 'title')) + '</h3>'
+    + '<h3 class="title oneline" title="' + esc(viewProductText(p, 'title')) + '"' + l10nAttrs(p.id, 'title', baseContentLang(p), viewProductText(p, 'title')) + '>' + esc(viewProductText(p, 'title')) + '</h3>'
     + '<div class="meta">'
     + (isVerifiedSeller(p.sellerId) ? '<span class="badge verified">' + icon('shield') + t('verified') + '</span>' : '')
     + '<span class="stars">★★★★★</span><span class="rating-num">' + p.rating.toFixed(1) + '</span>'
@@ -1202,7 +1202,7 @@ function openInquiryModal(pid) {
     + '<form data-form="inquiry-form" data-id="' + p.id + '" novalidate>'
     + '<div class="field"><label>' + t('quantity') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="qty" value="' + p.moq + '" required><select class="select" name="unit" style="width:110px">' + UNITS.map(uu => '<option value="' + uu + '" ' + (uu === p.unit ? 'selected' : '') + '>' + uu + '</option>').join('') + '</select></div></div>'
     + '<div class="field"><label>' + t('message') + ' *</label><textarea class="textarea" name="message" required>' + esc(defaultMsg) + '</textarea></div>'
-    + '<div class="trans-preview"><span class="trans-label">⚡ ' + t('translateLabel') + '</span><p data-trans-target="msg">' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
+    + '<div class="trans-preview"><span class="trans-label">' + icon('sparkle') + ' ' + t('translateLabel') + '</span><p data-trans-target="msg">' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
     + '<div class="field"><label>' + t('payment') + ' <span class="hint">' + t('paymentHint') + '</span></label><select class="select" name="payment">' + PAYMENT_TERMS.map((pt, i) => '<option value="' + i + '">' + esc(langObj(pt)) + '</option>').join('') + '</select></div>'
     + (u ? '<div class="identity-box">'
       + '<div class="field"><label>' + t('identityLabel') + '</label><div class="check-group">'
@@ -1873,7 +1873,7 @@ function transportKey(mode) {
   return mode === 'sea' ? 'sea' : mode === 'air' ? 'air' : 'land';
 }
 function transportPoster(mode) {
-  return 'assets/video/transport-' + transportKey(mode) + '-poster.jpg';
+  return 'assets/video/transport-' + transportKey(mode) + '-poster.png';
 }
 function escortAvatar(mode) {
   return 'assets/pixel/characters/' + transportKey(mode) + '-icon.jpg';
@@ -2856,7 +2856,7 @@ function renderLogistics() {
     + '<p class="small muted">' + esc(port.note) + '</p>'
     + '<div class="table-responsive"><table class="table"><tbody>' + port.items.map(r =>
       '<tr><td>' + esc(r[0]) + '</td><td><b>' + esc(r[1]) + '</b></td></tr>').join('') + '</tbody></table></div></div></section>'
-    + '<section class="card panel"><div class="panel-head"><h2>⚡ ' + t('logisticsTelexTitle') + '</h2></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('sparkle') + ' ' + t('logisticsTelexTitle') + '</h2></div>'
     + '<p class="small">' + t('logisticsTelexNote') + '</p></section>'
     + '<section class="card panel"><div class="panel-head"><h2>🧮 ' + t('logisticsEstimateTitle') + '</h2><span class="small muted">' + t('logisticsEstimateHint') + '</span></div>'
     + '<form data-form="logistics-estimate-form" novalidate>'
@@ -3493,9 +3493,9 @@ function renderMessagesBody(convId) {
       const lm = (c.messages || []).slice(-1)[0];
       const unread = convUnread(c);
       return '<button type="button" class="conv-row' + (active && c.id === active.id ? ' on' : '') + '" data-action="open-conv" data-id="' + c.id + '">'
-        + '<span class="conv-ico">' + (p ? productImg(p, 80, 80) : '💬') + '</span>'
-        + '<span class="conv-info"><b>' + esc(p ? langObj(p).title : c.id) + '</b>'
-        + '<span class="small muted">' + esc((lm ? lm.fromName + '：' : '') + (lm ? lm.text : '')) + '</span></span>'
+      + '<span class="conv-ico">' + (p ? productImg(p, 80, 80) : icon('message')) + '</span>'
+      + '<span class="conv-info"><b class="oneline" title="' + esc(p ? langObj(p).title : c.id) + '">' + esc(p ? langObj(p).title : c.id) + '</b>'
+      + '<span class="small muted oneline" title="' + esc((lm ? lm.fromName + '：' : '') + (lm ? lm.text : '')) + '">' + esc((lm ? lm.fromName + '：' : '') + (lm ? lm.text : '')) + '</span></span>'
         + (unread ? '<span class="badge-dot">' + unread + '</span>' : '')
         + '</button>';
     }).join('')
@@ -3511,7 +3511,7 @@ function renderMessagesBody(convId) {
           + (mine ? '' : '<b>' + esc(m.fromName || '') + '</b>')
           + '<p>' + esc(m.text) + '</p>'
           + (m.attachments && m.attachments.length ? attachmentChipsHtml(m.attachments, active.id) : '')
-          + '<span class="small muted">' + fmtDate(m.at) + (read ? ' · <b class="chat-read">' + t('chatRead') + '</b>' : '') + '</span></div></div>';
+      + '<span class="small muted">' + fmtDate(m.at) + (read ? '<i class="dot-sep"></i><b class="chat-read">' + t('chatRead') + '</b>' : '') + '</span></div></div>';
       }).join('') + '</div>'
       + '<form data-form="chat-send" data-conv="' + active.id + '" class="chat-input" novalidate>'
       + '<input class="input" name="text" maxlength="2000" placeholder="' + t('chatPlaceholder') + '" autocomplete="off">'
@@ -4020,9 +4020,9 @@ function quoteBlock(i) {
 function inquiryMsg(i) {
   return '<div class="msg-wrap"><div class="msg">' + esc(i.message) + '</div>'
     + (msgTransState[i.id]
-      ? '<div class="trans-msg" data-trans-box="' + i.id + '"><span class="trans-pill">⚡ ' + t('translateLabel') + '</span><p>' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
+      ? '<div class="trans-msg" data-trans-box="' + i.id + '"><span class="trans-pill">' + icon('sparkle') + ' ' + t('translateLabel') + '</span><p>' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
       : '')
-    + '<button type="button" class="trans-toggle" data-action="toggle-msg-trans" data-id="' + i.id + '">⚡ ' + t('translateToggle') + '</button></div>';
+    + '<button type="button" class="trans-toggle" data-action="toggle-msg-trans" data-id="' + i.id + '">' + icon('sparkle') + ' ' + t('translateToggle') + '</button></div>';
 }
 
 function inquiryItem(i) {
@@ -4063,7 +4063,7 @@ function inquiryItem(i) {
           + '<div class="field"><label>' + t('quoteLeadTime') + ' *</label><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '15') + '" required></div>'
           + '</div>'
           + '<div class="field"><label>' + t('quoteNote') + '</label><textarea class="textarea" name="note" placeholder="' + t('replyPlaceholder') + '" style="min-height:54px"></textarea></div>'
-          + '<div class="trans-preview"><span class="trans-label">⚡ ' + t('translateLabel') + '</span><p data-trans-target="quoteNote' + i.id + '">—</p><div class="trans-note">' + t('translateNote') + '</div></div>'
+          + '<div class="trans-preview"><span class="trans-label">' + icon('sparkle') + ' ' + t('translateLabel') + '</span><p data-trans-target="quoteNote' + i.id + '">—</p><div class="trans-note">' + t('translateNote') + '</div></div>'
           + '<div class="field attach-field"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
           + '<input type="file" name="attachments" multiple accept="image/jpeg,image/png,image/gif,image/webp,.zip,.rar,.7z" data-attach-store="quote:' + i.id + '">'
           + '<div class="attach-preview"></div></div>'
