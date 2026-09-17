@@ -302,7 +302,10 @@ function renderHome() {
   document.title = 'BeanBeanMouse · ' + t('sfTitle');
   const live = liveProducts();
   const subs = (CATEGORIES[0] && CATEGORIES[0].subs) || [];
-  const featured = live.slice().sort((a, b) => (b.orders || 0) - (a.orders || 0)).slice(0, 8);
+  /* 精选：推广位优先（否则新上架的推广商品订单数为 0，永远进不了首页，推广位就白买了），其余按订单量 */
+  const promotedFirst = live.filter(p => p.promoted)
+    .concat(live.filter(p => !p.promoted).sort((a, b) => (b.orders || 0) - (a.orders || 0)));
+  const featured = promotedFirst.slice(0, 8);
   const hotKw = state.lang === 'zh'
     ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂', '智能喂食器']
     : ['hamster cage', 'cat tree', 'large dog harness', 'cat litter', 'smart feeder'];
@@ -4355,7 +4358,11 @@ function submitReply(f) {
 function renderBuyerDash(path) {
   const u = state.user;
   const activeTab = path.split('/')[2] || 'inquiries';
-  const myInquiries = state.inquiries.filter(i => i.buyerId === u.id).sort((a, b) => b.createdAt - a.createdAt);
+  /* 询盘归属：本人提交的，或未登录时用同一邮箱提交的（注册/登录后仍能看到自己的询盘） */
+  const myEmail = String(u.email || '').toLowerCase();
+  const myInquiries = state.inquiries.filter(i =>
+    i.buyerId === u.id || (!!myEmail && String(i.email || '').toLowerCase() === myEmail)
+  ).sort((a, b) => b.createdAt - a.createdAt);
   const favProducts = state.products.filter(p => state.favorites.includes(p.id) && isLive(p));
   const tabs = [
     { tab: 'inquiries', icon: 'message', label: t('myInquiries'), count: myInquiries.filter(i => i.status === 'new').length || null },

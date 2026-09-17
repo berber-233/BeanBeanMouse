@@ -59,7 +59,7 @@ function resolveBrowser() {
 
   await run('products.list keyword filter', async () =>
     page.evaluate(async () => {
-      const r = await api.products.list({ kw: 'charger' });
+      const r = await api.products.list({ kw: 'litter' });
       return Array.isArray(r) && r.length > 0;
     }));
 
@@ -70,7 +70,7 @@ function resolveBrowser() {
     }));
 
   await run('products.get', async () =>
-    page.evaluate(async () => (await api.products.get('p3')).id === 'p3'));
+    page.evaluate(async () => (await api.products.get('p33')).id === 'p33'));
 
   await run('products.create pending', async () =>
     page.evaluate(async () => {
@@ -89,7 +89,7 @@ function resolveBrowser() {
   await run('inquiries.create persists', async () =>
     page.evaluate(async () => {
       const before = (await api.inquiries.list()).length;
-      const inq = await api.inquiries.create({ productId: 'p3', qty: 100, unit: 'pcs', message: 'Hello from api smoke test', name: 'Tester', email: 't@t.com' });
+      const inq = await api.inquiries.create({ productId: 'p33', qty: 100, unit: 'pcs', message: 'Hello from api smoke test', name: 'Tester', email: 't@t.com' });
       const after = (await api.inquiries.list()).length;
       return !!inq.id && inq.status === 'new' && after === before + 1;
     }));
@@ -103,7 +103,7 @@ function resolveBrowser() {
 
   await run('antiFake.verify valid code', async () =>
     page.evaluate(async () => {
-      const code = api.antiFake.codeOf('p3');
+      const code = api.antiFake.codeOf('p33');
       const r = await api.antiFake.verify(code);
       return r.genuine === true && r.code === code;
     }));
@@ -138,14 +138,14 @@ function resolveBrowser() {
 
   await run('exports.getReadiness defaults', async () =>
     page.evaluate(async () => {
-      const r = await api.exports.getReadiness('s1');
-      return r.sellerId === 's1' && r.score >= 0 && r.items.length >= 7 && r.coreTotal >= 6;
+      const r = await api.exports.getReadiness('bbm');
+      return r.sellerId === 'bbm' && r.score >= 0 && r.items.length >= 7 && r.coreTotal >= 6;
     }));
 
   await run('exports.setItem updates readiness', async () =>
     page.evaluate(async () => {
-      await api.exports.setItem('s1', 'customs-reg', true);
-      const r = await api.exports.getReadiness('s1');
+      await api.exports.setItem('bbm', 'customs-reg', true);
+      const r = await api.exports.getReadiness('bbm');
       return r.items.find(x => x.id === 'customs-reg').done === true && r.score > 0;
     }));
 
@@ -161,7 +161,7 @@ function resolveBrowser() {
   await run('afterSales.create forbidden for seller', async () =>
     page.evaluate(async () => {
       const s = JSON.parse(localStorage.getItem('bridgetrade_v1'));
-      s.user = { id: 'u-seller', role: 'seller', sellerId: 's1' };
+      s.user = { id: 'u-seller', role: 'seller', sellerId: 'bbm' };
       localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
       try {
         await api.afterSales.create({ orderId: s.orders[0].id, type: 'quality', description: 'x' });
@@ -177,7 +177,7 @@ function resolveBrowser() {
       localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
       const c = await api.afterSales.create({ orderId: oid, type: 'damage', description: 'broken on arrival' });
       const s2 = JSON.parse(localStorage.getItem('bridgetrade_v1'));
-      s2.user = { id: 'u-seller', role: 'seller', sellerId: 's1' };
+      s2.user = { id: 'u-seller', role: 'seller', sellerId: 'bbm' };
       localStorage.setItem('bridgetrade_v1', JSON.stringify(s2));
       const r = await api.afterSales.respond(c.id, { action: 'accept', reply: 'reship' });
       return r.status === 'resolved' && r.sellerReply === 'reship';
@@ -234,7 +234,7 @@ function resolveBrowser() {
   await run('inquiries.create with attachments + identity', async () =>
     page.evaluate(async () => {
       const inq = await api.inquiries.create({
-        productId: 'p3', qty: 100, unit: 'pcs', message: 'hello', name: 'T', email: 't@t.com',
+        productId: 'p33', qty: 100, unit: 'pcs', message: 'hello', name: 'T', email: 't@t.com',
         buyerType: 'company', jobTitle: 'Buyer', card: 'data:image/png;base64,BB',
         attachments: [{ id: 'a1', name: 'pic.png', type: 'image/png', size: 10, dataUrl: 'data:image/png;base64,CC' }]
       });

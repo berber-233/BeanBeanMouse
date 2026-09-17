@@ -22,6 +22,13 @@ const SELLERS = [
     rating: 4.9, orders: 26800, country: 'CN',
     zh: { company: '豆豆鼠宠物用品（自营出口）', city: '杭州' },
     en: { company: 'BeanBeanMouse Pet Supplies (Direct Export)', city: 'Hangzhou' }
+  },
+  {
+    /* 供应商合作申请（演示用）：用于后台资质审核流程，不参与商品归属 */
+    id: 'partner-demo', verified: false, since: 2024, responseRate: 92, responseTime: '6h',
+    rating: 0, orders: 0, country: 'CN',
+    zh: { company: '宁波毛豆宠物用品有限公司（合作申请中）', city: '宁波' },
+    en: { company: 'Ningbo Maodou Pet Products Co. (application pending)', city: 'Ningbo' }
   }
 ];
 

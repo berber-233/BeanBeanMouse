@@ -305,6 +305,16 @@ function resolveBrowser() {
 
   await safeClick('#langSwitch [data-lang="zh"]');
   await page.waitForTimeout(200);
+  /* 以买家身份登录后再询盘：这样询盘归属买家（buyerId=u-buyer），卖家报价后买家能看到。
+     否则记为 guest，卖家报价会报在访客询盘上，买家侧看不到。 */
+  await page.evaluate(() => {
+    state.user = {
+      id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com',
+      buyerCompany: 'Müller GmbH', buyerCountry: 'DE', accountType: 'company'
+    };
+    saveState();
+  });
+  await page.waitForTimeout(200);
   await safeClick('[data-action="open-inquiry"]');
   await page.waitForTimeout(300);
   check('inquiry: modal opens', await page.locator('form[data-form="inquiry-form"]').isVisible());
@@ -520,7 +530,8 @@ function resolveBrowser() {
   /* 打赏流程已停用（用户 2026-09-17）：check('buyer: quick amount chip fills input', (await page.in */
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
-  check('a11y: focus stays inside modal (trap)', await page.evaluate(() => document.querySelector('#modalRoot').contains(document.activeElement)));
+  /* 打赏流程已停用（用户 2026-09-17）：该项测的是打赏弹窗的焦点陷阱，弹窗不再打开故一并停用；
+     通用弹窗焦点陷阱由后面的注册/报价弹窗覆盖。 */
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
   /* 打赏流程已停用（用户 2026-09-17）：check('a11y: ESC closes modal', await page.locator('#tipAmou */
