@@ -199,6 +199,7 @@ function productCard(p) {
     + '</div>'
     + '<div class="body">'
     + '<h3 class="title oneline" title="' + esc(viewProductText(p, 'title')) + '"' + l10nAttrs(p.id, 'title', baseContentLang(p), viewProductText(p, 'title')) + '>' + esc(viewProductText(p, 'title')) + '</h3>'
+  + petFitRow(p)
     + '<div class="meta">'
     + (isVerifiedSeller(p.sellerId) ? '<span class="badge verified">' + icon('shield') + t('verified') + '</span>' : '')
     + '<span class="stars">★★★★★</span><span class="rating-num">' + p.rating.toFixed(1) + '</span>'
@@ -808,6 +809,7 @@ function renderDetail(pid) {
     + '<span class="moq-tag">' + t('priceFrom') + '</span>'
     + '</div>'
     + fxStrip()
+    + petFitBlock(p)
     + '<ul class="spec-list">'
     + '<li><span class="k">' + t('moqLabel') + '</span><span class="v">' + p.moq + ' ' + p.unit + '</span></li>'
     + (subLabel(p) ? '<li><span class="k">' + t('categoryField') + '</span><span class="v">' + esc(subLabel(p)) + ' · HS ' + esc(subOf(p).hs) + '</span></li>' : '')
@@ -4509,4 +4511,34 @@ async function askSubmit() {
   } catch (e) {
     toast(t('askFailed') + (e && e.message ? '：' + e.message : ''));
   }
+}
+
+/* ---------- 宠物适配信息（pet0.2）：展示已有的 pets / petSize / material 字段 ---------- */
+const PET_ICON_FILE = { cat: 'cat', 'dog-small': 'dog-small', 'dog-large': 'dog-large', hamster: 'hamster', 'small-pet': 'hamster' };
+function petFitIcons(p) {
+  return (p.pets || []).slice(0, 3).map(code => {
+    const file = PET_ICON_FILE[code] || 'hamster';
+    return '<span class="fit-chip"><img src="assets/pixel/sub/' + file + '.png" alt="" width="16" height="16" loading="lazy" decoding="async">' + esc(langObj(petLabel(code))) + '</span>';
+  }).join('');
+}
+/* 卡片：一行紧凑标签 */
+function petFitRow(p) {
+  const icons = petFitIcons(p);
+  const size = p.petSize ? '<span class="fit-chip fit-size">' + esc(langObj(petSizeLabel(p.petSize))) + '</span>' : '';
+  if (!icons && !size) return '';
+  return '<div class="fit-row oneline" title="' + esc(t('fitTitle')) + '">' + icons + size + '</div>';
+}
+/* 详情页：完整适配信息块 */
+function petFitBlock(p) {
+  const pets = (p.pets || []).map(code => esc(langObj(petLabel(code)))).join(' / ');
+  const rows = [
+    pets ? [t('petsLabel'), pets] : null,
+    p.petSize ? [t('petSizeLabel'), esc(langObj(petSizeLabel(p.petSize)))] : null,
+    p.material ? [t('materialLabel'), esc(p.material)] : null
+  ].filter(Boolean);
+  if (!rows.length) return '';
+  return '<div class="card detail-block fit-block"><h2>' + icon('shield') + ' ' + t('fitTitle') + '</h2>'
+    + '<div class="fit-block-icons">' + petFitIcons(p) + '</div>'
+    + '<ul class="fit-list">' + rows.map(r => '<li><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></li>').join('') + '</ul>'
+    + '<p class="small muted">' + t('fitNote') + '</p></div>';
 }
