@@ -74,306 +74,6 @@ function pendingSeedProducts() {
 
 const PRODUCTS = [
   {
-    id: 'p1', sellerId: 'bbm', cat: 'machinery', country: 'CN', featured: true, hot: true,
-    priceMin: 12800, priceMax: 18600, moq: 1, unit: 'set', leadTime: 20,
-    terms: ['FOB', 'CIF'], certs: ['CE', 'ISO9001'], rating: 4.9, orders: 320, hue: 210,
-    en: {
-      title: '3000W CNC Fiber Laser Cutting Machine',
-      desc: 'High-speed fiber laser cutting machine for sheet metal up to 20mm carbon steel. Equipped with 3000W IPG laser source, automatic focus cutting head and exchange table. CE certified with 24-month warranty and on-site installation support.',
-      features: ['Automatic focus cutting head', 'Exchange worktable option', 'Up to 25m/min positioning speed', 'Support free CAD drawing evaluation']
-    },
-    zh: {
-      title: '3000W 光纤激光切割机',
-      desc: '高速光纤激光切割机，可加工 20mm 碳钢板材。搭载 3000W IPG 激光器、自动调焦切割头与交换工作台，整机 CE 认证，支持 24 个月质保与现场安装调试。',
-      features: ['自动调焦切割头', '可选交换工作台', '定位速度达 25m/min', '免费图纸评估，支持定制']
-    }
-  },
-  {
-    id: 'p2', sellerId: 'bbm', cat: 'machinery', country: 'CN', featured: true,
-    priceMin: 23500, priceMax: 32800, moq: 1, unit: 'set', leadTime: 35,
-    terms: ['FOB', 'CIF'], certs: ['CE', 'ISO9001'], rating: 4.8, orders: 210, hue: 200,
-    en: {
-      title: '5-Axis CNC Machining Center VMC-850',
-      desc: 'Heavy-duty 5-axis CNC vertical machining center with 850×520mm table, 12000rpm spindle and Siemens 828D control. Widely used for mold and precision parts manufacturing.',
-      features: ['Siemens 828D control system', '12,000rpm spindle', 'Automatic tool changer', 'Full enclosure splash guard']
-    },
-    zh: {
-      title: '五轴数控加工中心 VMC-850',
-      desc: '重型五轴立式加工中心，工作台 850×520mm，12000rpm 主轴，搭载西门子 828D 系统，适用于模具与精密零件加工。',
-      features: ['西门子 828D 数控系统', '12000rpm 主轴', '自动换刀装置', '全封闭防护罩']
-    }
-  },
-  {
-    id: 'p3', sellerId: 'bbm', cat: 'electronics', country: 'CN', featured: true, hot: true,
-    priceMin: 2.8, priceMax: 4.5, moq: 1000, unit: 'pcs', leadTime: 15,
-    terms: ['FOB', 'EXW'], certs: ['CE', 'FCC', 'RoHS'], rating: 4.7, orders: 15800, hue: 262,
-    en: {
-      title: '65W GaN Fast Charger USB-C PD',
-      desc: 'Compact 65W GaN fast charger with USB-C PD 3.0, compatible with laptops, tablets and smartphones. Foldable plug, 6 color options, OEM/ODM service with custom logo.',
-      features: ['GaN II technology, 45% smaller', 'USB-C PD 3.0, QC 4.0', 'Foldable plug, worldwide certifications', 'OEM/ODM with custom packaging']
-    },
-    zh: {
-      title: '65W 氮化镓快充充电器 USB-C',
-      desc: '紧凑型 65W 氮化镓快充，支持 USB-C PD 3.0，兼容笔记本、平板与手机。可折叠插脚，6 色可选，支持 OEM/ODM 定制。',
-      features: ['GaN II 技术，体积缩小 45%', 'USB-C PD 3.0 / QC 4.0', '可折叠插脚，全球认证', '支持 OEM/ODM 与定制包装']
-    }
-  },
-  {
-    id: 'p4', sellerId: 'bbm', cat: 'electronics', country: 'VN', hot: true,
-    priceMin: 6.5, priceMax: 9.8, moq: 500, unit: 'pcs', leadTime: 18,
-    terms: ['FOB', 'CIF'], certs: ['CE', 'FCC', 'RoHS'], rating: 4.6, orders: 9200, hue: 275,
-    en: {
-      title: 'TWS Earbuds Bluetooth 5.3 with ANC',
-      desc: 'True wireless earbuds with Bluetooth 5.3, active noise cancellation, 30-hour playtime with charging case and IPX5 waterproof rating. White-label and custom packaging available.',
-      features: ['Bluetooth 5.3, low latency', 'Active noise cancellation', '30h total playtime', 'IPX5 water resistant']
-    },
-    zh: {
-      title: 'TWS 蓝牙耳机 5.3 主动降噪',
-      desc: '真无线蓝牙耳机，蓝牙 5.3 芯片，主动降噪，配合充电仓续航 30 小时，IPX5 防水。支持白牌与定制包装。',
-      features: ['蓝牙 5.3，低延迟', '主动降噪 ANC', '总续航 30 小时', 'IPX5 防水']
-    }
-  },
-  {
-    id: 'p5', sellerId: 'bbm', cat: 'textiles', country: 'CN', featured: true,
-    priceMin: 3.2, priceMax: 4.8, moq: 500, unit: 'kg', leadTime: 12,
-    terms: ['FOB', 'CIF'], certs: ['OEKO-TEX', 'GOTS'], rating: 4.8, orders: 5600, hue: 330,
-    en: {
-      title: 'Organic Cotton Knit Fabric 180gsm',
-      desc: 'GOTS certified organic cotton jersey fabric, 180gsm with 4-way stretch. Suitable for babywear, T-shirts and sportswear. 60+ solid colors, custom dyeing from 300kg.',
-      features: ['GOTS & OEKO-TEX certified', '180gsm 4-way stretch', '60+ colors in stock', 'Custom dyeing available']
-    },
-    zh: {
-      title: '有机棉针织面料 180gsm',
-      desc: 'GOTS 认证有机棉汗布，180gsm 四向弹力，适用于童装、T 恤与运动服。现货 60+ 颜色，300kg 起支持定制染色。',
-      features: ['GOTS / OEKO-TEX 双认证', '180gsm 四向弹力', '60+ 现货颜色', '支持定制染色']
-    }
-  },
-  {
-    id: 'p6', sellerId: 'bbm', cat: 'textiles', country: 'IN',
-    priceMin: 2.1, priceMax: 3.6, moq: 200, unit: 'pcs', leadTime: 25,
-    terms: ['CIF', 'EXW'], certs: ['OEKO-TEX'], rating: 4.5, orders: 2300, hue: 350,
-    en: {
-      title: 'Handloom Cotton Cushion Covers',
-      desc: 'Hand-woven cotton cushion covers with traditional block-print patterns. 45×45cm with hidden zipper, 12 designs available. Fair-trade production in family workshops.',
-      features: ['Handloom cotton, 12 designs', '45×45cm, hidden zipper', 'Fair-trade workshops', 'Custom print available']
-    },
-    zh: {
-      title: '手工棉质抱枕套',
-      desc: '手工梭织棉质抱枕套，传统木版印花图案，45×45cm 隐形拉链，12 款设计可选，来自公平贸易家庭工坊。',
-      features: ['手工棉织，12 款图案', '45×45cm，隐形拉链', '公平贸易工坊生产', '支持定制印花']
-    }
-  },
-  {
-    id: 'p7', sellerId: 'bbm', cat: 'furniture', country: 'VN', featured: true,
-    priceMin: 680, priceMax: 950, moq: 10, unit: 'set', leadTime: 30,
-    terms: ['FOB', 'CIF'], certs: ['FSC'], rating: 4.7, orders: 860, hue: 24,
-    en: {
-      title: 'Solid Teak Outdoor Dining Set',
-      desc: 'FSC-certified solid teak outdoor dining set with 6 seats and 180cm table. Natural oil finish, suitable for seaside and garden use. Flat-pack option available.',
-      features: ['FSC certified solid teak', '6-seat set, 180cm table', 'Natural oil finish', 'Flat-pack or fully assembled']
-    },
-    zh: {
-      title: '实木柚木户外餐桌椅套装',
-      desc: 'FSC 认证实木柚木户外餐桌，含 6 椅与 180cm 餐桌，天然木油处理，适用于海边与花园场景，可选平板包装。',
-      features: ['FSC 认证实木柚木', '6 椅 + 180cm 餐桌', '天然木油涂装', '平板包装或整装发货']
-    }
-  },
-  {
-    id: 'p8', sellerId: 'bbm', cat: 'furniture', country: 'TR',
-    priceMin: 420, priceMax: 560, moq: 20, unit: 'set', leadTime: 28,
-    terms: ['FOB', 'CIF'], certs: [], rating: 4.4, orders: 1500, hue: 16,
-    en: {
-      title: 'Modern Upholstered Sofa 3-Seater',
-      desc: 'Contemporary 3-seater sofa with solid wood frame, high-density foam cushions and removable linen covers. 10 fabric colors, matching armchairs and ottomans available.',
-      features: ['Solid wood frame', 'High-density foam cushions', 'Removable linen covers', '10 fabric colors']
-    },
-    zh: {
-      title: '现代布艺三人沙发',
-      desc: '现代风格三人沙发，实木框架、高密度海绵坐垫、可拆洗亚麻布套，10 种面料颜色可选，可配套单人椅与脚踏。',
-      features: ['实木框架', '高密度海绵坐垫', '可拆洗亚麻布套', '10 种面料颜色']
-    }
-  },
-  {
-    id: 'p9', sellerId: 'bbm', cat: 'chemicals', country: 'CN', featured: true,
-    priceMin: 780, priceMax: 940, moq: 10, unit: 'ton', leadTime: 14,
-    terms: ['FOB', 'CIF'], certs: ['ISO9001', 'SGS'], rating: 4.8, orders: 7200, hue: 160,
-    en: {
-      title: 'Citric Acid Monohydrate 99.5%',
-      desc: 'Food-grade citric acid monohydrate 99.5% purity, 25kg bags with palletization. Used as acidulant in food & beverage, cleaning agents and pharmaceutical industries.',
-      features: ['99.5% purity, food grade', '25kg bag, 24MT per 20GP', 'SGS third-party inspection', 'Short lead time']
-    },
-    zh: {
-      title: '一水柠檬酸 99.5%',
-      desc: '食品级一水柠檬酸，纯度 99.5%，25kg 袋装打托。用作食品饮料酸味剂、清洁剂及医药行业原料，支持 SGS 第三方检测。',
-      features: ['纯度 99.5%，食品级', '25kg 袋装，20GP 装 24MT', '支持 SGS 第三方检测', '交期短，现货充足']
-    }
-  },
-  {
-    id: 'p10', sellerId: 'bbm', cat: 'chemicals', country: 'IN',
-    priceMin: 4.9, priceMax: 6.8, moq: 200, unit: 'L', leadTime: 20,
-    terms: ['CIF', 'EXW'], certs: ['ISO9001'], rating: 4.3, orders: 980, hue: 150,
-    en: {
-      title: 'Cold Pressed Natural Neem Oil',
-      desc: '100% cold-pressed neem oil from organic farms, suitable for cosmetics, agriculture and herbal products. Available in 1L, 5L and 25L containers with COA.',
-      features: ['100% cold-pressed', 'Organic farm source', '1L/5L/25L containers', 'COA with every batch']
-    },
-    zh: {
-      title: '冷压天然印楝油',
-      desc: '100% 冷压印楝油，来自有机农场，适用于化妆品、农业与草本产品，提供 1L/5L/25L 包装并附带每批 COA 检测报告。',
-      features: ['100% 冷压工艺', '有机农场直供', '1L/5L/25L 包装', '每批附 COA 报告']
-    }
-  },
-  {
-    id: 'p11', sellerId: 'bbm', cat: 'auto', country: 'CN', featured: true, hot: true,
-    priceMin: 28, priceMax: 42, moq: 100, unit: 'pcs', leadTime: 18,
-    terms: ['FOB', 'EXW'], certs: ['CE', 'TÜV', 'RoHS'], rating: 4.9, orders: 4100, hue: 210,
-    en: {
-      title: 'EV Charging Cable Type 2 32A',
-      desc: 'Type 2 EV charging cable for AC charging, 32A single-phase / three-phase, 5m standard length with TÜV and CE certifications. Custom cable length and colors available.',
-      features: ['Type 2 to Type 2, 32A', '5m standard, custom length', 'TÜV & CE certified', 'Custom colors and logo']
-    },
-    zh: {
-      title: '新能源充电枪 Type 2 32A',
-      desc: 'Type 2 交流充电枪，32A 单相/三相，标准 5 米线缆，TÜV、CE 认证，支持定制线长与颜色。',
-      features: ['Type 2 对 Type 2，32A', '标准 5 米，可定制长度', 'TÜV / CE 认证', '支持定制颜色与 LOGO']
-    }
-  },
-  {
-    id: 'p12', sellerId: 'bbm', cat: 'auto', country: 'IN',
-    priceMin: 310, priceMax: 450, moq: 5, unit: 'pcs', leadTime: 26,
-    terms: ['FOB', 'CIF'], certs: ['ISO9001'], rating: 4.6, orders: 1300, hue: 355,
-    en: {
-      title: 'Turbocharger CT9A Compatible',
-      desc: 'Aftermarket turbocharger compatible with Mitsubishi 4G15 engine, high-precision balanced rotor with 12-month warranty. Rigorous 100% dynamic balance testing.',
-      features: ['Compatible with 4G15 engine', '100% dynamic balance test', '12-month warranty', 'Strict quality control']
-    },
-    zh: {
-      title: '三菱 4G15 涡轮增压器',
-      desc: '适配三菱 4G15 发动机的售后涡轮增压器，高精度动平衡转子，100% 动平衡测试，12 个月质保。',
-      features: ['适配 4G15 发动机', '100% 动平衡测试', '12 个月质保', '严格质量管控']
-    }
-  },
-  {
-    id: 'p13', sellerId: 'bbm', cat: 'electronics', country: 'CN',
-    priceMin: 26, priceMax: 39, moq: 200, unit: 'pcs', leadTime: 15,
-    terms: ['FOB', 'EXW'], certs: ['CE', 'FCC', 'RoHS'], rating: 4.5, orders: 6800, hue: 285,
-    en: {
-      title: '4K Dash Cam with WiFi & GPS',
-      desc: '4K ultra HD dash camera with WiFi App control, built-in GPS, super capacitor and 24-hour parking monitoring. Night vision enhanced sensor.',
-      features: ['4K UHD recording', 'WiFi App + built-in GPS', 'Parking monitoring', 'Super capacitor design']
-    },
-    zh: {
-      title: '4K 行车记录仪 WiFi GPS',
-      desc: '4K 超清行车记录仪，支持 WiFi App 控制、内置 GPS、超级电容与 24 小时停车监控，夜视增强传感器。',
-      features: ['4K 超清录制', 'WiFi App + 内置 GPS', '停车监控', '超级电容设计']
-    }
-  },
-  {
-    id: 'p14', sellerId: 'bbm', cat: 'machinery', country: 'TR',
-    priceMin: 2400, priceMax: 3600, moq: 1, unit: 'set', leadTime: 40,
-    terms: ['FOB', 'CIF'], certs: ['CE'], rating: 4.7, orders: 420, hue: 190,
-    en: {
-      title: 'Industrial Coffee Grinder 60kg/h',
-      desc: 'Commercial burr coffee grinder with 60kg/h capacity, stepless grind adjustment and low-noise motor. Ideal for roasteries, cafes and supermarkets.',
-      features: ['60kg/h throughput', 'Stepless grind control', 'Low-noise motor', 'Stainless steel burrs']
-    },
-    zh: {
-      title: '工业咖啡研磨机 60kg/h',
-      desc: '商用锥刀咖啡研磨机，产能 60kg/h，无级调节研磨度，低噪音电机，适用于烘焙厂、咖啡馆与商超。',
-      features: ['60kg/h 产能', '无级研磨调节', '低噪音电机', '不锈钢磨盘']
-    }
-  },
-  {
-    id: 'p17', sellerId: 'bbm', cat: 'sports', country: 'VN', featured: true,
-    priceMin: 7.5, priceMax: 12, moq: 200, unit: 'pcs', leadTime: 25,
-    terms: ['FOB', 'CIF'], certs: ['EN71', 'ISO9001'], rating: 4.6, orders: 4200, hue: 128,
-    en: {
-      title: 'Folding Camping Chair with Cup Holder',
-      desc: 'Portable folding camping chair with steel frame, 120kg load capacity, side cup holder and carry bag. Quick one-second fold for outdoor, fishing and travel.',
-      features: ['120kg load capacity', '1-second quick fold', 'Side cup holder', 'Carry bag included']
-    },
-    zh: {
-      title: '折叠露营椅（带杯架）',
-      desc: '便携折叠露营椅，加粗钢管框架，承重 120kg，侧边杯架与收纳袋，一秒折叠，适合户外、钓鱼与旅行。',
-      features: ['承重 120kg', '一秒快速折叠', '侧边杯架', '附收纳袋']
-    }
-  },
-  {
-    id: 'p18', sellerId: 'bbm', cat: 'sports', country: 'IN',
-    priceMin: 3.2, priceMax: 5.5, moq: 500, unit: 'pcs', leadTime: 18,
-    terms: ['FOB', 'CIF'], certs: ['SGS'], rating: 4.4, orders: 7600, hue: 145,
-    en: {
-      title: 'TPE Yoga Mat Non-Slip 6mm',
-      desc: 'Eco-friendly TPE yoga mat, 6mm thickness with double-sided non-slip texture, free of latex and PVC. 24 colors with custom logo printing available.',
-      features: ['6mm double-sided non-slip', 'Latex & PVC free', '24 colors', 'Custom logo printing']
-    },
-    zh: {
-      title: 'TPE 瑜伽垫 6mm 防滑',
-      desc: '环保 TPE 瑜伽垫，6mm 厚度，双面防滑纹理，不含乳胶与 PVC，24 色可选，支持定制 LOGO。',
-      features: ['6mm 双面防滑', '不含乳胶/PVC', '24 色可选', '支持定制 LOGO']
-    }
-  },
-  {
-    id: 'p19', sellerId: 'bbm', cat: 'gifts', country: 'TR',
-    priceMin: 9.8, priceMax: 16, moq: 100, unit: 'pcs', leadTime: 28,
-    terms: ['FOB', 'EXW'], certs: ['CE'], rating: 4.7, orders: 2900, hue: 350,
-    en: {
-      title: 'Classic Wooden Music Box Engraved',
-      desc: 'Hand-finished wooden music box with 30-tune movement, velvet interior and custom laser engraving. Ideal as a keepsake or corporate gift.',
-      features: ['30-tune movement', 'Velvet interior', 'Custom laser engraving', 'Gift box packaging']
-    },
-    zh: {
-      title: '经典木质音乐盒（可定制刻字）',
-      desc: '手工打磨木质音乐盒，30 音机芯，内衬绒布，支持激光刻字定制，适合纪念品与企业礼赠。',
-      features: ['30 音机芯', '绒布内衬', '激光刻字定制', '礼盒包装']
-    }
-  },
-  {
-    id: 'p20', sellerId: 'bbm', cat: 'gifts', country: 'TR',
-    priceMin: 6.5, priceMax: 11, moq: 300, unit: 'set', leadTime: 22,
-    terms: ['FOB', 'CIF'], certs: ['FDA'], rating: 4.5, orders: 5100, hue: 15,
-    en: {
-      title: 'Ceramic Mug Gift Set 2-Piece',
-      desc: 'Food-safe ceramic mug gift set with bamboo lid and spoon, double-wall keep-warm design. Six pastel colors with custom box printing.',
-      features: ['Food-safe ceramic', 'Bamboo lid & spoon', 'Double-wall keep-warm', 'Custom gift box']
-    },
-    zh: {
-      title: '陶瓷马克杯礼盒（2 件套）',
-      desc: '食品级陶瓷马克杯礼盒，配竹盖与勺子，双层保温设计，六色马卡龙配色，支持定制礼盒印刷。',
-      features: ['食品级陶瓷', '竹盖+勺子', '双层保温', '定制礼盒']
-    }
-  },
-  {
-    id: 'p21', sellerId: 'bbm', cat: 'hardware', country: 'CN', hot: true,
-    priceMin: 18, priceMax: 29, moq: 100, unit: 'set', leadTime: 20,
-    terms: ['FOB', 'CIF'], certs: ['CE', 'GS'], rating: 4.8, orders: 9400, hue: 30,
-    en: {
-      title: 'Cordless Screwdriver Kit 21-in-1',
-      desc: 'USB-C rechargeable cordless screwdriver with 21 S2 steel bits, 4V motor, LED light and magnetic tray. Compact ABS case for home and workshop.',
-      features: ['USB-C rechargeable', '21 S2 steel bits', 'LED work light', 'Magnetic bit tray']
-    },
-    zh: {
-      title: '电动螺丝刀套装 21 合 1',
-      desc: 'USB-C 充电电动螺丝刀，21 支 S2 合金批头，4V 电机，带 LED 照明与磁吸收纳盘，ABS 收纳盒，家用与维修两相宜。',
-      features: ['USB-C 充电', '21 支 S2 批头', 'LED 照明', '磁吸收纳盘']
-    }
-  },
-  {
-    id: 'p22', sellerId: 'bbm', cat: 'hardware', country: 'CN',
-    priceMin: 32, priceMax: 48, moq: 50, unit: 'set', leadTime: 25,
-    terms: ['FOB', 'CIF'], certs: ['ISO9001'], rating: 4.6, orders: 3300, hue: 24,
-    en: {
-      title: 'Stainless Steel Tool Box 16in',
-      desc: 'Heavy-duty stainless steel toolbox with full-extension drawers, lockable lid and reinforced edges. Water-resistant for workshop and field use.',
-      features: ['304 stainless steel', 'Full-extension drawers', 'Lockable lid', 'Water-resistant']
-    },
-    zh: {
-      title: '不锈钢工具箱 16 寸',
-      desc: '加厚不锈钢工具箱，全拉出抽屉，可上锁，边缘加固防撞，防水耐候，适合车间与户外作业。',
-      features: ['304 不锈钢', '全拉出抽屉', '可上锁', '防水耐候']
-    }
-  },
-  {
     id: 'p23', sellerId: 'bbm', cat: 'pet', country: 'CN', hot: true,
     sub: 'pet-cat',
     priceMin: 24, priceMax: 39, moq: 200, unit: 'pcs', leadTime: 15,
@@ -528,7 +228,7 @@ const PRODUCTS = [
 ].concat(pendingSeedProducts());
 
 const DEMO_USERS = {
-  seller: { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 'bbm', accountType: 'company', jobTitle: '外贸经理', company: '杭州云帆机械有限公司' },
+  seller: { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', sellerId: 'bbm', accountType: 'company', jobTitle: '外贸经理', company: '豆豆鼠宠物用品（自营出口）' },
   buyer:  { id: 'u-buyer',  role: 'buyer',  name: 'Thomas Müller', email: 'buyer@demo.com', buyerCompany: 'Müller GmbH', buyerCountry: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager' },
   admin:  { id: 'u-admin',  role: 'admin',  name: '平台管理员', email: 'admin@demo.com', accountType: 'company', jobTitle: '平台运营' }
 };
@@ -1688,9 +1388,9 @@ const COUNTRY_NAMES = {
 function buildUsers(now) {
   return [
     { id: 'u-admin', role: 'admin', name: '平台管理员', email: 'admin@demo.com', company: '豆豆鼠运营部', country: 'CN', accountType: 'company', jobTitle: '平台运营', joinedAt: now - 864e5 * 220, status: 'active' },
-    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '杭州云帆机械有限公司', country: 'CN', sellerId: 'bbm', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
+    { id: 'u-seller', role: 'seller', name: '王经理', email: 'seller@demo.com', company: '豆豆鼠宠物用品（自营出口）', country: 'CN', sellerId: 'bbm', accountType: 'company', jobTitle: '外贸经理', joinedAt: now - 864e5 * 180, status: 'active' },
     { id: 'u-buyer', role: 'buyer', name: 'Thomas Müller', email: 'buyer@demo.com', company: 'Müller GmbH', country: 'DE', accountType: 'company', jobTitle: 'Purchasing Manager', joinedAt: now - 864e5 * 90, status: 'active' },
-    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '深圳新星电子科技有限公司', country: 'CN', sellerId: 'bbm', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
+    { id: 'u4', role: 'seller', name: '李工', email: 'lee@nova-sz.cn', company: '宁波毛豆宠物用品有限公司', country: 'CN', sellerId: 'bbm', accountType: 'company', jobTitle: '销售总监', joinedAt: now - 864e5 * 150, status: 'active' },
     { id: 'u5', role: 'seller', name: 'Nguyen Van An', email: 'vanan@greenliving.vn', company: 'Hai Phong Green Living', country: 'VN', sellerId: 'bbm', accountType: 'company', jobTitle: 'Export Manager', joinedAt: now - 864e5 * 60, status: 'active' },
     { id: 'u6', role: 'buyer', name: 'Maria Garcia', email: 'maria@iberia-sourcing.es', company: 'Iberia Sourcing', country: 'ES', accountType: 'individual', jobTitle: '店主', joinedAt: now - 864e5 * 40, status: 'active' },
     { id: 'u7', role: 'buyer', name: '田中一郎', email: 'tanaka@tokyo-trading.jp', company: 'Tokyo Trading', country: 'JP', accountType: 'company', jobTitle: '采购课长', joinedAt: now - 864e5 * 25, status: 'active' },
@@ -1708,8 +1408,8 @@ function buildCompanies() {
 
 function buildLogs(now) {
   return [
-    { id: 'l1', ts: now - 3600e3 * 26, actor: '平台管理员', action: '企业认证通过', target: '深圳新星电子科技有限公司', detail: '营业执照与 ISO 证书核验无误' },
-    { id: 'l2', ts: now - 3600e3 * 4, actor: '王经理', action: '发布产品', target: '3000W 光纤激光切割机', detail: '提交平台审核' }
+    { id: 'l1', ts: now - 3600e3 * 26, actor: '平台管理员', action: '企业认证通过', target: '宁波毛豆宠物用品有限公司', detail: '营业执照与产品检测报告核验无误' },
+    { id: 'l2', ts: now - 3600e3 * 4, actor: '王经理', action: '发布产品', target: '三层仓鼠笼 含管道套装', detail: '提交平台审核' }
   ];
 }
 
@@ -2179,7 +1879,7 @@ const I18N = {
     heroTitle: '连接全球买家与优质供应商',
     heroSub: '一站式发布产品、精准筛选、快速询盘，让每一笔跨国生意更简单。',
     heroPilot: '首发垂直 · 宠物用品（仓鼠 · 猫与小型犬 · 大型犬）',
-    searchPlaceholder: '搜索产品，例如：激光切割机、充电器、面料…',
+    searchPlaceholder: '搜索产品，例如：仓鼠笼、猫爬架、大型犬胸背带…',
   popular: '热门搜索：',
     categoriesTitle: '热门品类', featuredTitle: '精选产品', viewAll: '查看全部',
     howTitle: '三步完成一笔跨国生意', howStep1Title: '供应商发布产品', howStep1Desc: '填写产品规格、价格与认证信息，一键上架。',
@@ -2438,6 +2138,8 @@ const I18N = {
   materialLabel: '材质',
   versionLabel: '版本 pet0.2（演示）',
   demoNote: '演示版本说明：站内商品图片、价格、企业与订单等均为示例数据，正式上线前会替换为真实信息；请勿据此下单或对外引用。',
+  demoTag: '示例',
+  demoTagNote: '演示数据：该商品的图片与价格均为示例，正式上线前会替换为真实信息。',
     exportTitle: '出口准备：资质与前置手续', exportSub: '出口不是“下单就发货”。先备齐经营资质、收汇、退税、许可证与商检手续，才能顺利报关、收汇与退税。',
     exportChecklistTitle: '出口资质清单', exportChecklistSub: '逐项核对你的出口资质；正式办理以主管部门最新规定为准。',
     exportWhat: '是什么', exportWho: '办理机构', exportWhen: '何时需要', exportTip: '提示',
@@ -2559,7 +2261,7 @@ const I18N = {
     heroTitle: 'Connecting Global Buyers with Trusted Suppliers',
     heroSub: 'Publish products, filter precisely and send inquiries — one platform for simpler cross-border trade.',
     heroPilot: 'Pilot vertical · Pet Supplies (Hamsters · Cats & Small Dogs · Large Dogs)',
-    searchPlaceholder: 'Search products, e.g. laser cutter, charger, fabric…',
+    searchPlaceholder: 'Search products, e.g. hamster cage, cat tree, dog harness…',
   popular: 'Popular:',
     categoriesTitle: 'Top Categories', featuredTitle: 'Featured Products', viewAll: 'View all',
     howTitle: 'Close a cross-border deal in 3 steps', howStep1Title: 'Suppliers publish', howStep1Desc: 'Add specs, pricing and certifications, then go live.',
@@ -2819,6 +2521,8 @@ const I18N = {
   materialLabel: 'Material',
   versionLabel: 'Version pet0.2 (demo)',
   demoNote: 'Demo build: product images, prices, company profiles and orders on this site are sample data and will be replaced before launch. Do not place orders or cite them.',
+  demoTag: 'Sample',
+  demoTagNote: 'Sample data: this product image and price are placeholders and will be replaced before launch.',
     exportTitle: 'Export Readiness: Qualifications & Formalities', exportSub: 'Exporting is not just "ship after order". Prepare your trading rights, FX receipts, tax rebate, licences and inspection before you can clear customs and get paid.',
     exportChecklistTitle: 'Export qualification checklist', exportChecklistSub: 'Review each item; always follow the latest rules of the competent authorities.',
     exportWhat: 'What it is', exportWho: 'Issuing body', exportWhen: 'When needed', exportTip: 'Tip',
@@ -3099,7 +2803,7 @@ function seedDemoData() {
       {
         id: 'i1', productId: 'p1', sellerId: 'bbm', buyerId: 'u-buyer',
         name: 'Thomas Müller', email: 'thomas.mueller@muller-gmbh.de', company: 'Müller GmbH', country: 'DE',
-        qty: 2, unit: 'set', message: 'Hello, we need 2 units of the 3000W laser cutter with exchange table. Could you quote CIF Hamburg including installation training?', createdAt: now - 1000 * 60 * 60 * 5, status: 'new', reply: ''
+        qty: 2, unit: 'set', message: 'Hi, we need 300 units of the 3-tier hamster cage with tube set. Could you quote CIF Hamburg including insurance?', createdAt: now - 1000 * 60 * 60 * 5, status: 'new', reply: ''
       },
       {
         id: 'i2', productId: 'p3', sellerId: 'bbm', buyerId: 'u-buyer',

@@ -9,7 +9,11 @@ const today = new Date().toISOString().slice(0, 10);
 
 // 读取 data.js 中的产品 id（简易解析，避免执行浏览器环境代码）
 const dataSrc = readFileSync(path.join(root, 'data.js'), 'utf8');
-const productIds = Array.from(dataSrc.matchAll(/id:\s*'p(\d+)'/g)).map(m => 'p' + m[1]);
+/* 商品 id 有两种写法：数组字面量的 id: 'p23'，以及注入块里的 JSON "id": "p33" */
+const productIds = Array.from(new Set([
+  ...Array.from(dataSrc.matchAll(/id:\s*'p(\d+)'/g)).map(m => 'p' + m[1]),
+  ...Array.from(dataSrc.matchAll(/"id":\s*"p(\d+)"/g)).map(m => 'p' + m[1])
+])).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
 
 const staticRoutes = [
   { loc: '', priority: 1.0, freq: 'weekly' },

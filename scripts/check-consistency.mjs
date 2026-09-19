@@ -9,7 +9,12 @@ const read = p => readFileSync(path.join(root, p), 'utf8');
 const problems = [];
 
 // 1) sitemap 收录的产品 id 必须与 data.js 一致
-const dataIds = new Set(Array.from(read('data.js').matchAll(/id:\s*'p(\d+)'/g)).map(m => 'p' + m[1]));
+/* 商品 id 有两种写法：数组字面量 id: 'p23' 与注入块里的 JSON "id": "p33" */
+const dataSrc = read('data.js');
+const dataIds = new Set([
+  ...Array.from(dataSrc.matchAll(/id:\s*'p(\d+)'/g)).map(m => 'p' + m[1]),
+  ...Array.from(dataSrc.matchAll(/"id":\s*"p(\d+)"/g)).map(m => 'p' + m[1])
+]);
 const mapIds = new Set(Array.from(read('sitemap.xml').matchAll(/#\/product\/(p\d+)/g)).map(m => m[1]));
 for (const id of dataIds) if (!mapIds.has(id)) problems.push(`sitemap.xml 缺少商品 ${id}（data.js 里有，未收录）`);
 for (const id of mapIds) if (!dataIds.has(id)) problems.push(`sitemap.xml 收录了不存在的商品 ${id}`);

@@ -189,10 +189,11 @@ function productCard(p) {
   const seller = sellerOf(p);
   const certs = (p.certs || []).slice(0, 2);
   return '<article class="product-card" data-action="open-product" data-id="' + p.id + '">'
-    + '<div class="thumb">'
-    + (p.hot ? '<span class="badge">' + t('hot') + '</span>' : '')
-    + (p.promoted ? '<span class="badge promo">' + t('promoBadge') + '</span>' : '')
-    + (p.featured && !p.hot ? '<span class="badge new">★</span>' : '')
+  + '<div class="thumb">'
+  + (p.hot ? '<span class="badge">' + t('hot') + '</span>' : '')
+  + (p.promoted ? '<span class="badge promo">' + t('promoBadge') + '</span>' : '')
+  + (p.featured && !p.hot ? '<span class="badge new">★</span>' : '')
+  + '<span class="badge demo" title="' + esc(t('demoTagNote')) + '">' + t('demoTag') + '</span>'
     + '<img src="' + productMainImg(p, 640, 480) + '" alt="' + esc(langObj(p).title) + '" loading="lazy">'
     + '<button type="button" class="fav-btn ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" aria-label="' + t('favorite') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + '</button>'
     + '</div>'
