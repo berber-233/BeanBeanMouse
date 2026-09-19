@@ -88,11 +88,30 @@ render();
     rating: typeof p.rating === 'number' ? p.rating : 4.6,
     orders: typeof p.orders === 'number' ? p.orders : 0,
     hue: typeof p.hue === 'number' ? p.hue : 32,
-    pets: p.pets || [], petSize: p.petSize || 'medium', material: p.material || '',
+    pets: (Array.isArray(p.pets) && p.pets.length) ? p.pets : ((PET_ATTR_FALLBACK[p.sub] || {}).pets || []),
+    petSize: p.petSize || (PET_ATTR_FALLBACK[p.sub] || {}).petSize || 'medium',
+    material: p.material || (PET_ATTR_FALLBACK[p.sub] || {}).material || '',
     status: p.status || 'on',
     en: { title: txt(p, 'en', 'title') || p.id, desc: txt(p, 'en', 'desc'), features: txt(p, 'en', 'features') || [] },
     zh: { title: txt(p, 'zh', 'title') || txt(p, 'en', 'title') || p.id, desc: txt(p, 'zh', 'desc'), features: txt(p, 'zh', 'features') || [] }
   });
+  /* 服务器表结构里没有 pets/petSize/material，按细分推导，避免线上所有商品都显示默认值 */
+  const PET_ATTR_FALLBACK = (function () {
+    const base = {
+      'pet-hamster': { pets: ['hamster', 'small-pet'], petSize: 'small', material: '环保塑料' },
+      'pet-cat': { pets: ['cat'], petSize: 'medium', material: '实木 / 塑料' },
+      'pet-dog-small': { pets: ['dog-small'], petSize: 'small', material: '尼龙 / 网布' },
+      'pet-dog-large': { pets: ['dog-large'], petSize: 'large', material: '尼龙 / 橡胶' },
+      'pet-food': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: '食品级原料' },
+      'pet-grooming': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: 'ABS / 硅胶' },
+      'pet-toys': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: '食品级 TPR' },
+      'pet-travel': { pets: ['cat', 'dog-small'], petSize: 'medium', material: 'PC / ABS' }
+    };
+    /* 细分 id 在服务器上可能不带 pet- 前缀，两种都兜住 */
+    const out = {};
+    for (const [k, v] of Object.entries(base)) { out[k] = v; out[k.replace('pet-', '')] = v; }
+    return out;
+  })();
   api.products.list().then(res => {
     /* api.products.list() 在 http 模式直接返回数组；兼容两种返回形态 */
     const items = Array.isArray(res) ? res : ((res && res.items) || []);
