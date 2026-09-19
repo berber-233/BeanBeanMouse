@@ -324,7 +324,7 @@ function renderHome() {
     + '<div class="store-cta">'
     + '<a class="btn btn-accent btn-lg" href="#/products" data-nav="/products">' + t('sfCtaShop') + '</a>'
     + '<a class="btn btn-ghost btn-lg" href="#/videos" data-nav="/videos">' + t('sfCtaVideo') + '</a>'
-    + '<button type="button" class="btn btn-ghost btn-lg" data-action="catreq-open">' + t('sfCtaAsk') + '</button>'
+    + '<button type="button" class="btn btn-ghost btn-lg" data-action="ask-open">' + t('sfCtaAsk') + '</button>'
     + '</div>'
     + '<div class="store-trust">'
     + ['trustOem', 'trustShip', 'trustInspect', 'trustAfter'].map(k => '<span class="trust-chip">' + t(k) + '</span>').join('')
@@ -362,7 +362,7 @@ function renderHome() {
     ].map(x => '<div class="promise-card"><h3>' + t(x[0]) + '</h3><p>' + t(x[1]) + '</p></div>').join('') + '</div></section>'
     + '<div class="cta-band">'
     + '<div><h2>' + t('askCtaTitle') + '</h2><p>' + t('askCtaDesc') + '</p></div>'
-    + '<button type="button" class="btn btn-accent btn-lg" data-action="catreq-open">' + t('askCtaBtn') + '</button>'
+    + '<button type="button" class="btn btn-accent btn-lg" data-action="ask-open">' + t('askCtaBtn') + '</button>'
     + '</div>'
     /* 关于我们预告 */
     + '<section class="section about-teaser">'
@@ -4403,4 +4403,110 @@ function buyerInquiryItem(i) {
     + '<div class="flex gap-10" style="flex-wrap:wrap;margin:4px 0 0">' + cardButtonHtml(i) + exportButtonsHtml(i) + '</div>'
     + (i.quote ? '<div class="reply-box">' + quoteBlock(i) + '</div>' : status && i.reply ? '<div class="reply-box"><div class="reply-msg"><b>' + t('sellerReply') + '：</b>' + esc(i.reply) + '</div></div>' : '')
     + '</div>';
+}
+
+
+/* ---------- 对话式询价（pet0.2）：分步引导，像聊天一样问需求 ---------- */
+const ASK_PETS = [
+  { id: 'cat', zh: '🐱 猫', en: 'Cat' },
+  { id: 'dog-small', zh: '🐶 小型犬', en: 'Small dog' },
+  { id: 'dog-large', zh: '🦮 大型犬', en: 'Large dog' },
+  { id: 'hamster', zh: '🐹 仓鼠', en: 'Hamster' },
+  { id: 'small-pet', zh: '🐰 小宠（兔 / 豚鼠）', en: 'Small pet' },
+  { id: 'other', zh: '还没定 / 其他', en: 'Not sure / other' }
+];
+const ASK_QTY = [
+  { id: 'sample', zh: '样品或 1–10 件', en: 'Sample or 1–10' },
+  { id: 'small', zh: '11–100 件', en: '11–100' },
+  { id: 'mid', zh: '101–500 件', en: '101–500' },
+  { id: 'large', zh: '500 件以上', en: '500+' }
+];
+let askFlow = null;
+
+function askTxt(o) { return state.lang === 'zh' ? o.zh : o.en; }
+function askPetLabel(id) { const o = ASK_PETS.find(x => x.id === id); return o ? askTxt(o) : id; }
+function askQtyLabel(id) { const o = ASK_QTY.find(x => x.id === id); return o ? askTxt(o) : id; }
+function askSubLabel(id) { const s = (CATEGORIES[0].subs || []).find(x => x.id === id); return s ? langObj(s) : id; }
+
+function openAskFlow(productId) {
+  askFlow = { step: 1, pet: '', sub: '', qty: '', country: '', note: '', productId: productId || '', name: '', email: '' };
+  if (state.user) { askFlow.name = state.user.name || ''; askFlow.email = state.user.email || ''; }
+  renderAskStep();
+}
+
+function askOptsHtml(list, field) {
+  const cur = askFlow[field];
+  return list.map(o => '<button type="button" class="ask-opt' + (cur === o.id ? ' on' : '')
+    + '" data-action="ask-pick" data-field="' + field + '" data-value="' + o.id + '">' + esc(askTxt(o)) + '</button>').join('');
+}
+
+function renderAskStep() {
+  const f = askFlow;
+  if (!f) return;
+  const bar = '<div class="ask-bar">' + [1, 2, 3].map(n => '<i class="' + (n <= f.step ? 'on' : '') + '"></i>').join('') + '</div>';
+  let inner = '';
+  if (f.step === 1) {
+    inner = '<p class="ask-q">' + t('askQ1') + '</p><div class="ask-opts">' + askOptsHtml(ASK_PETS, 'pet') + '</div>';
+  } else if (f.step === 2) {
+    const subs = (CATEGORIES[0].subs || []).map(s => ({ id: s.id, zh: langObj(s, 'zh'), en: langObj(s, 'en') }));
+    inner = '<p class="ask-q">' + t('askQ2') + '</p><div class="ask-opts">' + askOptsHtml(subs, 'sub') + '</div>';
+  } else {
+    inner = '<p class="ask-q">' + t('askQ3') + '</p><div class="ask-opts">' + askOptsHtml(ASK_QTY, 'qty') + '</div>'
+      + '<div class="field"><label>' + t('askCountry') + '</label><input class="input" id="askCountry" value="' + esc(f.country) + '" placeholder="' + esc(t('askCountryPh')) + '"></div>'
+      + '<div class="field"><label>' + t('askNote') + '</label><textarea class="textarea" id="askNote" rows="2" placeholder="' + esc(t('askNotePh')) + '">' + esc(f.note) + '</textarea></div>'
+      + '<div class="field"><label>' + t('regName') + ' *</label><input class="input" id="askName" value="' + esc(f.name) + '"></div>'
+      + '<div class="field"><label>' + t('regEmail') + ' *</label><input class="input" type="email" id="askEmail" value="' + esc(f.email) + '"></div>'
+      + '<div class="ask-summary">' + esc(t('askSummary')) + '：' + esc(askPetLabel(f.pet)) + ' · ' + esc(askSubLabel(f.sub)) + '</div>';
+  }
+  const nav = '<div class="ask-nav">'
+    + (f.step > 1 ? '<button type="button" class="btn btn-ghost" data-action="ask-back">' + t('askBack') + '</button>' : '')
+    + (f.step < 3
+      ? '<button type="button" class="btn btn-accent" data-action="ask-next">' + t('askNext') + '</button>'
+      : '<button type="button" class="btn btn-accent" data-action="ask-submit">' + t('askSubmit') + '</button>')
+    + '</div>';
+  showModal('<div class="modal-head"><h3>' + t('askTitle') + '</h3>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body ask-body">' + bar + inner + nav + '</div>');
+}
+
+function askPick(field, value) {
+  if (!askFlow) return;
+  askFlow[field] = value;
+  if (field !== 'qty') askFlow.step = Math.min(3, askFlow.step + 1);
+  renderAskStep();
+}
+
+function askNext() {
+  const f = askFlow;
+  if (!f) return;
+  if (f.step === 1 && !f.pet) { toast(t('askNeedPick')); return; }
+  if (f.step === 2 && !f.sub) { toast(t('askNeedPick')); return; }
+  f.step = Math.min(3, f.step + 1);
+  renderAskStep();
+}
+
+async function askSubmit() {
+  const f = askFlow;
+  if (!f) return;
+  const c = $('#askCountry'), n = $('#askNote'), nm = $('#askName'), em = $('#askEmail');
+  f.country = c ? c.value.trim() : '';
+  f.note = n ? n.value.trim() : '';
+  f.name = nm ? nm.value.trim() : '';
+  f.email = em ? em.value.trim() : '';
+  if (!f.qty) { toast(t('askNeedPick')); return; }
+  if (!f.name || !/^[^s@]+@[^s@]+.[^s@]+$/.test(f.email)) { toast(t('askNeedContact')); return; }
+  const body = '【' + t('askSummary') + '】' + t('askPet') + '：' + askPetLabel(f.pet)
+    + ' · ' + t('category') + '：' + askSubLabel(f.sub)
+    + ' · ' + t('quantity') + '：' + askQtyLabel(f.qty)
+    + (f.country ? ' · ' + t('askCountry') + '：' + f.country : '')
+    + (f.note ? '\n' + t('askNote') + '：' + f.note : '');
+  const pid = f.productId || ((liveProducts()[0] || {}).id);
+  try {
+    await api.inquiries.create({ productId: pid, qty: Number((f.qty === 'sample' ? 5 : f.qty === 'small' ? 50 : f.qty === 'mid' ? 200 : 800)), unit: 'pcs', message: body, name: f.name, email: f.email, attachments: [], buyerType: state.user ? (state.user.accountType || 'company') : 'individual' });
+    closeModal();
+    toast(t('askDone'));
+    if (typeof reloadState === 'function') reloadState();
+  } catch (e) {
+    toast(t('askFailed') + (e && e.message ? '：' + e.message : ''));
+  }
 }

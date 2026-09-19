@@ -1621,6 +1621,25 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .search-suggest .chip:hover { background: var(--accent-050); }
 /* 门面眉标里的像素小图标 */
 .eyebrow-ico { width: 20px; height: 20px; image-rendering: pixelated; vertical-align: -5px; margin-right: 6px; }
+
+/* 对话式询价：进度条 + 选项块（沿用站点暖色方硬边风格） */
+.ask-bar { display: flex; gap: 6px; margin-bottom: 14px; }
+.ask-bar i { flex: 1; height: 4px; border-radius: 3px; background: var(--border-2); }
+.ask-bar i.on { background: var(--accent); }
+.ask-q { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: var(--navy-800); }
+.ask-opts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.ask-opt {
+  padding: 9px 14px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  background: var(--card); border: 1px solid var(--border-2); color: var(--text);
+}
+.ask-opt:hover { border-color: var(--accent); background: var(--accent-050); }
+.ask-opt.on { background: var(--accent); border-color: var(--accent); color: #FFF; font-weight: 600; }
+.ask-nav { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.ask-summary {
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  background: var(--primary-050); border: 1px dashed var(--border-2);
+  font-size: 13px; color: var(--primary);
+}
 /* 标题里出现的内联图标（盾牌/用户）跟随文字大小与颜色 */
 .modal-head h3 svg, .panel-head h2 svg, .detail-block h2 svg { vertical-align: -3px; margin-right: 6px; }
 

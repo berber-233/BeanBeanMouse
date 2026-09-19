@@ -793,6 +793,11 @@ function handleAction(el) {
     }
     case 'logout': logout(false); break;
     case 'switch-role': logout(false, true); break;
+      case 'ask-open': openAskFlow(el.dataset.id || ''); break;
+      case 'ask-pick': askPick(el.dataset.field, el.dataset.value); break;
+      case 'ask-next': askNext(); break;
+      case 'ask-back': if (askFlow) { askFlow.step = Math.max(1, askFlow.step - 1); renderAskStep(); } break;
+      case 'ask-submit': runBusy(el, () => askSubmit()); break;
       case 'go-dashboard': go('/dashboard'); break;
       case 'toggle-nav': {
         const nav = $('.main-nav');
