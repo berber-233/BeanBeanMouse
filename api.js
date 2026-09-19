@@ -159,7 +159,8 @@ api.auth = {
 api.products = {
   async list({ kw, cat, min, max, origin, includeOffline = false } = {}) {
     if (api.config.mode === 'http') {
-      const qs = new URLSearchParams({ kw: kw || '', cat: cat || '', origin: origin || '' });
+    /* size=100：后端默认每页 20，会把后面的商品挡在前台之外 */
+    const qs = new URLSearchParams({ kw: kw || '', cat: cat || '', origin: origin || '', size: '100' });
       const r = await apiRequest('/products?' + qs.toString());
       return r.items || [];
     }
