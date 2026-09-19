@@ -94,7 +94,8 @@ render();
     zh: { title: txt(p, 'zh', 'title') || txt(p, 'en', 'title') || p.id, desc: txt(p, 'zh', 'desc'), features: txt(p, 'zh', 'features') || [] }
   });
   api.products.list().then(res => {
-    const items = (res && res.items) || [];
+    /* api.products.list() 在 http 模式直接返回数组；兼容两种返回形态 */
+    const items = Array.isArray(res) ? res : ((res && res.items) || []);
     if (items.length < MIN_EXPECTED) {
       console.warn('[hydrate] 服务器商品仅 ' + items.length + ' 款，保留本地演示数据');
       return;
