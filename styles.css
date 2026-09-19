@@ -1654,6 +1654,37 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .fit-list { list-style: none; margin: 6px 0 8px; padding: 0; }
 .fit-list li { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--border-2); font-size: 14px; }
 .fit-list .k { min-width: 72px; color: var(--muted); }
+
+/* ==================== 移动端打磨第二轮（用户 2026-09-19） ==================== */
+/* 详情页固定底栏：手机上价格 + 询问常驻底部，拇指可达（桌面隐藏） */
+.sticky-ask { display: none; }
+@media (max-width: 640px) {
+  .sticky-ask {
+    display: flex; align-items: center; gap: 10px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, .97);
+    border-top: 1px solid var(--border-2);
+    box-shadow: 0 -6px 18px rgba(120, 84, 20, .10);
+  }
+  .sticky-ask .sa-price { flex: 1; font-size: 13px; color: var(--text-2); }
+  .sticky-ask .btn { min-height: 44px; flex: 0 0 auto; }
+  body:has(.sticky-ask) { padding-bottom: 74px; }
+
+  /* 手机上适配标签允许换行，不再被裁掉 */
+  .fit-row { flex-wrap: wrap; }
+  .fit-block-icons { margin-top: 6px; }
+
+  /* 筛选与排序控件放大到 40px 以上，手指点得准 */
+  .radio-row label, .filter-group label, .chip { min-height: 36px; display: inline-flex; align-items: center; }
+  .filter-panel .filter-group { padding: 10px 0; }
+  .filter-panel h4 { margin-bottom: 6px; }
+
+  /* 商品卡在手机上留白收紧一点，一屏能多看到半张卡 */
+  .product-grid { gap: 10px; }
+  .product-card .body { padding: 10px 12px 12px; }
+  .product-card .title { font-size: 14px; }
+}
 /* 标题里出现的内联图标（盾牌/用户）跟随文字大小与颜色 */
 .modal-head h3 svg, .panel-head h2 svg, .detail-block h2 svg { vertical-align: -3px; margin-right: 6px; }
 

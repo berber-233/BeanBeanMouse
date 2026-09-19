@@ -148,7 +148,7 @@ function render() {
   else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path === '/insurance') { app.innerHTML = renderInsurance(); bindInsurancePage(); }
   else if (path === '/contracts') { app.innerHTML = renderContracts(); }
-  else if (path.indexOf('/product/') === 0) app.innerHTML = renderDetail(path.slice(9));
+  else if (path.indexOf('/product/') === 0) { const _pid = path.slice(9); app.innerHTML = renderDetail(_pid) + stickyAskBar(_pid); }
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path.indexOf('/seller/') === 0) app.innerHTML = renderSellerPage(path.slice(8));
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
@@ -4541,4 +4541,14 @@ function petFitBlock(p) {
     + '<div class="fit-block-icons">' + petFitIcons(p) + '</div>'
     + '<ul class="fit-list">' + rows.map(r => '<li><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></li>').join('') + '</ul>'
     + '<p class="small muted">' + t('fitNote') + '</p></div>';
+}
+
+/* ---------- 手机端固定底栏（pet0.2）：价格 + 询问，拇指可达 ---------- */
+function stickyAskBar(pid) {
+  const p = productById(pid);
+  if (!p) return '';
+  return '<div class="sticky-ask">'
+    + '<div class="sa-price">' + t('priceRange') + ' <b>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</b> / ' + esc(p.unit || 'pcs') + '</div>'
+    + '<button type="button" class="btn btn-accent" data-action="open-inquiry" data-id="' + esc(p.id) + '">' + t('sendInquiry') + '</button>'
+    + '</div>';
 }
