@@ -40,7 +40,7 @@ function fakeQrSvg(seed) {
 
 function openFakeCheck() {
   showModal(
-    '<div class="modal-head"><h3>🛡 ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3> ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body">'
     + '<p class="small muted">' + t('fakeEnter') + '</p>'
     + '<div class="input-group"><input class="input" id="fakeCodeInput" placeholder="' + t('fakePlaceholder') + '" style="text-transform:uppercase"><button type="button" class="btn btn-primary" data-action="fake-verify">' + t('fakeVerify') + '</button></div>'
@@ -55,7 +55,7 @@ function showFakeResult(p, code) {
   const seller = sellerOf(p);
   closeModal();
   showModal(
-    '<div class="modal-head"><h3>🛡 ' + t('fakeOkTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3> ' + t('fakeOkTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body fake-result">'
     + '<div class="fake-ico fake-ico--ok">✓</div>'
     + '<p class="fake-genuine">' + t('fakeGenuine') + '</p>'
@@ -73,7 +73,7 @@ function showFakeResult(p, code) {
 
 function openSiteVerify() {
   showModal(
-    '<div class="modal-head"><h3>🛡 ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3> ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body fake-result">'
     + '<div class="fake-ico fake-ico--ok">✓</div>'
     + '<p class="fake-genuine">BeanBeanMouse · ' + t('fakeSiteTitle') + '</p>'
@@ -314,7 +314,7 @@ function renderHome() {
   return '<section class="storefront">'
     + '<div class="store-inner">'
     + '<div class="store-copy">'
-    + '<p class="store-eyebrow">🐹 ' + esc(t('sfEyebrow')) + '</p>'
+    + '<p class="store-eyebrow"><img class="eyebrow-ico" src="assets/pixel/sub/hamster.png" alt="" width="20" height="20" loading="lazy" decoding="async">' + esc(t('sfEyebrow')) + '</p>'
     + '<h1 class="store-title">' + t('sfTitle') + '</h1>'
     + '<p class="store-sub">' + t('sfSub') + '</p>'
     + '<form class="hero-search" data-form="home-search">'
@@ -526,11 +526,11 @@ function renderProducts(params) {
     + '<h1>' + (kw ? t('searchResultsFor', { kw }) : t('marketplace')) + '</h1>'
     + '<div class="sub">' + t('statsProducts') + ' · ' + liveProducts().length + '+</div>'
     + '<form class="products-search" data-form="products-search" novalidate>'
-    + '<input type="search" id="productKw" list="productKwList" placeholder="' + t('searchBarPlaceholder') + '" value="' + esc(kw) + '" aria-label="' + t('searchBarPlaceholder') + '">'
-    + '<datalist id="productKwList">' + searchSuggest.map(s => '<option value="' + esc(s) + '"></option>').join('') + '</datalist>'
-    + '<button type="submit" class="btn btn-accent">' + icon('search') + t('searchBtn') + '</button>'
-    + '</form>'
-    + '</div>'
+    + '<input type="search" id="productKw" placeholder="' + t('searchBarPlaceholder') + '" value="' + esc(kw) + '" aria-label="' + t('searchBarPlaceholder') + '">'
+  + '<button type="submit" class="btn btn-accent">' + icon('search') + t('searchBtn') + '</button>'
+  + '</form>'
+  + (searchSuggest.length ? '<div class="search-suggest">' + searchSuggest.slice(0, 6).map(sg => '<a class="chip" href="#/products?kw=' + encodeURIComponent(sg) + '" data-nav="/products?kw=' + encodeURIComponent(sg) + '">' + esc(sg) + '</a>').join('') + '</div>' : '')
+  + '</div>'
     + '<div class="products-layout">'
     + '<aside class="card filter-panel" id="filterPanel">'
     + '<h3>' + icon('filter') + t('filters') + '</h3>'
@@ -749,7 +749,7 @@ function renderSellerPage(sid) {
     + '</div>'
     + '</section>'
     + '<div class="seller-trust-grid">'
-    + '<section class="card panel"><div class="panel-head"><h2>🛡️ ' + t('sellerTrustTitle') + '</h2></div>'
+    + '<section class="card panel"><div class="panel-head"><h2> ' + t('sellerTrustTitle') + '</h2></div>'
     + '<div class="trust-cell"><b>' + (verified ? t('verified') : t('pendingVerify')) + '</b><span>' + (verified ? t('companyApproved') : t('companyTip')) + '</span></div>'
     + '<div class="trust-cell"><b>' + t('exportReadinessScore') + '</b><span>' + readiness.score + '%（' + readiness.coreDone + '/' + readiness.coreTotal + '）</span></div>'
     + '<div class="trust-cell"><b>' + t('statLive') + '</b><span>' + products.length + '</span></div>'
@@ -840,20 +840,20 @@ function renderDetail(pid) {
     + (langObj(p).features || []).map((f, i) => '<li><span class="tick">✓</span><span' + l10nAttrs(p.id, 'feature' + i, base, srcFeatures[i] || f) + '>' + esc(viewProductText(p, 'features', i)) + '</span></li>').join('')
     + '</ul>'
     + (showSrcBlock
-      ? '<details class="src-text"><summary>🌐 ' + t('sourceLang') + '（' + langLabel(base) + '）</summary>'
+      ? '<details class="src-text"><summary> ' + t('sourceLang') + '（' + langLabel(base) + '）</summary>'
         + '<div class="src-text-body"><h4>' + esc(srcTitle) + '</h4><p>' + esc(srcDesc) + '</p><ul class="feature-list">'
         + srcFeatures.map(f => '<li><span class="tick">✓</span><span>' + esc(f) + '</span></li>').join('')
         + '</ul></div></details>'
       : '')
     + '</div>'
-    + '<div class="card detail-block fake-card"><h2>🛡 ' + t('fakeTitle') + '</h2>'
+    + '<div class="card detail-block fake-card"><h2> ' + t('fakeTitle') + '</h2>'
     + '<div class="fake-card-body">'
     + '<div class="fake-qr">' + fakeQrSvg(fakeCodeOf(p)) + '</div>'
     + '<div class="fake-card-info">'
     + '<div class="fake-status"><span class="fake-badge">✓ ' + t('fakeGenuine') + '</span></div>'
     + '<div class="fake-code-row"><span>' + t('fakeCode') + '：</span><b class="fake-code">' + fakeCodeOf(p) + '</b></div>'
     + '<p class="small muted">' + t('fakeInfo') + '</p>'
-    + '<button type="button" class="btn btn-sm btn-primary" data-action="verify-product" data-id="' + p.id + '">🛡 ' + t('fakeVerify') + '</button>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="verify-product" data-id="' + p.id + '"> ' + t('fakeVerify') + '</button>'
     + '</div></div></div>'
     + '<div class="card detail-block"><h2>' + icon('shield') + ' ' + t('complianceTitle') + '</h2>'
     + ((p.markets || []).length
@@ -1089,11 +1089,11 @@ function attachmentChipsHtml(list, inquiryId) {
 function identityBadgeHtml(i) {
   if (!i || !i.buyerType) return '';
   const label = i.buyerType === 'individual' ? t('accountTypeIndividual') : t('accountTypeCompany');
-  return '<span class="chip identity-chip">' + (i.buyerType === 'company' ? '🏢 ' : '🧑‍💼 ') + esc(label) + (i.jobTitle ? ' · ' + esc(i.jobTitle) : '') + '</span>';
+  return '<span class="chip identity-chip">' + '' + esc(label) + (i.jobTitle ? ' · ' + esc(i.jobTitle) : '') + '</span>';
 }
 function cardButtonHtml(i) {
   if (!i || !i.card) return '';
-  return '<button type="button" class="btn btn-sm" data-action="view-card" data-id="' + i.id + '">🪪 ' + t('viewCard') + '</button>';
+  return '<button type="button" class="btn btn-sm" data-action="view-card" data-id="' + i.id + '">' + icon('users') + ' ' + t('viewCard') + '</button>';
 }
 function exportButtonsHtml(i) {
   return '<div class="conv-export"><span class="small muted">' + t('exportConvHint') + '</span>'
@@ -1206,7 +1206,7 @@ function openInquiryModal(pid) {
       + '<label class="check-pill"><input type="radio" name="identity" value="public" checked>' + t('identityPublic') + '</label>'
       + '<label class="check-pill"><input type="radio" name="identity" value="hidden">' + t('identityHidden') + '</label>'
       + '</div></div>'
-      + (hasBusinessCard() ? '<label class="checkbox-label send-card-label"><input type="checkbox" name="sendCard" value="1" checked> 🪪 ' + t('sendCard') + '</label>' : '')
+      + (hasBusinessCard() ? '<label class="checkbox-label send-card-label"><input type="checkbox" name="sendCard" value="1" checked>' + t('sendCard') + '</label>' : '')
       + '</div>' : '')
     + '<div class="field attach-field"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
     + '<input type="file" name="attachments" multiple accept="image/jpeg,image/png,image/gif,image/webp,.zip,.rar,.7z" data-attach-store="inquiry">'
@@ -1625,8 +1625,8 @@ function renderProfileBody() {
     + '<div class="form-grid">'
     + '<div class="field"><label>' + t('contactName') + ' *</label><input class="input" name="name" value="' + esc(f.name) + '" required maxlength="80"></div>'
     + '<div class="field"><label>' + t('regAccountType') + '</label><select class="select" name="accountType">'
-    + '<option value="company" ' + (f.accountType !== 'individual' ? 'selected' : '') + '>🏢 ' + t('accountTypeCompany') + '</option>'
-    + '<option value="individual" ' + (f.accountType === 'individual' ? 'selected' : '') + '>🧑‍💼 ' + t('accountTypeIndividual') + '</option></select></div>'
+    + '<option value="company" ' + (f.accountType !== 'individual' ? 'selected' : '') + '> ' + t('accountTypeCompany') + '</option>'
+    + '<option value="individual" ' + (f.accountType === 'individual' ? 'selected' : '') + '> ' + t('accountTypeIndividual') + '</option></select></div>'
     + '<div class="field"><label>' + t('jobTitle') + '</label><input class="input" name="jobTitle" value="' + esc(f.jobTitle) + '" maxlength="60" placeholder="Purchasing Manager / 外贸经理"></div>'
     + '<div class="field"><label>' + (f.accountType === 'individual' ? t('regBizName') : t('companyName')) + '</label><input class="input" name="company" value="' + esc(f.company) + '" maxlength="120"></div>'
     + '<div class="field"><label>' + t('countryLabel') + '</label><select class="select" name="country"><option value="">—</option>' + countries + '</select></div>'
@@ -1636,7 +1636,7 @@ function renderProfileBody() {
     + '<button type="submit" class="btn btn-primary">' + t('profileSave') + '</button>'
     + '</form></div>'
     + '<div>'
-    + '<div class="card panel"><div class="panel-head"><h2>🪪 ' + t('cardUploadBtn') + '</h2><span class="small muted">' + t('cardAttachHint') + '</span></div>'
+    + '<div class="card panel"><div class="panel-head"><h2> ' + t('cardUploadBtn') + '</h2><span class="small muted">' + t('cardAttachHint') + '</span></div>'
     + '<div class="field attach-field">'
     + '<input type="file" name="card" accept="image/jpeg,image/png,image/webp" data-attach-store="card">'
     + '<div class="card-preview">' + cardPreviewHtml + '</div>'
@@ -1721,7 +1721,7 @@ function cardBackHtml(i) {
 async function openCardModal(i) {
   if (!i || !i.card) return;
   card3d.rx = -6; card3d.ry = 0; card3d.flipped = false;
-  showModal('<div class="modal-head"><h3>🪪 ' + t('businessCard') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3> ' + t('businessCard') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
     + '<div class="modal-body">'
     + '<div class="card3d" id="card3d"><div class="card3d-inner" id="card3dInner">'
     + '<div class="card3d-face front"><div class="holo"></div>'
@@ -1775,8 +1775,8 @@ function registerFormHtml() {
     + '<label class="check-pill"><input type="radio" name="role" value="seller" data-reg-toggle="sellerRegFields">' + t('regRoleSeller') + '</label>'
     + '</div></div>'
     + '<div class="field"><label>' + t('regAccountType') + '</label><div class="check-group">'
-    + '<label class="check-pill"><input type="radio" name="accountType" value="company" checked data-reg-type="company">🏢 ' + t('regCompany') + '</label>'
-    + '<label class="check-pill"><input type="radio" name="accountType" value="individual" data-reg-type="individual">🧑‍💼 ' + t('regIndividual') + '</label>'
+    + '<label class="check-pill"><input type="radio" name="accountType" value="company" checked data-reg-type="company"> ' + t('regCompany') + '</label>'
+    + '<label class="check-pill"><input type="radio" name="accountType" value="individual" data-reg-type="individual"> ' + t('regIndividual') + '</label>'
     + '</div></div>'
     + '<div id="companyFields">'
     + '<div class="field"><label>' + t('regJobTitle') + '</label><input class="input" name="jobTitle" maxlength="60" placeholder="Purchasing Manager / 外贸经理"></div>'
@@ -1784,7 +1784,7 @@ function registerFormHtml() {
     + '<div id="individualFields" hidden>'
     + '<div class="field"><label>' + t('regBizName') + '</label><input class="input" name="bizName" maxlength="80" placeholder="如：XX 档口 / 个体经营"></div>'
     + '</div>'
-    + '<div class="form-note">💡 ' + t('regRoleHint') + '</div>'
+    + '<div class="form-note">' + icon('sparkle') + ' ' + t('regRoleHint') + '</div>'
     + '<div id="sellerRegFields" hidden>'
     + '<div class="field"><label>' + t('regCompanyName') + ' *</label><input class="input" name="companyName" required></div>'
     + '<div class="field"><label>' + t('regCountry') + ' *</label><input class="input" name="country" required></div>'
@@ -1798,7 +1798,7 @@ function registerFormHtml() {
     + ['supDoc1', 'supDoc2', 'supDoc3', 'supDoc4', 'supDoc5', 'supDoc6'].map(k => '<li>' + t(k) + '</li>').join('')
     + '</ul><p class="small">' + t('supDocNote') + '</p></div>'
     + '</div>'
-    + '<div class="form-note">💡 ' + t('regNote') + '</div>'
+    + '<div class="form-note">' + icon('sparkle') + ' ' + t('regNote') + '</div>'
     + '<button type="submit" class="btn btn-primary btn-block">' + t('regSubmit') + '</button>'
     + '</form></div>';
 }
@@ -1814,7 +1814,7 @@ function companyFormHtml() {
     + '<div class="field"><label>' + t('regCompanyWebsite') + '</label><input class="input" name="website" value="' + esc(c.website || '') + '"></div>'
     + '<div class="field"><label>' + t('regContact') + '</label><input class="input" name="contact" value="' + esc(c.contact || '') + '"></div>'
     + '<div class="field"><label>' + t('regScope') + '</label><input class="input" name="businessScope" value="' + esc(c.businessScope || '') + '"></div>'
-    + '<div class="form-note">💡 ' + t('companyTip') + '</div>'
+    + '<div class="form-note">' + icon('sparkle') + ' ' + t('companyTip') + '</div>'
     + '<button type="submit" class="btn btn-primary btn-block">' + t('companyApply') + '</button>'
     + '</form></div>';
 }
@@ -2642,7 +2642,7 @@ function renderRecruit() {
     : [['Register & verify', 'Submit real company/factory credentials for platform review'], ['Publish by category', 'Pick a foreign-trade subcategory with HS reference and go live'], ['Get inquiries & growth', 'Buyer inquiries hit your inbox; apply for promotion slots']];
   const benefits = [
     ['🌍', zh ? '面向全球买家' : 'Global buyers', zh ? '多语言界面与实时翻译，跨时区询盘直达' : 'Multilingual UI with live translation'],
-    ['🔒', zh ? '企业实名审核' : 'Verified companies', zh ? '真实可查证公司/工厂才能发品，建立信任' : 'Only real, verifiable companies can list'],
+    ['', zh ? '企业实名审核' : 'Verified companies', zh ? '真实可查证公司/工厂才能发品，建立信任' : 'Only real, verifiable companies can list'],
     ['📈', zh ? '细分品类与推广' : 'Subcategories & promotion', zh ? '外贸细分品类 + HS 参考，推广位放大曝光' : 'Foreign-trade subcategories with HS reference and promo slots']
   ];
   return '<div class="container page">'
@@ -2912,7 +2912,7 @@ function renderCompliance() {
   document.title = t('navCompliance') + ' · BeanBeanMouse';
   const demo = state.products.filter(isLive).slice(0, 4);
   return '<div class="container page">'
-    + '<div class="page-head guide-head"><h1>🛡 ' + t('complianceTitle') + '</h1><p>' + t('complianceSub') + '</p></div>'
+    + '<div class="page-head guide-head"><h1> ' + t('complianceTitle') + '</h1><p>' + t('complianceSub') + '</p></div>'
     + '<section class="card panel"><div class="panel-head"><h2>🔎 ' + t('complianceControlTitle') + '</h2><span class="small muted">' + t('complianceControlNote') + '</span></div>'
     + '<form data-form="compliance-screen-form" novalidate>'
     + '<div class="field"><label>' + t('complianceScreenHint') + '</label><textarea class="textarea" name="text" rows="3" maxlength="2000" placeholder="e.g. 3000W fiber laser cutting machine with automatic focus"></textarea></div>'
@@ -3652,7 +3652,7 @@ function renderLogin() {
     + '<span class="role-arrow">→</span>'
     + '</div>'
     + '<div class="role-card" data-action="login-role" data-role="admin">'
-    + '<div class="role-ico" style="background:linear-gradient(135deg,#0F2145,#1D4ED8)">🛡️</div>'
+    + '<div class="role-ico" style="background:linear-gradient(135deg,#0F2145,#1D4ED8)"></div>'
     + '<h3>' + t('asAdmin') + '</h3>'
     + '<p>' + t('adminDesc') + '</p>'
     + '<span class="role-arrow">→</span>'
@@ -3660,8 +3660,8 @@ function renderLogin() {
     + '</div>'
     + '<button type="button" class="btn btn-lg guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
     + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
-    + '<div class="login-trust"><span>🔒 ' + t('loginTrust1') + '</span><span>🌐 ' + t('loginTrust2') + '</span><span>🛡️ ' + t('loginTrust3') + '</span></div>'
-    + '<div class="login-note">💡 ' + t('loginNote') + '</div>'
+    + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
+    + '<div class="login-note"> ' + t('loginNote') + '</div>'
     + '</div></div>';
 }
 
@@ -3813,7 +3813,7 @@ function renderAdminDash(path) {
     [t('adminFeedback'), (state.suggestions || []).filter(s => s.status === 'new').length, 'pend']
   ];
   return '<div class="container page"><div class="page-head admin-head">'
-    + '<div><h1>🛡️ ' + t('adminPanel') + '</h1><p class="sub">' + t('adminDesc') + ' · ' + new Date().toLocaleDateString(uiLocale()) + '</p></div>'
+    + '<div><h1> ' + t('adminPanel') + '</h1><p class="sub">' + t('adminDesc') + ' · ' + new Date().toLocaleDateString(uiLocale()) + '</p></div>'
     + '<div class="admin-summary">' + summary.map(([label, n, cls]) =>
       '<span class="admin-summary-chip"><b>' + n + '</b> ' + esc(label) + (n ? ' <i class="dot ' + cls + '"></i>' : '') + '</span>').join('') + '</div>'
     + '</div>'
