@@ -5,6 +5,9 @@ window.__TB_STORE_KEY__ = STORE_KEY;
 /* 演示数据结构版本：改动演示数据后往上加，老访客的本地缓存会自动重建，
  * 避免他们一直看到过期目录（例如旧的非宠物商品）。 */
 const DATA_VERSION = 'pet0.2';
+/* Cloudflare Turnstile 的 Site Key（公开值，可安全出现在前端）。
+ * 密匙是 TURNSTILE_SECRET，只存在服务端（Pages 的环境变量），不在代码里。 */
+window.__TURNSTILE_KEY__ = '0x4AAAAAAE-xhSkuY8DmaRWz';
 
 const CATEGORIES = [
   { id: 'pet', zh: '宠物用品', en: 'Pet Supplies', hue: 32, subs: [

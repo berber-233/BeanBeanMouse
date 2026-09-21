@@ -981,6 +981,7 @@ function modalFocusables() {
     .filter(el => el.offsetParent !== null || el === document.activeElement);
 }
 function showModal(html) {
+  setTimeout(mountTurnstile, 0);
   lastFocusedEl = document.activeElement;
   document.body.classList.add('modal-open');
   $('#modalRoot').innerHTML = '<div class="modal-mask" role="dialog" aria-modal="true"><div class="modal" data-stop="1" tabindex="-1">' + html + '</div></div>';
@@ -1128,4 +1129,23 @@ function applyStaticI18n() {
     const v = t(k);
     if (v !== k) el.textContent = v;
   });
+}
+
+/* ---------- Turnstile：动态挂载（pet0.2）---------- */
+function mountTurnstile() {
+  if (!window.turnstile || !window.__TURNSTILE_KEY__) return;
+  const el = document.querySelector('.cf-turnstile');
+  if (!el || el.dataset.mounted) return;
+  el.dataset.mounted = '1';
+  const hidden = el.parentElement ? el.parentElement.querySelector('input[name="turnstileToken"]') : null;
+  try {
+    window.turnstile.render(el, {
+      sitekey: window.__TURNSTILE_KEY__,
+      callback: function (token) { if (hidden) hidden.value = token; },
+      'error-callback': function () { if (hidden) hidden.value = ''; },
+      'expired-callback': function () { if (hidden) hidden.value = ''; }
+    });
+  } catch (e) {
+    console.warn('[turnstile] render 失败：' + (e && e.message));
+  }
 }
