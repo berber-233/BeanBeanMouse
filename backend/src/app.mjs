@@ -20,6 +20,8 @@ export function createApp({ env = {}, deps = {} } = {}) {
   const ENV = env;
   /* 试用期可关闭邮箱验证：REQUIRE_EMAIL_VERIFY=0 */
   const REQUIRE_EMAIL_VERIFY = String(ENV.REQUIRE_EMAIL_VERIFY === undefined ? '1' : ENV.REQUIRE_EMAIL_VERIFY) !== '0';
+  /* 新账号是否需要管理员审核（试用期用人工把关替代邮件验证） */
+  const REQUIRE_ACCOUNT_REVIEW = String(ENV.REQUIRE_ACCOUNT_REVIEW === undefined ? '0' : ENV.REQUIRE_ACCOUNT_REVIEW) !== '0';
   const wsBroadcast = typeof deps.wsBroadcast === 'function' ? deps.wsBroadcast : () => {};
   configureAuth({ secret: ENV.JWT_SECRET, iterations: ENV.PBKDF2_ITERATIONS });
 
@@ -469,8 +471,9 @@ async function route(m, segs, q, req, res) {
       }
       const id = randomUUID();
       await run(
-        'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    id, email, await hashPassword(password), role, name, 'active', REQUIRE_EMAIL_VERIFY ? 0 : 1, Date.now()
+    'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, review_state, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    id, email, await hashPassword(password), role, name, 'active', REQUIRE_EMAIL_VERIFY ? 0 : 1,
+    REQUIRE_ACCOUNT_REVIEW ? 'pending' : null, Date.now()
       );
       if (companyData) {
         await run(
@@ -494,11 +497,13 @@ async function route(m, segs, q, req, res) {
         user: publicUser(u),
     emailVerified: !REQUIRE_EMAIL_VERIFY,
         mailSent,
-      message: !REQUIRE_EMAIL_VERIFY
-        ? '注册成功，现在就可以登录了'
-        : (mailSent
-          ? '注册成功，请查收邮箱完成验证（24 小时内有效）'
-          : '注册成功，但验证邮件发送失败，请稍后在登录页点击「重发验证邮件」')
+      message: REQUIRE_ACCOUNT_REVIEW
+        ? '注册成功，账号正在等待管理员审核，通过后即可登录'
+        : (!REQUIRE_EMAIL_VERIFY
+          ? '注册成功，现在就可以登录了'
+          : (mailSent
+            ? '注册成功，请查收邮箱完成验证（24 小时内有效）'
+            : '注册成功，但验证邮件发送失败，请稍后在登录页点击「重发验证邮件」'))
       });
     }
     if (m === 'POST' && b === 'login') {
@@ -511,6 +516,8 @@ async function route(m, segs, q, req, res) {
         return fail(res, 401, 'INVALID_CREDENTIALS', '账号或密码错误');
       }
       if (u.status === 'frozen') return fail(res, 401, 'ACCOUNT_FROZEN', '账号已被冻结');
+      if (u.review_state === 'pending') return fail(res, 403, 'PENDING_REVIEW', '账号正在等待管理员审核，通过后即可登录');
+      if (u.review_state === 'rejected') return fail(res, 403, 'ACCOUNT_REJECTED', '注册申请未通过审核，如有疑问请联系我们');
       if (REQUIRE_EMAIL_VERIFY && !u.email_verified) return fail(res, 403, 'VERIFY_EMAIL_REQUIRED', '请先验证邮箱再登录');
       await run('UPDATE users SET last_login_at = ? WHERE id = ?', Date.now(), u.id);
       return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }), user: publicUser(u) });
@@ -1435,6 +1442,36 @@ async function route(m, segs, q, req, res) {
 
   /* 管理后台 */
   if (a === 'admin') {
+    /* 账号审核：列出待审核/全部账号，通过或拒绝 */
+    if (b === 'users' && m === 'GET') {
+      const admin = await requireAuth(res, req, ['admin']);
+      if (!admin) return;
+      const status = q.get('status') ? String(q.get('status')) : '';
+      const rows = status
+        ? await all('SELECT id, email, name, role, status, review_state, email_verified, created_at FROM users WHERE review_state = ? ORDER BY created_at DESC LIMIT 200', status)
+        : await all('SELECT id, email, name, role, status, review_state, email_verified, created_at FROM users ORDER BY created_at DESC LIMIT 200');
+      const counts = {
+        pending: (await get("SELECT COUNT(*) AS c FROM users WHERE review_state = 'pending'")).c,
+        active: (await get("SELECT COUNT(*) AS c FROM users WHERE status = 'active'")).c,
+        frozen: (await get("SELECT COUNT(*) AS c FROM users WHERE status = 'frozen'")).c,
+        rejected: (await get("SELECT COUNT(*) AS c FROM users WHERE review_state = 'rejected'")).c
+      };
+      return send(res, 200, { items: rows, counts });
+    }
+    if (b === 'users' && c && (d === 'approve' || d === 'reject') && m === 'POST') {
+      const admin = await requireAuth(res, req, ['admin']);
+      if (!admin) return;
+      const body = await readBody(req);
+      const nextReview = d === 'approve' ? 'approved' : 'rejected';
+      const target = await get('SELECT id, email, role FROM users WHERE id = ?', c);
+      if (!target) return fail(res, 404, 'NOT_FOUND', '账号不存在');
+      /* users 表没有 review_note 列，审核理由写进审计日志即可 */
+      await run('UPDATE users SET review_state = ? WHERE id = ?', nextReview, c);
+      if (body.reason) await audit(admin.id, 'admin.user.reason', 'user', c, String(body.reason).slice(0, 300));
+      await audit(admin.id, 'admin.user.' + d, 'user', c, target.email || '');
+      return send(res, 200, { ok: true, id: c, reviewState: nextReview });
+    }
+
     if (b === 'overview' && m === 'GET') {
       const u = await requireAuth(res, req, ['admin']);
       if (!u) return;

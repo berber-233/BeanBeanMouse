@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','frozen')),
   email_verified INTEGER NOT NULL DEFAULT 0,
+  review_state TEXT,
   last_login_at INTEGER,
   created_at INTEGER NOT NULL
 );

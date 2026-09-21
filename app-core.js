@@ -808,6 +808,14 @@ function handleAction(el) {
         });
         break;
       }
+      case 'review-user': {
+        runBusy(el, async () => {
+          await apiRequest('/admin/users/' + el.dataset.id + '/' + el.dataset.verdict, { method: 'POST', token: authTokenOf(), body: {} });
+          toast(el.dataset.verdict === 'approve' ? t('reviewApproved') : t('reviewRejected'));
+          await loadPendingUsers();
+        });
+        break;
+      }
       case 'go-dashboard': go('/dashboard'); break;
       case 'toggle-nav': {
         const nav = $('.main-nav');

@@ -3965,7 +3965,48 @@ function verifyCard(c) {
     + '</div>';
 }
 
+/* ---------- 待审核账号（pet0.2）：人工把关替代邮件验证 ---------- */
+function authTokenOf() {
+  try {
+    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem('bridgetrade_v1') : null;
+    const st = raw ? JSON.parse(raw) : {};
+    return st.token || (typeof state !== 'undefined' && state.token) || '';
+  } catch (e) { return ''; }
+}
+function adminPendingUsersBody() {
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('reviewAccounts') + '</h2>'
+    + '<span class="small muted" id="pendingCount"></span></div>'
+    + '<div id="pendingUsers"><p class="small muted">' + t('loading') + '</p></div>'
+    + '<p class="small muted">' + t('reviewAccountsNote') + '</p></div>';
+}
+async function loadPendingUsers() {
+  const box = $('#pendingUsers');
+  const cnt = $('#pendingCount');
+  if (!box) return;
+  if (!api.config || api.config.mode !== 'http') {
+    box.innerHTML = '<p class="small muted">' + t('reviewNeedBackend') + '</p>';
+    return;
+  }
+  try {
+    const r = await apiRequest('/admin/users?status=pending', { token: authTokenOf() });
+    const items = (r && r.items) || [];
+    if (cnt) cnt.textContent = items.length + ' ' + t('pendingUnit');
+    box.innerHTML = items.length ? '<div class="table-responsive"><table class="table"><thead><tr><th>'
+      + t('regEmail') + '</th><th>' + t('regName') + '</th><th>' + t('roleCol') + '</th><th></th></tr></thead><tbody>'
+      + items.map(u => '<tr><td>' + esc(u.email) + '</td><td>' + esc(u.name || '') + '</td><td>' + esc(u.role) + '</td>'
+        + '<td class="nowrap"><button type="button" class="btn btn-sm btn-primary" data-action="review-user" data-id="' + esc(u.id) + '" data-verdict="approve">' + t('reviewApprove') + '</button> '
+        + '<button type="button" class="btn btn-sm" data-action="review-user" data-id="' + esc(u.id) + '" data-verdict="reject">' + t('reviewReject') + '</button></td></tr>').join('')
+      + '</tbody></table></div>' : '<p class="small muted">' + t('reviewEmpty') + '</p>';
+  } catch (e) {
+    box.innerHTML = '<p class="small muted">' + t('reviewLoadFail') + esc(e && e.message) + '</p>';
+  }
+}
+
 function adminUsersBody() {
+  setTimeout(loadPendingUsers, 0);
+  return adminPendingUsersBody() + realUsersBody();
+}
+function realUsersBody() {
   const list = state.users || [];
   return '<div class="card panel"><div class="panel-head"><h2>' + t('userManage') + '</h2><span class="small muted">' + list.length + ' ' + t('statUsers') + '</span></div>'
     + (list.length
