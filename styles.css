@@ -1685,6 +1685,30 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   .product-card .body { padding: 10px 12px 12px; }
   .product-card .title { font-size: 14px; }
 }
+
+/* ==================== 搜索框与验证页（用户 2026-09-21） ==================== */
+/* 原样式是深色头图时代的：超重深色投影 + 浅色关键词链接，
+ * 在现在的浅暖色门面上显得"浮起来、脱离背景"，这里统一改暖色轻投影。 */
+.hero-search, .products-search {
+  background: #FFFDF9;
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 4px 14px rgba(120, 84, 20, .08);
+}
+.hero-search .btn, .products-search .btn { border-radius: 8px; }
+.hero-search input::placeholder, .products-search input::placeholder { color: var(--muted); }
+.hero-popular { color: var(--text-2); }
+.hero-popular a { color: var(--primary); }
+.hero-popular a:hover { color: var(--accent); }
+
+/* 邮箱验证页 */
+.verify-card { max-width: 560px; margin: 0 auto; padding: 30px 28px; text-align: center; }
+.verify-ico { width: 46px; height: 46px; margin: 0 auto 12px; color: var(--accent); }
+.verify-ico svg { width: 100%; height: 100%; }
+.verify-card h1 { margin: 0 0 10px; font-size: 22px; }
+.verify-actions { margin-top: 18px; }
+.verify-actions .field { text-align: left; margin-bottom: 12px; }
 /* 标题里出现的内联图标（盾牌/用户）跟随文字大小与颜色 */
 .modal-head h3 svg, .panel-head h2 svg, .detail-block h2 svg { vertical-align: -3px; margin-right: 6px; }
 

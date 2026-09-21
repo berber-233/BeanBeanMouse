@@ -144,6 +144,7 @@ function render() {
   else if (path === '/feedback') { app.innerHTML = renderFeedback(); }
   else if (path === '/videos') { app.innerHTML = renderVideos(); }
   else if (path === '/about') { app.innerHTML = renderAbout(); }
+  else if (path === '/verify-email') { app.innerHTML = renderVerifyEmail(params); bindVerifyEmail(params); }
   else if (path === '/customs') { app.innerHTML = renderCustoms(); }
   else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path === '/insurance') { app.innerHTML = renderInsurance(); bindInsurancePage(); }
@@ -409,8 +410,8 @@ function renderVideos() {
 function renderAbout() {
   document.title = t('aboutTitle') + ' · BeanBeanMouse';
   const c = [
-    { k: 'aboutContactEmail', v: '694113406@qq.com', href: 'mailto:694113406@qq.com' },
-    { k: 'aboutContactWechat', v: t('aboutPending'), href: '' },
+    { k: 'aboutContactEmail', v: 'beanbeanmouse.trade@outlook.com', href: 'mailto:beanbeanmouse.trade@outlook.com' },
+    { k: 'aboutContactWechat', v: 'beanbeanmouse', href: '' },
     { k: 'aboutContactPhone', v: t('aboutPending'), href: '' },
     { k: 'aboutContactAddress', v: t('aboutPending'), href: '' }
   ];
@@ -4551,4 +4552,44 @@ function stickyAskBar(pid) {
     + '<div class="sa-price">' + t('priceRange') + ' <b>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</b> / ' + esc(p.unit || 'pcs') + '</div>'
     + '<button type="button" class="btn btn-accent" data-action="open-inquiry" data-id="' + esc(p.id) + '">' + t('sendInquiry') + '</button>'
     + '</div>';
+}
+
+/* ---------- 邮箱验证页（pet0.2）---------- */
+function renderVerifyEmail() {
+  return '<div class="container page"><section class="section">'
+    + '<div class="card panel verify-card">'
+    + '<div class="verify-ico" aria-hidden="true">' + icon('shield') + '</div>'
+    + '<h1>' + t('verifyTitle') + '</h1>'
+    + '<p id="verifyMsg" class="muted">' + t('verifyChecking') + '</p>'
+    + '<div id="verifyActions" class="verify-actions" hidden></div>'
+    + '</div></section></div>';
+}
+
+function verifyResendHtml() {
+  return '<div class="field"><label>' + t('regEmail') + '</label>'
+    + '<input class="input" id="resendEmail" type="email" placeholder="you@example.com"></div>'
+    + '<button type="button" class="btn btn-accent" data-action="resend-verify">' + t('resendVerify') + '</button>';
+}
+
+async function bindVerifyEmail(params) {
+  const msg = $('#verifyMsg');
+  const act = $('#verifyActions');
+  if (!msg || !act) return;
+  const token = (params && params.get('token')) || '';
+  if (!token) {
+    msg.textContent = t('verifyNoToken');
+    act.innerHTML = verifyResendHtml();
+    act.hidden = false;
+    return;
+  }
+  try {
+    await api.auth.verifyEmail(token);
+    msg.textContent = t('verifyOk');
+    act.innerHTML = '<a class="btn btn-accent" href="#/login" data-nav="/login">' + t('gotoLogin') + '</a>';
+    act.hidden = false;
+  } catch (e) {
+    msg.textContent = t('verifyFail') + (e && e.message ? '（' + e.message + '）' : '');
+    act.innerHTML = verifyResendHtml();
+    act.hidden = false;
+  }
 }

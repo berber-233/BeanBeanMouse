@@ -798,6 +798,16 @@ function handleAction(el) {
       case 'ask-next': askNext(); break;
       case 'ask-back': if (askFlow) { askFlow.step = Math.max(1, askFlow.step - 1); renderAskStep(); } break;
       case 'ask-submit': runBusy(el, () => askSubmit()); break;
+      case 'resend-verify': {
+        const em = $('#resendEmail');
+        const v = em ? em.value.trim() : '';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast(t('askNeedContact')); break; }
+        runBusy(el, async () => {
+          await api.auth.resendVerification(v);
+          toast(t('resendSent'));
+        });
+        break;
+      }
       case 'go-dashboard': go('/dashboard'); break;
       case 'toggle-nav': {
         const nav = $('.main-nav');
