@@ -1132,10 +1132,16 @@ function applyStaticI18n() {
 }
 
 /* ---------- Turnstile：动态挂载（pet0.2）---------- */
-function mountTurnstile() {
-  if (!window.turnstile || !window.__TURNSTILE_KEY__) return;
+function mountTurnstile(attempt) {
+  attempt = attempt || 0;
+  if (!window.__TURNSTILE_KEY__) return;           // 没配 Site Key 就什么都不做
   const el = document.querySelector('.cf-turnstile');
-  if (!el || el.dataset.mounted) return;
+  if (!el || el.dataset.mounted) return;           // 当前弹窗里没有该容器，或已挂载过
+  if (!window.turnstile) {
+    /* 官方脚本是 async defer，可能还没就绪；最多重试 20 次（约 6 秒） */
+    if (attempt < 20) setTimeout(function () { mountTurnstile(attempt + 1); }, 300);
+    return;
+  }
   el.dataset.mounted = '1';
   const hidden = el.parentElement ? el.parentElement.querySelector('input[name="turnstileToken"]') : null;
   try {

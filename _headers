@@ -1,19 +1,19 @@
+/* 具体规则在前、兜底规则在后：Cloudflare 按第一条命中的规则生效 */
+/assets/*
+  Cache-Control: public, max-age=604800, immutable
+
+/*.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self'; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
-
-/assets/*
-  Cache-Control: public, max-age=604800, immutable
-
-/*.html
-  Cache-Control: public, max-age=0, must-revalidate
-
-# 根目录脚本/样式跟着版本走：默认 4 小时缓存会让用户看到旧版（旧品类、旧文案），改为立即校验
-/*.js
-  Cache-Control: public, max-age=0, must-revalidate
-
-/*.css
-  Cache-Control: public, max-age=0, must-revalidate
