@@ -316,7 +316,7 @@ function renderHome() {
   return '<section class="storefront">'
     + '<div class="store-inner">'
     + '<div class="store-copy">'
-    + '<p class="store-eyebrow"><img class="eyebrow-ico" src="assets/pixel/sub/hamster.png" alt="" width="20" height="20" loading="lazy" decoding="async">' + esc(t('sfEyebrow')) + '</p>'
+    + '<p class="store-eyebrow">' + esc(t('sfEyebrow')) + '</p>'
     + '<h1 class="store-title">' + t('sfTitle') + '</h1>'
     + '<p class="store-sub">' + t('sfSub') + '</p>'
     + '<form class="hero-search" data-form="home-search">'

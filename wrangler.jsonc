@@ -27,6 +27,9 @@
     "MAIL_TRANSPORT": "service",
     "MAIL_FROM": "no-reply@beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",
+    // 试用期关闭"必须验证邮箱才能登录"（用户银行卡无法订阅外币增值服务，邮件通道暂不可用）。
+    // 将来邮件通道可用后，改为 "1" 即可恢复强制验证，代码无需改动。
+    "REQUIRE_EMAIL_VERIFY": "0",
     "NEWS_AUTO_REFRESH": "0",
     "PBKDF2_ITERATIONS": "100000"
   }

@@ -353,7 +353,11 @@ function resolveBrowser() {
   await safeClick('.lang-opt[data-lang="es"]');
   await page.waitForTimeout(300);
   check('i18n: switch to Spanish', (await page.evaluate(() => document.documentElement.lang)) === 'es');
-  check('i18n: Spanish nav label applied', (await page.locator('.main-nav a').first().textContent()) === 'Inicio');
+  /* 导航已去掉冗余的"首页"项（Logo 即回首页），改为按词典取值比对第一个导航项 */
+  check('i18n: Spanish nav label applied', await page.evaluate(() => {
+    const el = document.querySelector('.main-nav a');
+    return !!el && el.textContent.trim() === ((I18N.es && I18N.es.marketplace) || I18N.en.marketplace);
+  }));
   check('i18n: bilingual original/translation block', await page.locator('.detail-main h1').isVisible() && (await page.locator('.src-text').count()) === 1);
   check('i18n: product title marked for viewer translation', (await page.locator('.detail-main h1').getAttribute('data-l10n')) !== null);
   await safeClick('#langSwitch [data-lang="zh"]');

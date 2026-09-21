@@ -1752,8 +1752,14 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 
 /* 桌面宽度下导航改为可换行：日语/俄语等长语言不会再被裁掉尾巴 */
 @media (min-width: 901px) {
-  .main-nav { flex-wrap: wrap; overflow: visible; row-gap: 2px; }
+  /* 单行不换行：长语言（日/俄）下宁可让标签自身省略，也不要换行把头部撑高 */
+  .main-nav { flex-wrap: nowrap; overflow: visible; row-gap: 0; }
+  .main-nav a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .main-nav a { padding: 6px 11px; }
+}
+@media (max-width: 1100px) {
+  /* 工作台在右上角用户菜单里已有入口，这里再提前一档收起，给长语言留出空间 */
+  .main-nav a[data-nav="/dashboard"] { display: none; }
 }
 
 /* 2. 品类速览：8 个入口排成对称网格（4×2 / 窄屏 2×4），不再出现 6+2 的残缺行 */

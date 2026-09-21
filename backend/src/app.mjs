@@ -18,6 +18,8 @@ import { verifyEmailContent } from './email-template.mjs';
 
 export function createApp({ env = {}, deps = {} } = {}) {
   const ENV = env;
+  /* 试用期可关闭邮箱验证：REQUIRE_EMAIL_VERIFY=0 */
+  const REQUIRE_EMAIL_VERIFY = String(ENV.REQUIRE_EMAIL_VERIFY === undefined ? '1' : ENV.REQUIRE_EMAIL_VERIFY) !== '0';
   const wsBroadcast = typeof deps.wsBroadcast === 'function' ? deps.wsBroadcast : () => {};
   configureAuth({ secret: ENV.JWT_SECRET, iterations: ENV.PBKDF2_ITERATIONS });
 
@@ -468,7 +470,7 @@ async function route(m, segs, q, req, res) {
       const id = randomUUID();
       await run(
         'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, created_at) VALUES (?,?,?,?,?,?,?,?)',
-        id, email, await hashPassword(password), role, name, 'active', 0, Date.now()
+    id, email, await hashPassword(password), role, name, 'active', REQUIRE_EMAIL_VERIFY ? 0 : 1, Date.now()
       );
       if (companyData) {
         await run(
@@ -481,7 +483,8 @@ async function route(m, segs, q, req, res) {
       await audit(id, 'auth.register', 'user', id, email);
       /* 邮件发送失败不应让注册半途而废（账号已建好，可用重发接口再试） */
       let mailSent = true;
-      try {
+      if (!REQUIRE_EMAIL_VERIFY) { mailSent = false; }
+      else try {
         await sendVerifyEmail(id, email);
       } catch (e) {
         mailSent = false;
@@ -489,11 +492,13 @@ async function route(m, segs, q, req, res) {
       }
       return send(res, 201, {
         user: publicUser(u),
-        emailVerified: false,
+    emailVerified: !REQUIRE_EMAIL_VERIFY,
         mailSent,
-        message: mailSent
+      message: !REQUIRE_EMAIL_VERIFY
+        ? '注册成功，现在就可以登录了'
+        : (mailSent
           ? '注册成功，请查收邮箱完成验证（24 小时内有效）'
-          : '注册成功，但验证邮件发送失败，请稍后在登录页点击「重发验证邮件」'
+          : '注册成功，但验证邮件发送失败，请稍后在登录页点击「重发验证邮件」')
       });
     }
     if (m === 'POST' && b === 'login') {
@@ -506,7 +511,7 @@ async function route(m, segs, q, req, res) {
         return fail(res, 401, 'INVALID_CREDENTIALS', '账号或密码错误');
       }
       if (u.status === 'frozen') return fail(res, 401, 'ACCOUNT_FROZEN', '账号已被冻结');
-      if (!u.email_verified) return fail(res, 403, 'VERIFY_EMAIL_REQUIRED', '请先验证邮箱再登录');
+      if (REQUIRE_EMAIL_VERIFY && !u.email_verified) return fail(res, 403, 'VERIFY_EMAIL_REQUIRED', '请先验证邮箱再登录');
       await run('UPDATE users SET last_login_at = ? WHERE id = ?', Date.now(), u.id);
       return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }), user: publicUser(u) });
     }

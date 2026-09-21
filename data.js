@@ -2690,6 +2690,7 @@ const LANG_META = [
 /* 部分语言演示翻译：未覆盖的文案回退到英文（正式版接入专业翻译服务） */
 Object.assign(I18N, {
   ja: {
+    videoWallTitle: '動画', aboutTitle: '会社概要', aboutMore: '詳しく見る', videoWallMore: 'すべて見る',
     home: 'ホーム', marketplace: '製品市場', navNews: '貿易情報', dashboard: 'ダッシュボード',
     login: 'ログイン', logout: 'ログアウト', otherLang: '他の言語',
     heroTitle: '世界中のバイヤーと信頼できるサプライヤーをつなぐ',
