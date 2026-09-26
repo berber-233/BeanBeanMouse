@@ -49,10 +49,21 @@ const apiStorage = {
 api.storage = apiStorage;
 
 /* 通用 HTTP 请求（真实后端时使用；需要时补充鉴权头） */
+/* 从本地状态里取登录令牌：所有 http 请求自动携带，避免每个调用点都要手动传
+ * （之前漏传就会报"请先登录"，管理端、建议箱等模块都踩过）。 */
+function storedToken() {
+  try {
+    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(API_STORE_KEY) : null;
+    const s = raw ? JSON.parse(raw) : null;
+    return (s && s.token) ? String(s.token) : '';
+  } catch (e) { return ''; }
+}
+
 async function apiRequest(path, options = {}) {
   const { method = 'GET', body, token } = options;
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = 'Bearer ' + token;
+  const bearer = token || storedToken();
+  if (bearer) headers.Authorization = 'Bearer ' + bearer;
   const res = await fetch(api.config.baseUrl + path, {
     method: method,
     headers: headers,
