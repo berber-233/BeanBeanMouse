@@ -119,6 +119,7 @@ render();
         state.user = Object.assign({}, u);
         saveState();
         render();
+        hydrateSessionData();
       }
     }).catch(() => {
       /* 令牌失效或不属于任何账号：清掉登录态，防止张冠李戴 */
@@ -146,6 +147,104 @@ render();
     console.log('[hydrate] 已切换到服务器商品：' + items.length + ' 款');
   }).catch(e => console.warn('[hydrate] 拉取失败，保留本地演示数据：' + (e && e.message)));
 })();
+
+/* ---------- 登录范围内的真实数据（pet0.2 接线）----------
+ * 现象：客户提交了询盘、建议箱收到了建议，运营在页面上却"看不到"。
+ * 原因：工作台里的 inquiries / suggestions / users / logs 一直读的是本地演示种子，
+ *       只有 products 一直接了服务器——缺的是接线，不是功能。
+ * 这里在登录后统一从 D1 拉取这个账号有权看到的数据，并覆盖本地演示数组。
+ * 服务端无数据时就是空列表（宁可空，也不给访客看假数据）。 */
+let sessionHydrating = false;
+function mapServerInquiry(r) {
+  const q = r.quote || null;
+  return {
+    id: r.id,
+    productId: r.product_id,
+    sellerId: r.seller_id || '',
+    buyerId: r.buyer_id || '',
+    name: r.contact_name || '',
+    email: r.contact_email || '',
+    company: r.contact_company || '',
+    country: r.contact_country || '',
+    qty: r.qty,
+    unit: r.unit || 'pcs',
+    payment: r.payment_term || '',
+    message: r.message || '',
+    attachments: [],
+    createdAt: r.created_at,
+    status: r.status,
+    reply: '',
+    quote: q ? {
+      price: q.price, incoterm: q.incoterm, payment: q.payment_term,
+      validity: q.validity_days, leadTime: q.lead_time, note: q.note || ''
+    } : null
+  };
+}
+function mapServerSuggestion(s) {
+  return {
+    id: s.id, userId: s.user_id, type: s.type, content: s.content, contact: s.contact,
+    status: s.status, createdAt: s.created_at, updatedAt: s.updated_at
+  };
+}
+function mapServerNotification(n) {
+  return {
+    id: n.id, toUserId: n.user_id, title: n.title, body: n.body,
+    link: '', read: !!n.read_at, createdAt: n.created_at
+  };
+}
+function mapServerAdminUser(u) {
+  return {
+    id: u.id, email: u.email, name: u.name, role: u.role, status: u.status,
+    reviewState: u.review_state || '', emailVerified: !!u.email_verified, joinedAt: u.created_at
+  };
+}
+async function hydrateSessionData() {
+  if (typeof api === 'undefined' || !api.config || api.config.mode !== 'http') return false;
+  if (!state.token || !state.user || sessionHydrating) return false;
+  sessionHydrating = true;
+  const isAdmin = state.user.role === 'admin';
+  try {
+    const jobs = [
+      api.inquiries.list().then(rows => {
+        state.inquiries = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerInquiry);
+      }),
+      api.suggestions.list().then(rows => {
+        state.suggestions = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerSuggestion);
+      }),
+      api.notifications.list().then(rows => {
+        state.notifications = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerNotification);
+      })
+    ];
+    if (isAdmin) {
+      jobs.push(apiRequest('/admin/users', {}).then(r => {
+        state.adminUsers = ((r && r.items) || []).map(mapServerAdminUser);
+      }));
+      jobs.push(apiRequest('/admin/logs', {}).then(r => {
+        const rows = Array.isArray(r) ? r : ((r && r.items) || []);
+        const nameOf = id => {
+          const u = (state.adminUsers || []).find(x => x.id === id);
+          return u ? u.name : (id || '系统');
+        };
+        state.adminLogs = rows.map(l => ({
+          ts: l.created_at, actor: nameOf(l.actor_id), action: l.action,
+          target: l.target_id || '', detail: l.detail || ''
+        }));
+      }));
+    }
+    const settled = await Promise.allSettled(jobs);
+    const failed = settled.filter(x => x.status === 'rejected');
+    if (failed.length) console.warn('[hydrate] 部分数据未取到：' + failed.map(f => f.reason && f.reason.message).join(' / '));
+    saveState();
+    renderPage();
+    return true;
+  } catch (e) {
+    console.warn('[hydrate] 账号数据拉取失败：' + (e && e.message));
+    return false;
+  } finally {
+    sessionHydrating = false;
+  }
+}
+window.hydrateSessionData = hydrateSessionData;
 
 /* ---------- 运输动画视频：进入视口才播放，离开即暂停（省流量），并尊重 reduced-motion ---------- */
 (function transportVideoAutoplay() {

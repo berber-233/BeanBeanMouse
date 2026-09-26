@@ -584,6 +584,7 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'aftersales-arbitrate-form') p = submitAfterSalesArbitrate(f);
   else if (f.dataset.form === 'chat-send') p = sendChatMessage(f);
   else if (f.dataset.form === 'profile-form') p = submitProfile(f);
+  else if (f.dataset.form === 'change-password') p = submitChangePassword(f);
   else if (f.dataset.form === 'feedback-form') p = submitFeedback(f);
   else if (f.dataset.form === 'products-search') {
     const v = (f.querySelector('#productKw') || {}).value || '';
@@ -814,7 +815,12 @@ function handleAction(el) {
           await apiRequest('/admin/users/' + el.dataset.id + '/' + el.dataset.verdict, { method: 'POST', token: authTokenOf(), body: {} });
           toast(el.dataset.verdict === 'approve' ? t('reviewApproved') : t('reviewRejected'));
           await loadPendingUsers();
+          if (typeof hydrateSessionData === 'function') { try { await hydrateSessionData(); } catch (e) { /* 忽略 */ } }
         });
+        break;
+      }
+      case 'reload-session-data': {
+        runBusy(el, () => (typeof hydrateSessionData === 'function' ? hydrateSessionData() : Promise.resolve()));
         break;
       }
       case 'go-dashboard': go('/dashboard'); break;
@@ -1069,7 +1075,7 @@ function renderHeader() {
   }
   if (u) {
     ua.innerHTML = bellHtml +
-      '<button type="button" class="user-chip" data-action="toggle-user-menu" aria-haspopup="true" aria-expanded="false">'
+      '<button type="button" class="user-chip" data-action="toggle-user-menu" aria-haspopup="true" aria-expanded="false" title="' + esc(u.email || u.name || '') + '">'
       + '<span class="avatar">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span>'
       + '<span>' + esc(u.name) + '</span>'
       + '<span class="role-tag">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span>'

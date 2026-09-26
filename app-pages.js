@@ -105,6 +105,15 @@ const DEMO_CRED = {
   buyer: ['buyer@demo.com', 'buyer123']
 };
 
+/* 演示身份卡是否展示：本地 mock 演示照旧，线上默认隐藏。
+ * 线上把"点一下就登进测试账号"的入口摆在登录框旁边，就是用户反馈
+ * "有时候会登录成其他的账号上去，比如说测试账号之类的"的直接来源。
+ * 需要临时演示时用 ?demo=1 打开，不会被普通访客点到。 */
+function demoLoginEnabled() {
+  if (!api || !api.config || api.config.mode !== 'http') return true;
+  try { return new URLSearchParams(location.search).get('demo') === '1'; } catch (e) { return false; }
+}
+
 /* 登录成功后把 token 与用户写进本地状态（token 是调用受保护接口的前提） */
 function applyLogin(r) {
   if (!r) return;
@@ -113,7 +122,8 @@ function applyLogin(r) {
   if (r.user) state.user = Object.assign({}, r.user);
   else state.user = null;
   saveState();
-  if (typeof reloadState === 'function') { try { reloadState(); } catch (e) { /* 忽略 */ } }
+  /* 登录后立刻拉取"这个账号"的数据（询盘/建议/通知/管理端列表），否则工作台会拿旧账号或演示数据顶上 */
+  if (typeof hydrateSessionData === 'function') { try { hydrateSessionData(); } catch (e) { /* 忽略 */ } }
 }
 
 /* 邮箱 + 密码登录 */
@@ -156,7 +166,19 @@ async function loginAs(role) {
   go('/dashboard');
 }
 function logout(guest, goLogin) {
+  /* 退出必须连令牌一起清掉：只清 user 不清 token，
+   * 下次打开页面时令牌还在，又会用旧令牌"自动登录"回上一个账号（串号的另一半根因）。 */
+  try { if (api && api.auth && api.auth.logout) api.auth.logout(); } catch (e) { /* 服务端令牌无状态，失败也不影响本地退出 */ }
+  state.token = '';
   state.user = null;
+  /* 换账号时清掉上一个账号的服务器数据，避免下一个账号在拉取完成前看到别人的询盘/通知 */
+  if (api && api.config && api.config.mode === 'http') {
+    state.inquiries = [];
+    state.suggestions = [];
+    state.notifications = [];
+    state.adminUsers = [];
+    state.adminLogs = [];
+  }
   saveState();
   toast(guest ? t('guestName') : t('signedOut'));
   go(goLogin ? '/login' : '/');
@@ -1307,6 +1329,15 @@ function submitInquiry(f) {
     cardName: card ? (state.user.businessCardName || 'business-card') : '',
     createdAt: Date.now(), status: 'new', reply: ''
   };
+  /* 线上同步到服务器：只写本地的话，运营端和管理端永远看不到这条询盘 */
+  if (api.config && api.config.mode === 'http') {
+    api.inquiries.create({
+      productId: pid, qty: qty, unit: inquiry.unit, message: message,
+      name: name, email: email, company: inquiry.company, country: inquiry.country,
+      payment: langObj(inquiry.payment), buyerType: inquiry.buyerType, jobTitle: inquiry.jobTitle
+    }).then(() => { if (typeof hydrateSessionData === 'function') hydrateSessionData(); })
+      .catch(e => toast((e && e.message) || ''));
+  }
   pendingFiles.inquiry = [];
   state.inquiries.unshift(inquiry);
   saveState();
@@ -1694,6 +1725,11 @@ function renderProfileBody() {
     + '<div class="card-preview">' + cardPreviewHtml + '</div>'
     + '<p class="small muted">' + t('cardUploadHint') + '</p>'
     + '</div></div>'
+    + '<div class="card panel mt-20"><div class="panel-head"><h2>🔒 ' + t('pwdTitle') + '</h2></div>'
+    + '<form data-form="change-password" novalidate><div class="form-grid">'
+    + '<div class="field"><label>' + t('pwdCurrent') + ' *</label><input class="input" type="password" name="currentPassword" required autocomplete="current-password"></div>'
+    + '<div class="field"><label>' + t('pwdNew') + ' *</label><input class="input" type="password" name="newPassword" required autocomplete="new-password"></div>'
+    + '</div><button type="submit" class="btn">' + t('pwdSubmit') + '</button></form></div>'
     + '<div class="card panel mt-20"><div class="panel-head"><h2>🎨 ' + t('cardTemplatesTitle') + '</h2><span class="small muted">' + t('cardTemplatesSub') + '</span></div>'
     + '<div class="tpl-grid">' + (typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []).map(tpl =>
       '<div class="tpl-card"><span class="tpl-swatch" style="background:' + tpl.swatch + '"></span>'
@@ -3142,6 +3178,24 @@ function adminFeedbackBody() {
     }).join('') : '<div class="empty-state" style="padding:30px"><p>' + t('feedbackEmpty') + '</p></div>')
     + '</div>';
 }
+/* 修改密码（正式试用前必须能改掉公开的演示密码） */
+async function submitChangePassword(form) {
+  const fd = new FormData(form);
+  const currentPassword = String(fd.get('currentPassword') || '');
+  const newPassword = String(fd.get('newPassword') || '');
+  if (!currentPassword || !newPassword) { toast(t('required')); return; }
+  if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    toast(t('errPassword')); return;
+  }
+  try {
+    await api.auth.changePassword({ currentPassword, newPassword });
+    form.reset();
+    toast(t('pwdChanged'));
+  } catch (e) {
+    toast((e && e.message) ? e.message : t('pwdFailed'));
+  }
+}
+
 async function submitProfile(form) {
   const fd = new FormData(form);
   try {
@@ -3685,6 +3739,7 @@ async function reviewPromotion(id, action) {
 
 function renderLogin() {
   document.title = t('login') + ' · BeanBeanMouse';
+  const showDemo = demoLoginEnabled();
   return '<div class="container login-page"><div class="login-card">'
     + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-icon.png" alt="BeanBeanMouse" width="58" height="58" decoding="async">'
     + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
@@ -3695,7 +3750,8 @@ function renderLogin() {
     + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
     + '<button type="submit" class="btn btn-accent btn-block">' + t('login') + '</button>'
     + '</form>'
-    + '<p class="small muted login-divider">' + t('loginOrDemo') + '</p>'
+    + (showDemo
+      ? '<p class="small muted login-divider">' + t('loginOrDemo') + '</p>'
     + '<div class="role-cards">'
     + '<div class="role-card" data-action="login-role" data-role="buyer">'
     + '<div class="role-ico" style="background:linear-gradient(135deg,#2563EB,#7C3AED)">🛒</div>'
@@ -3716,6 +3772,7 @@ function renderLogin() {
     + '<span class="role-arrow">→</span>'
     + '</div>'
     + '</div>'
+      : '')
     + '<button type="button" class="btn btn-lg guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
     + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
     + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
@@ -3845,6 +3902,7 @@ function renderAdminDash(path) {
   const verifyCount = (state.companies || []).filter(c => c.status === 'pending').length;
   const tabs = [
     { tab: 'overview', icon: 'chart', label: t('adminOverview') },
+    { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: (state.inquiries || []).filter(i => i.status === 'new').length || null },
     { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
     { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
     { tab: 'promo', icon: 'sparkle', label: t('promoAdmin'), count: (state.promotions || []).filter(r => r.status === 'pending').length || null },
@@ -3855,7 +3913,8 @@ function renderAdminDash(path) {
     { tab: 'logs', icon: 'clock', label: t('auditLog') }
   ];
   let body = '';
-  if (activeTab === 'review') body = adminReviewBody();
+  if (activeTab === 'inquiries') body = adminInquiriesBody();
+  else if (activeTab === 'review') body = adminReviewBody();
   else if (activeTab === 'verify') body = adminVerifyBody();
   else if (activeTab === 'promo') body = adminPromoBody();
   else if (activeTab === 'catreqs') body = adminCatReqBody();
@@ -3915,9 +3974,9 @@ function adminOverviewBody() {
   const barRows = (rows, max, labelFn) => rows.length
     ? rows.map(r => '<div class="bar-row"><span class="bar-label">' + esc(labelFn(r[0])) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + Math.max(8, Math.round(r[1] / max * 100)) + '%"></div></div><span class="bar-val">' + r[1] + '</span></div>').join('')
     : '<div class="empty-state" style="padding:20px"><p>' + t('noInquiries') + '</p></div>';
-  const logs = (state.logs || []).slice(0, 5);
+  const logs = ((state.adminLogs && state.adminLogs.length) ? state.adminLogs : (state.logs || [])).slice(0, 5);
   return '<div class="stat-grid">'
-    + adminStatCard('ico-blue', 'users', state.users.length, t('statUsers'))
+    + adminStatCard('ico-blue', 'users', (state.adminUsers && state.adminUsers.length) || state.users.length, t('statUsers'))
     + adminStatCard('ico-green', 'box', live, t('statLive'))
     + adminStatCard('ico-amber', 'clock', pending, t('statPendingProducts'))
     + adminStatCard('ico-purple', 'message', monthInq, t('statInquiries'))
@@ -4061,7 +4120,22 @@ function adminUsersBody() {
   setTimeout(loadPendingUsers, 0);
   return adminPendingUsersBody() + realUsersBody();
 }
+/* 客户询盘：管理员视角能看到全部询盘并直接报价回复（此前管理端根本没有这个入口，
+ * 客户在首页"直接问我"发来的需求就无处可看）。 */
+function adminInquiriesBody() {
+  const rows = (state.inquiries || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  const fresh = rows.filter(i => i.status === 'new').length;
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('inquiryManage') + '</h2>'
+    + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('totalInquiries') + (fresh ? ' · ' + fresh + ' ' + t('statusNew') : '') + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="reload-session-data">' + icon('clock') + ' ' + t('refresh') + '</button></span></div>'
+    + (rows.length
+      ? rows.map(inquiryItem).join('')
+      : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/mailbox.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noInquiries') + '</p></div>')
+    + '</div>';
+}
 function realUsersBody() {
+  /* 优先展示服务器上的真实账号：本地演示名单里全是测试账号，运营看不到自己的客户 */
+  if (Array.isArray(state.adminUsers) && state.adminUsers.length) return serverUsersBody(state.adminUsers);
   const list = state.users || [];
   return '<div class="card panel"><div class="panel-head"><h2>' + t('userManage') + '</h2><span class="small muted">' + list.length + ' ' + t('statUsers') + '</span></div>'
     + (list.length
@@ -4085,7 +4159,8 @@ function realUsersBody() {
 }
 
 function adminLogsBody() {
-  const logs = state.logs || [];
+  /* 优先用服务器审计日志，本地演示日志只在没有真实数据时兜底 */
+  const logs = (state.adminLogs && state.adminLogs.length) ? state.adminLogs : (state.logs || []);
   return '<div class="card panel"><div class="panel-head"><h2>' + t('auditLog') + '</h2><span class="small muted">' + logs.length + '</span></div>'
     + (logs.length
       ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('logTime') + '</th><th>' + t('logActor') + '</th><th>' + t('logAction') + '</th><th>' + t('logTarget') + '</th><th>' + t('logDetail') + '</th></tr></thead><tbody>'
@@ -4201,6 +4276,15 @@ function submitQuote(f) {
   i.replyAttachments = (pendingFiles.quote[i.id] || []).slice();
   delete pendingFiles.quote[i.id];
   saveState();
+  /* 线上必须把报价真正发给后端：只写本地的话，客户在"我的询盘"里看不到报价，
+   * 运营端也查不到这条记录（"看不到"的另一半原因）。 */
+  if (api.config && api.config.mode === 'http') {
+    api.inquiries.addQuote(i.id, {
+      price: price, incoterm: incoterm, payment: langObj(i.quote.payment),
+      validity: validity, leadTime: leadTime, note: i.quote.note
+    }).then(() => { if (typeof hydrateSessionData === 'function') hydrateSessionData(); })
+      .catch(e => toast(t('quoteSyncFailed') + (e && e.message ? '：' + e.message : '')));
+  }
   if (i.buyerId && i.buyerId !== 'guest') {
     pushNotification({ toUserId: i.buyerId, title: t('notifNewQuote'), body: langObj(p).title + ' · ' + incoterm + ' ' + price, link: '/dashboard/inquiries' });
   }
@@ -4593,7 +4677,7 @@ async function askSubmit() {
   f.name = nm ? nm.value.trim() : '';
   f.email = em ? em.value.trim() : '';
   if (!f.qty) { toast(t('askNeedPick')); return; }
-  if (!f.name || !/^[^s@]+@[^s@]+.[^s@]+$/.test(f.email)) { toast(t('askNeedContact')); return; }
+  if (!f.name || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email)) { toast(t('askNeedContact')); return; }
   const body = '【' + t('askSummary') + '】' + t('askPet') + '：' + askPetLabel(f.pet)
     + ' · ' + t('category') + '：' + askSubLabel(f.sub)
     + ' · ' + t('quantity') + '：' + askQtyLabel(f.qty)
@@ -4604,7 +4688,7 @@ async function askSubmit() {
     await api.inquiries.create({ productId: pid, qty: Number((f.qty === 'sample' ? 5 : f.qty === 'small' ? 50 : f.qty === 'mid' ? 200 : 800)), unit: 'pcs', message: body, name: f.name, email: f.email, attachments: [], buyerType: state.user ? (state.user.accountType || 'company') : 'individual' });
     closeModal();
     toast(t('askDone'));
-    if (typeof reloadState === 'function') reloadState();
+    if (typeof hydrateSessionData === 'function') hydrateSessionData();
   } catch (e) {
     toast(t('askFailed') + (e && e.message ? '：' + e.message : ''));
   }
@@ -4648,6 +4732,29 @@ function stickyAskBar(pid) {
     + '<div class="sa-price">' + t('priceRange') + ' <b>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</b> / ' + esc(p.unit || 'pcs') + '</div>'
     + '<button type="button" class="btn btn-accent" data-action="open-inquiry" data-id="' + esc(p.id) + '">' + t('sendInquiry') + '</button>'
     + '</div>';
+}
+
+/* 真实账号表：含审核状态与通过/拒绝入口（与"待审核账号"面板同一套后端接口） */
+function serverUsersBody(list) {
+  const roleLabel = u => u.role === 'admin' ? t('adminRoleTag') : u.role === 'seller' ? t('sellerRoleLabel') : t('buyerRoleLabel');
+  const rows = list.map(u => {
+    const rs = u.reviewState || '';
+    const rsLabel = rs === 'pending' ? t('pendingLabel') : rs === 'rejected' ? t('reviewRejected') : rs === 'approved' ? t('reviewApproved') : t('activeStatus');
+    const rsCls = rs === 'pending' ? 'pend' : rs === 'rejected' ? 'rej' : 'live';
+    return '<tr>'
+      + '<td><div class="prod-cell"><span class="avatar" style="width:30px;height:30px;font-size:12px">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span><span class="t">' + esc(u.name || '—') + '</span></div></td>'
+      + '<td>' + esc(roleLabel(u)) + '</td>'
+      + '<td>' + esc(u.email || '—') + '</td>'
+      + '<td><span class="status-pill ' + rsCls + '">' + esc(rsLabel) + '</span></td>'
+      + '<td>' + fmtDate(u.joinedAt) + '</td>'
+      + '<td class="nowrap">' + (rs === 'pending' || rs === 'rejected'
+        ? '<button type="button" class="btn btn-sm btn-primary" data-action="review-user" data-id="' + esc(u.id) + '" data-verdict="approve">' + t('reviewApprove') + '</button>'
+        : '<span class="small muted">—</span>')
+      + '</td></tr>';
+  }).join('');
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('userManage') + '</h2><span class="small muted">' + list.length + ' ' + t('statUsers') + '</span></div>'
+    + '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('regName') + '</th><th>' + t('roleCol') + '</th><th>' + t('regEmail')
+    + '</th><th>' + t('statusPill') + '</th><th>' + t('joinedCol') + '</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }
 
 /* ---------- 邮箱验证页（pet0.2）---------- */

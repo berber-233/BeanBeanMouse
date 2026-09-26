@@ -466,15 +466,24 @@ async function route(m, segs, q, req, res) {
       if (companyData && (!companyData.name || !companyData.country)) {
         return fail(res, 400, 'VALIDATION', '卖家注册需填写真实公司/工厂名称与所在国家');
       }
-      if (await get('SELECT id FROM users WHERE email = ?', email)) {
+      /* 一个邮箱一个号：注册时按小写邮箱查重（大小写、前后空格都算同一个号） */
+      if (await get('SELECT id FROM users WHERE lower(email) = ?', email)) {
         return fail(res, 409, 'EMAIL_EXISTS', '邮箱已存在');
       }
       const id = randomUUID();
-      await run(
-    'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, review_state, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-    id, email, await hashPassword(password), role, name, 'active', REQUIRE_EMAIL_VERIFY ? 0 : 1,
-    REQUIRE_ACCOUNT_REVIEW ? 'pending' : null, Date.now()
-      );
+      try {
+        await run(
+      'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, review_state, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+      id, email, await hashPassword(password), role, name, 'active', REQUIRE_EMAIL_VERIFY ? 0 : 1,
+      REQUIRE_ACCOUNT_REVIEW ? 'pending' : null, Date.now()
+        );
+      } catch (e) {
+        /* 并发注册同一邮箱时唯一索引会拦下来（数据库层面的"一个邮箱一个号"） */
+        if (/UNIQUE|constraint/i.test(String(e && e.message))) {
+          return fail(res, 409, 'EMAIL_EXISTS', '邮箱已存在');
+        }
+        throw e;
+      }
       if (companyData) {
         await run(
           'INSERT INTO companies (id, user_id, name, country, city, license_no, registration_no, website, contact, business_scope, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -511,7 +520,13 @@ async function route(m, segs, q, req, res) {
       if (loginRateLimit(ip) > LOGIN_LIMIT) return fail(res, 429, 'TOO_MANY_ATTEMPTS', '尝试过于频繁，请稍后再试');
       const body = await readBody(req);
       const email = String(body.email || '').trim().toLowerCase();
-      const u = await get('SELECT * FROM users WHERE email = ?', email);
+      /* 按小写邮箱取号，并固定取最早注册的那一个：
+       * 历史数据万一有重复邮箱，也不会随机登进另一个账号（串号）。 */
+      const dup = await all('SELECT * FROM users WHERE lower(email) = ? ORDER BY created_at ASC', email);
+      if (dup.length > 1) {
+        console.error('[auth.login] 同一邮箱存在 ' + dup.length + ' 个账号（历史重复数据）：' + email);
+      }
+      const u = dup[0];
       if (!u || !await verifyPassword(body.password, u.password_hash)) {
         return fail(res, 401, 'INVALID_CREDENTIALS', '账号或密码错误');
       }
@@ -557,6 +572,22 @@ async function route(m, segs, q, req, res) {
       const u = await requireAuth(res, req);
       if (!u) return;
       return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }) });
+    }
+    /* 修改密码：演示账号的密码是公开的，正式试用前必须先能改成自己的 */
+    if (m === 'POST' && b === 'change-password') {
+      const u = await requireAuth(res, req);
+      if (!u) return;
+      const body = await readBody(req);
+      const current = String(body.currentPassword || '');
+      const next = String(body.newPassword || '');
+      if (!await verifyPassword(current, u.password_hash)) return fail(res, 400, 'INVALID_CREDENTIALS', '当前密码不正确');
+      if (next.length < 8 || !/[A-Za-z]/.test(next) || !/[0-9]/.test(next)) {
+        return fail(res, 400, 'VALIDATION', '新密码至少 8 位，且需同时包含字母和数字');
+      }
+      if (next === current) return fail(res, 400, 'VALIDATION', '新密码不能与当前密码相同');
+      await run('UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(next), u.id);
+      await audit(u.id, 'auth.change-password', 'user', u.id, '');
+      return send(res, 200, { ok: true });
     }
     if (m === 'GET' && b === 'me') {
       const u = await requireAuth(res, req);
@@ -779,13 +810,19 @@ async function route(m, segs, q, req, res) {
       if (!u) return;
       let rows;
       if (u.role === 'seller') {
-        rows = await all('SELECT i.* FROM inquiries i JOIN products p ON p.id = i.product_id WHERE p.seller_id = ? ORDER BY i.created_at DESC', u.id);
+        rows = await all('SELECT i.*, p.seller_id AS seller_id FROM inquiries i JOIN products p ON p.id = i.product_id WHERE p.seller_id = ? ORDER BY i.created_at DESC', u.id);
       } else if (u.role === 'admin') {
-        rows = await all('SELECT * FROM inquiries ORDER BY created_at DESC');
+        rows = await all('SELECT i.*, p.seller_id AS seller_id FROM inquiries i LEFT JOIN products p ON p.id = i.product_id ORDER BY i.created_at DESC');
       } else {
-        rows = await all('SELECT * FROM inquiries WHERE buyer_id = ? ORDER BY created_at DESC', u.id);
+        rows = await all('SELECT i.*, p.seller_id AS seller_id FROM inquiries i LEFT JOIN products p ON p.id = i.product_id WHERE i.buyer_id = ? ORDER BY i.created_at DESC', u.id);
       }
-      return send(res, 200, rows);
+      /* 附上最新报价：否则客户在"我的询盘"里永远看不到运营回的价格 */
+      const out = [];
+      for (const r of rows) {
+        const quote = await get('SELECT * FROM quotes WHERE inquiry_id = ? ORDER BY created_at DESC LIMIT 1', r.id);
+        out.push({ ...r, quote: quote || null });
+      }
+      return send(res, 200, out);
     }
     if (m === 'POST' && !b) {
       const body = await readBody(req);
@@ -794,9 +831,16 @@ async function route(m, segs, q, req, res) {
       const qty = toNum(body.qty, 0);
       if (!p || !(qty >= 1) || !body.message) return fail(res, 400, 'VALIDATION', 'productId/qty/message 为必填且 qty 须为正整数');
       const id = randomUUID();
+      /* 联系方式随询盘一起入库：否则运营端只看到一段需求文字，无法回信、无法跟进。
+       * 登录用户缺省用账号里的姓名/邮箱补齐。 */
+      const contactName = String(body.name || (u ? u.name : '') || '').trim().slice(0, 80);
+      const contactEmail = String(body.email || (u ? u.email : '') || '').trim().slice(0, 120);
+      const contactCompany = String(body.company || '').trim().slice(0, 120);
+      const contactCountry = String(body.country || '').trim().slice(0, 60);
       await run(
-        'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        id, p.id, u ? u.id : null, qty, body.unit || 'pcs', body.payment || null, body.message, 'new', Date.now()
+        'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at, contact_name, contact_email, contact_company, contact_country) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        id, p.id, u ? u.id : null, qty, body.unit || 'pcs', body.payment || null, body.message, 'new', Date.now(),
+        contactName || null, contactEmail || null, contactCompany || null, contactCountry || null
       );
       await audit(u ? u.id : null, 'inquiry.create', 'inquiry', id, body.message.slice(0, 80));
       const seller = await get('SELECT * FROM users WHERE id = ?', p.seller_id);
@@ -804,6 +848,13 @@ async function route(m, segs, q, req, res) {
         await notifyUser(seller.id, 'inquiry', '收到新询盘', '产品 ' + (body.productId) + ' 收到新询盘：' + String(body.message).slice(0, 120));
         try { await sendMail({ to: seller.email, subject: '[BeanBeanMouse] 收到新询盘', body: String(body.message) }); }
         catch (e) { console.error('邮件发送失败（不影响询盘）:', e.message); }
+      }
+      /* 自营模式下商品挂在平台名下，管理员也必须收到站内提醒，
+       * 否则客户在首页"直接问我"发来的需求只会静静躺在数据库里。 */
+      const admins = await all("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
+      for (const a of admins) {
+        if (seller && a.id === seller.id) continue;
+        await notifyUser(a.id, 'inquiry', '收到新询盘', '产品 ' + (body.productId) + ' 收到新询盘：' + String(body.message).slice(0, 120));
       }
       return send(res, 201, await get('SELECT * FROM inquiries WHERE id = ?', id));
     }

@@ -155,6 +155,11 @@ api.auth = {
     await apiDelay();
     return mockState().user ? apiClone(mockState().user) : null;
   },
+  async changePassword({ currentPassword, newPassword } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } });
+    await apiDelay();
+    return { ok: true };
+  },
   async logout() {
     if (api.config.mode === 'http') return apiRequest('/auth/logout', { method: 'POST' });
     const st = mockState();
