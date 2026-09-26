@@ -112,6 +112,28 @@ render();
     for (const [k, v] of Object.entries(base)) { out[k] = v; out[k.replace('pet-', '')] = v; }
     return out;
   })();
+  /* 先用令牌确认"我是谁"：避免本地残留的账号信息与令牌不匹配 */
+  if (state.token) {
+    api.auth.me().then(u => {
+      if (u && u.id) {
+        state.user = Object.assign({}, u);
+        saveState();
+        render();
+      }
+    }).catch(() => {
+      /* 令牌失效或不属于任何账号：清掉登录态，防止张冠李戴 */
+      state.token = '';
+      state.user = null;
+      saveState();
+      render();
+    });
+  } else if (state.user) {
+    /* 没有令牌却显示着用户（历史遗留的本地演示登录）：一并清掉 */
+    state.user = null;
+    saveState();
+    render();
+  }
+
   api.products.list().then(res => {
     /* api.products.list() 在 http 模式直接返回数组；兼容两种返回形态 */
     const items = Array.isArray(res) ? res : ((res && res.items) || []);

@@ -109,7 +109,9 @@ const DEMO_CRED = {
 function applyLogin(r) {
   if (!r) return;
   if (r.token) state.token = r.token;
-  if (r.user) state.user = Object.assign({}, state.user || {}, r.user);
+  /* 整体替换而不是合并：避免残留上一个账号的字段（一个邮箱一个号） */
+  if (r.user) state.user = Object.assign({}, r.user);
+  else state.user = null;
   saveState();
   if (typeof reloadState === 'function') { try { reloadState(); } catch (e) { /* 忽略 */ } }
 }
