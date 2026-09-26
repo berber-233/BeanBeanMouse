@@ -1828,3 +1828,23 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .admin-pwd-warn .apw-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; }
 .admin-pwd-warn .apw-txt b { font-size: 14px; color: #8A5A00; }
 .admin-pwd-warn .apw-txt span { font-size: 12.5px; color: #9A7A3A; }
+
+/* ---------- 服务器数据到达前的骨架屏（线上不再先渲染演示数据） ---------- */
+.boot-loading { padding-top: 26px; }
+.boot-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.boot-head img { border-radius: 50%; }
+.boot-head-txt { display: flex; flex-direction: column; gap: 2px; }
+.boot-head-txt b { font-size: 15px; color: var(--navy-900); }
+.boot-head-txt span { font-size: 12.5px; color: var(--muted); }
+.boot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.boot-card {
+  height: 268px; border-radius: 14px;
+  background: linear-gradient(100deg, #F3F1EC 30%, #FAF9F6 50%, #F3F1EC 70%);
+  background-size: 220% 100%;
+  animation: bootShimmer 1.25s ease-in-out infinite;
+}
+@keyframes bootShimmer { from { background-position: 140% 0; } to { background-position: -40% 0; } }
+@media (prefers-reduced-motion: reduce) { .boot-card { animation: none; } }
+/* 页头身份未确认前的占位（避免先闪旧账号名） */
+.user-area-ghost { display: inline-block; width: 92px; height: 30px; border-radius: 15px; background: #F1EFE9; }
+.email-flag { font-size: 10.5px; padding: 1px 6px; }

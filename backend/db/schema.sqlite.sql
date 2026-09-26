@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
   email_verified INTEGER NOT NULL DEFAULT 0,
   review_state TEXT,
   last_login_at INTEGER,
+  signup_ip TEXT,
+  signup_ua TEXT,
+  email_flag TEXT,
   created_at INTEGER NOT NULL
 );
 

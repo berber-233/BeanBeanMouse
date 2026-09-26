@@ -207,6 +207,13 @@ function render() {
   renderFirstVisitHint();
   const { path, params } = parseHash();
   const app = $('#app');
+  /* 线上数据没到之前先给骨架屏：绝不先把本地演示数据渲染出来再替换，
+   * 否则刷新时会闪出"两个待审产品""几个不存在的账号"（用户反馈的原样现象）。 */
+  if (needsBootLoading(path)) {
+    app.innerHTML = renderBootLoading();
+    window.scrollTo(0, 0);
+    return;
+  }
   if (path === '' || path === '/') app.innerHTML = renderHome();
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderHome(); }   /* 贸易资讯模块已封存（2026-09-17），暂不展示 */
@@ -233,6 +240,20 @@ function render() {
   if (path === '' || path === '/') fitHeroTitle();
   window.scrollTo(0, 0);
   setMetaDesc(pageMetaDesc(path));
+}
+
+function needsBootLoading(path) {
+  if (!(api.config && api.config.mode === 'http')) return false;
+  if (state.serverReady) return false;
+  return path === '' || path === '/' || path === '/products' || path.indexOf('/product/') === 0
+    || path === '/dashboard' || path.indexOf('/dashboard/') === 0 || path.indexOf('/seller/') === 0;
+}
+
+function renderBootLoading() {
+  return '<div class="container page boot-loading">'
+    + '<div class="boot-head"><img src="assets/mascot-icon.png" alt="" width="40" height="40" decoding="async">'
+    + '<div class="boot-head-txt"><b>' + t('loadingFromServer') + '</b><span>' + t('loadingHint') + '</span></div></div>'
+    + '<div class="boot-grid">' + '<div class="boot-card"></div>'.repeat(6) + '</div></div>';
 }
 
 function setMetaDesc(desc) {
@@ -3873,10 +3894,16 @@ function sideNav(items, activeTab) {
 
 function renderSellerDash(path) {
   const u = state.user;
-  const sid = u.sellerId;
-  const seller = sellerById(sid);
+  /* 服务器上的卖家就是 users 表里的自己（商品 seller_id = users.id），
+   * 拿不到 sellerId 字段时退回用 id，否则卖家会"一件商品、一条询盘都看不到"。 */
+  const sid = u.sellerId || u.id;
+  const seller = sellerById(sid) || { zh: { company: u.name || '' }, en: { company: u.name || '' } };
   const myProducts = state.products.filter(p => p.sellerId === sid);
-  const myInquiries = state.inquiries.filter(i => i.sellerId === sid).sort((a, b) => b.createdAt - a.createdAt);
+  /* 询盘归属：按商品的卖方归属（服务器返回 sellerId），没有时再按商品反查 */
+  const myInquiries = state.inquiries.filter(i => {
+    const owner = i.sellerId || ((state.products.find(p => p.id === i.productId) || {}).sellerId);
+    return owner === sid;
+  }).sort((a, b) => b.createdAt - a.createdAt);
   const live = myProducts.filter(isLive).length;
   const monthAgo = Date.now() - 30 * 86400000;
   const monthInq = myInquiries.filter(i => i.createdAt > monthAgo).length;
@@ -4805,24 +4832,29 @@ function stickyAskBar(pid) {
 /* 真实账号表：含审核状态与通过/拒绝入口（与"待审核账号"面板同一套后端接口） */
 function serverUsersBody(list) {
   const roleLabel = u => u.role === 'admin' ? t('adminRoleTag') : u.role === 'seller' ? t('sellerRoleLabel') : t('buyerRoleLabel');
+  const flagLabel = f => f === 'free' ? t('emailFlagFree') : f === 'corporate' ? t('emailFlagCorporate') : f === 'disposable' ? t('emailFlagDisposable') : '';
   const rows = list.map(u => {
     const rs = u.reviewState || '';
     const rsLabel = rs === 'pending' ? t('pendingLabel') : rs === 'rejected' ? t('reviewRejected') : rs === 'approved' ? t('reviewApproved') : t('activeStatus');
     const rsCls = rs === 'pending' ? 'pend' : rs === 'rejected' ? 'rej' : 'live';
+    const frozen = u.status === 'frozen';
+    const flag = flagLabel(u.emailFlag);
     return '<tr>'
       + '<td><div class="prod-cell"><span class="avatar" style="width:30px;height:30px;font-size:12px">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span><span class="t">' + esc(u.name || '—') + '</span></div></td>'
       + '<td>' + esc(roleLabel(u)) + '</td>'
-      + '<td>' + esc(u.email || '—') + '</td>'
+      + '<td>' + esc(u.email || '—') + (flag ? '<br><span class="chip email-flag">' + esc(flag) + '</span>' : '') + '</td>'
       + '<td><span class="status-pill ' + rsCls + '">' + esc(rsLabel) + '</span></td>'
-      + '<td>' + fmtDate(u.joinedAt) + '</td>'
+      + '<td><span class="status-pill ' + (frozen ? 'rej' : 'live') + '">' + (frozen ? t('frozenStatus') : t('activeStatus')) + '</span></td>'
+      + '<td class="small muted">' + fmtDate(u.joinedAt) + (u.signupIp ? '<br>' + esc(String(u.signupIp).slice(0, 32)) : '') + '</td>'
       + '<td class="nowrap">' + (rs === 'pending' || rs === 'rejected'
         ? '<button type="button" class="btn btn-sm btn-primary" data-action="review-user" data-id="' + esc(u.id) + '" data-verdict="approve">' + t('reviewApprove') + '</button>'
-        : '<span class="small muted">—</span>')
+        : u.role === 'admin' ? '<span class="small muted">—</span>'
+          : '<button type="button" class="btn btn-sm ' + (frozen ? '' : 'btn-danger-ghost') + '" data-action="freeze-user" data-id="' + esc(u.id) + '" data-freeze="' + (frozen ? '0' : '1') + '">' + (frozen ? t('unfreeze') : t('freeze')) + '</button>')
       + '</td></tr>';
   }).join('');
   return '<div class="card panel"><div class="panel-head"><h2>' + t('userManage') + '</h2><span class="small muted">' + list.length + ' ' + t('statUsers') + '</span></div>'
     + '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('regName') + '</th><th>' + t('roleCol') + '</th><th>' + t('regEmail')
-    + '</th><th>' + t('statusPill') + '</th><th>' + t('joinedCol') + '</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+    + '</th><th>' + t('reviewStateCol') + '</th><th>' + t('statusPill') + '</th><th>' + t('signupCol') + '</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }
 
 /* ---------- 邮箱验证页（pet0.2）---------- */

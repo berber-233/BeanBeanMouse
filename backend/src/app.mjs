@@ -187,6 +187,42 @@ async function registerRateLimit(ip) {
 
 /* 邮箱验证令牌：只存哈希、单次有效、24 小时过期 */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/* 没有邮件服务时，注册这一关靠"邮箱初筛"兜底：
+ * 一次性邮箱直接拒收；常见免费邮箱标 free，企业自有域名标 corporate，
+ * 管理员在待审列表一眼能看出"这条注册值不值得放"。（免费域名的正常买家也很多，所以只标记不拦截。） */
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com', 'guerrillamail.com', 'sharklasers.com', 'grr.la', 'guerrillamail.info',
+  '10minutemail.com', 'tempmail.com', 'temp-mail.org', 'temp-mail.io', 'throwawaymail.com',
+  'yopmail.com', 'yopmail.fr', 'trashmail.com', 'trash-mail.com', 'getnada.com', 'nada.email',
+  'dispostable.com', 'maildrop.cc', 'spam4.me', 'fakeinbox.com', 'mailnesia.com', 'mailcatch.com',
+  'mintemail.com', 'mytrashmail.com', 'discard.email', 'mohmal.com', 'tempr.email',
+  'example.com', 'example.org', 'example.net', 'test.com', 'test.test', 'invalid.com', 'localhost.com'
+]);
+/* 自动化测试需要用一次性地址反复注册，可用 BLOCK_DISPOSABLE_EMAIL=0 关闭（生产保持开启） */
+const BLOCK_DISPOSABLE_EMAIL = String(ENV.BLOCK_DISPOSABLE_EMAIL === undefined ? '1' : ENV.BLOCK_DISPOSABLE_EMAIL) !== '0';
+const FREE_MAIL_DOMAINS = new Set([
+  'qq.com', '163.com', '126.com', 'sina.com', 'sina.cn', 'sohu.com', 'aliyun.com', 'foxmail.com',
+  'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'yahoo.com',
+  'yahoo.co.jp', 'icloud.com', 'me.com', 'aol.com', 'mail.ru', 'yandex.com', 'gmx.com', 'proton.me',
+  'protonmail.com', 'zoho.com', 'naver.com', 'daum.net', 'hanmail.net'
+]);
+function emailDomain(email) {
+  const m = /@([^@]+)$/.exec(String(email || ''));
+  return m ? m[1].toLowerCase() : '';
+}
+function classifyEmail(email) {
+  const d = emailDomain(email);
+  if (DISPOSABLE_DOMAINS.has(d)) return 'disposable';
+  if (FREE_MAIL_DOMAINS.has(d)) return 'free';
+  return 'corporate';
+}
+/* 来源 IP：Cloudflare 会带 cf-connecting-ip，Node 本地调试退化到 socket */
+function clientIp(req) {
+  const h = req && req.headers ? req.headers : {};
+  const raw = h['cf-connecting-ip'] || (h['x-forwarded-for'] ? String(h['x-forwarded-for']).split(',')[0] : '') || (req && req.socket && req.socket.remoteAddress) || '';
+  return String(raw).trim().slice(0, 64);
+}
 async function sha256(s) { return await sha256Hex(s); }
 async function newEmailToken(userId) {
   const token = toHex(randomBytes(24));
@@ -312,11 +348,19 @@ async function currentUser(req) {
 async function requireAuth(res, req, roles) {
   const u = await currentUser(req);
   if (!u) { fail(res, 401, 'UNAUTHORIZED', '请先登录'); return null; }
+  /* 冻结必须立刻生效：只改数据库状态不够——旧令牌是自包含的，
+   * 以前冻结后持旧令牌仍能进后台（用户反馈的"冻结了还能进去看"）。 */
+  if (u.status === 'frozen') { fail(res, 401, 'ACCOUNT_FROZEN', '账号已被冻结，请联系平台'); return null; }
   if (roles && !roles.includes(u.role)) { fail(res, 403, 'FORBIDDEN', '权限不足'); return null; }
   return u;
 }
 function publicUser(u) {
-  return u ? { id: u.id, email: u.email, role: u.role, name: u.name, status: u.status } : null;
+  /* 卖家要把自己的 id 当成 sellerId：商品与询盘都按 users.id 归属，
+   * 前端卖家工作台拿不到这个字段就会"一条自己的商品和询盘都看不到"。 */
+  return u ? {
+    id: u.id, email: u.email, role: u.role, name: u.name, status: u.status,
+    sellerId: u.role === 'seller' ? u.id : undefined
+  } : null;
 }
 async function audit(actor, action, targetType, targetId, detail) {
   await run(
@@ -347,6 +391,9 @@ async function productView(row) {
   const promo = await get('SELECT id FROM promotion_requests WHERE product_id = ? AND status = ?', row.id, 'approved');
   return {
     ...row,
+    /* 前端按 sellerId 归属商品（卖家工作台靠它筛选"我的产品"）；
+     * 数据库列名是 seller_id，不映射过去卖家会看到"一件商品都没有"。 */
+    sellerId: row.seller_id,
     terms: safeJson(row.terms, []),
     certs: safeJson(row.certs, []),
     translations,
@@ -468,6 +515,10 @@ async function route(m, segs, q, req, res) {
       const role = body.role;
       const name = String(body.name || '').trim();
       if (!EMAIL_RE.test(email)) return fail(res, 400, 'VALIDATION', '邮箱格式不正确');
+      const emailFlag = classifyEmail(email);
+      if (BLOCK_DISPOSABLE_EMAIL && emailFlag === 'disposable') {
+        return fail(res, 400, 'EMAIL_DISPOSABLE', '请使用常用邮箱注册，不支持一次性/临时邮箱');
+      }
       if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
         return fail(res, 400, 'VALIDATION', '密码至少 8 位，且需同时包含字母和数字');
       }
@@ -493,9 +544,10 @@ async function route(m, segs, q, req, res) {
       const id = randomUUID();
       try {
         await run(
-      'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, review_state, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, review_state, created_at, signup_ip, signup_ua, email_flag) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
       id, email, await hashPassword(password), role, name, 'active', REQUIRE_EMAIL_VERIFY ? 0 : 1,
-      REQUIRE_ACCOUNT_REVIEW ? 'pending' : null, Date.now()
+      REQUIRE_ACCOUNT_REVIEW ? 'pending' : null, Date.now(),
+      clientIp(req) || null, String((req.headers && req.headers['user-agent']) || '').slice(0, 300) || null, emailFlag
         );
       } catch (e) {
         /* 并发注册同一邮箱时唯一索引会拦下来（数据库层面的"一个邮箱一个号"） */
@@ -1530,9 +1582,10 @@ async function route(m, segs, q, req, res) {
       const admin = await requireAuth(res, req, ['admin']);
       if (!admin) return;
       const status = q.get('status') ? String(q.get('status')) : '';
+      const cols = 'id, email, name, role, status, review_state, email_verified, created_at, last_login_at, signup_ip, signup_ua, email_flag';
       const rows = status
-        ? await all('SELECT id, email, name, role, status, review_state, email_verified, created_at FROM users WHERE review_state = ? ORDER BY created_at DESC LIMIT 200', status)
-        : await all('SELECT id, email, name, role, status, review_state, email_verified, created_at FROM users ORDER BY created_at DESC LIMIT 200');
+        ? await all('SELECT ' + cols + ' FROM users WHERE review_state = ? ORDER BY created_at DESC LIMIT 200', status)
+        : await all('SELECT ' + cols + ' FROM users ORDER BY created_at DESC LIMIT 200');
       const counts = {
         pending: (await get("SELECT COUNT(*) AS c FROM users WHERE review_state = 'pending'")).c,
         active: (await get("SELECT COUNT(*) AS c FROM users WHERE status = 'active'")).c,
@@ -1553,6 +1606,20 @@ async function route(m, segs, q, req, res) {
       if (body.reason) await audit(admin.id, 'admin.user.reason', 'user', c, String(body.reason).slice(0, 300));
       await audit(admin.id, 'admin.user.' + d, 'user', c, target.email || '');
       return send(res, 200, { ok: true, id: c, reviewState: nextReview });
+    }
+    /* 冻结 / 解冻：管理员在用户列表里直接操作，且立即生效（旧令牌也会被 requireAuth 拦下）。
+     * 管理员账号本身不允许被冻结，避免把自己关在门外。 */
+    if (b === 'users' && c && (d === 'freeze' || d === 'unfreeze') && m === 'POST') {
+      const admin = await requireAuth(res, req, ['admin']);
+      if (!admin) return;
+      const target = await get('SELECT id, email, role FROM users WHERE id = ?', c);
+      if (!target) return fail(res, 404, 'NOT_FOUND', '账号不存在');
+      if (target.role === 'admin') return fail(res, 400, 'INVALID_TARGET', '管理员账号不能被冻结');
+      if (target.id === admin.id) return fail(res, 400, 'INVALID_TARGET', '不能冻结当前登录的管理员');
+      const next = d === 'freeze' ? 'frozen' : 'active';
+      await run('UPDATE users SET status = ? WHERE id = ?', next, c);
+      await audit(admin.id, 'admin.user.' + d, 'user', c, target.email || '');
+      return send(res, 200, { ok: true, id: c, status: next });
     }
 
     if (b === 'overview' && m === 'GET') {

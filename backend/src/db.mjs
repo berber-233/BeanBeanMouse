@@ -32,7 +32,13 @@ export function ensureColumns(table, cols) {
 }
 
 /* 启动时执行列级迁移（新表由 schema.sqlite.sql 负责） */
-ensureColumns('users', { last_login_at: 'INTEGER', review_state: 'TEXT' });
+ensureColumns('users', {
+  last_login_at: 'INTEGER',
+  review_state: 'TEXT',
+  signup_ip: 'TEXT',
+  signup_ua: 'TEXT',
+  email_flag: 'TEXT'
+});
 ensureColumns('inquiries', {
   contact_name: 'TEXT',
   contact_email: 'TEXT',

@@ -74,7 +74,7 @@ render();
   };
   const toFrontend = p => ({
     id: p.id,
-    sellerId: p.sellerId || 'bbm',
+    sellerId: p.sellerId || p.seller_id || 'bbm',
     cat: p.cat || p.category || 'pet',
     sub: p.sub || '',
     country: p.country || 'CN',
@@ -126,6 +126,7 @@ render();
       state.token = '';
       state.user = null;
       saveState();
+      markServerReady('session');
       render();
     });
   } else if (state.user) {
@@ -138,14 +139,16 @@ render();
   api.products.list().then(res => {
     /* api.products.list() 在 http 模式直接返回数组；兼容两种返回形态 */
     const items = Array.isArray(res) ? res : ((res && res.items) || []);
-    if (items.length < MIN_EXPECTED) {
-      console.warn('[hydrate] 服务器商品仅 ' + items.length + ' 款，保留本地演示数据');
-      return;
-    }
+    /* 线上只信服务器：商品少（甚至为 0）也照实显示，不再退回本地演示目录 */
     state.products = items.map(toFrontend);
+    if (items.length < MIN_EXPECTED) console.warn('[hydrate] 服务器商品仅 ' + items.length + ' 款');
+    markServerReady('products');
     render();
     console.log('[hydrate] 已切换到服务器商品：' + items.length + ' 款');
-  }).catch(e => console.warn('[hydrate] 拉取失败，保留本地演示数据：' + (e && e.message)));
+  }).catch(e => {
+    console.warn('[hydrate] 商品拉取失败：' + (e && e.message));
+    markServerReady('products');
+  });
 })();
 
 /* ---------- 登录范围内的真实数据（pet0.2 接线）----------
@@ -195,7 +198,8 @@ function mapServerNotification(n) {
 function mapServerAdminUser(u) {
   return {
     id: u.id, email: u.email, name: u.name, role: u.role, status: u.status,
-    reviewState: u.review_state || '', emailVerified: !!u.email_verified, joinedAt: u.created_at
+    reviewState: u.review_state || '', emailVerified: !!u.email_verified, joinedAt: u.created_at,
+    signupIp: u.signup_ip || '', signupUa: u.signup_ua || '', emailFlag: u.email_flag || ''
   };
 }
 async function hydrateSessionData() {
@@ -235,10 +239,12 @@ async function hydrateSessionData() {
     const failed = settled.filter(x => x.status === 'rejected');
     if (failed.length) console.warn('[hydrate] 部分数据未取到：' + failed.map(f => f.reason && f.reason.message).join(' / '));
     saveState();
+    markServerReady('session');
     renderPage();
     return true;
   } catch (e) {
     console.warn('[hydrate] 账号数据拉取失败：' + (e && e.message));
+    markServerReady('session');
     return false;
   } finally {
     sessionHydrating = false;

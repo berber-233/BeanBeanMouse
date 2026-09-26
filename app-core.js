@@ -116,13 +116,62 @@ function applyViewerLang(root) {
   });
 }
 
+/* 线上（http）模式不要把本地演示数据先渲染出来：
+ * "刷新时先冒出两个待审产品、几个莫须有账号，一会儿又消失"就是这么来的。
+ * 线上以服务器为唯一数据源，进页面先空白 + 加载态，数据到了再渲染。 */
+const HTTP_DATA_MODE = !!(api.config && api.config.mode === 'http');
+function blankHttpState(prev) {
+  const base = Object.assign({}, prev || {});
+  base.products = [];
+  base.inquiries = [];
+  base.orders = [];
+  base.tips = [];
+  base.shipments = [];
+  base.evidence = [];
+  base.categoryRequests = [];
+  base.promotions = [];
+  base.insurances = [];
+  base.contracts = [];
+  base.afterSales = [];
+  base.suggestions = [];
+  base.notifications = [];
+  base.users = [];
+  base.companies = [];
+  base.logs = [];
+  base.adminUsers = [];
+  base.adminLogs = [];
+  /* 身份也留空：由 /auth/me 确认后再显示，避免页头先闪上一个旧账号名 */
+  base.user = null;
+  base.mustChangePassword = false;
+  base.serverReady = false;
+  base.readyFlags = {};
+  if (!Array.isArray(base.favorites)) base.favorites = [];
+  return base;
+}
+
 function loadState() {
   try {
     const s = api.storage.getState();
     /* 版本不符（演示数据换过）就丢弃旧缓存重建，否则老访客会一直看到过期目录 */
-    if (s && s.dataVersion === DATA_VERSION && Array.isArray(s.products) && s.products.length && s.inquiries && s.favorites) return s;
+    if (s && s.dataVersion === DATA_VERSION && Array.isArray(s.products) && s.inquiries && s.favorites) {
+      return HTTP_DATA_MODE ? blankHttpState(s) : s;
+    }
   } catch (e) { /* 忽略并重建 */ }
-  const fresh = seedDemoData();
+  let fresh;
+  if (HTTP_DATA_MODE) {
+    fresh = blankHttpState(null);
+    /* 本地偏好（语言、登录令牌、收藏、提示是否关过）线上也要保留 */
+    try {
+      const s = api.storage.getState() || {};
+      if (s.lang) fresh.lang = s.lang;
+      if (s.token) fresh.token = s.token;
+      if (Array.isArray(s.favorites)) fresh.favorites = s.favorites;
+      if (s.firstVisit === false) fresh.firstVisit = false;
+      if (s.trialDismissed) fresh.trialDismissed = s.trialDismissed;
+    } catch (e) { /* 忽略 */ }
+  } else {
+    fresh = seedDemoData();
+  }
   fresh.dataVersion = DATA_VERSION;
   api.storage.setState(fresh);
   return fresh;
@@ -190,13 +239,38 @@ function migrateState() {
     if (!Array.isArray(p.markets)) { p.markets = MARKETS_BY_PRODUCT[p.id] || []; changed = true; }
     if (!p.sub) { const cat = CATEGORIES.find(c => c.id === p.cat); if (cat && cat.subs && cat.subs[0]) { p.sub = cat.subs[0].id; changed = true; } }
   });
-  if (!state.products.some(p => p.id === 'p15')) {
+  if (!HTTP_DATA_MODE && !state.products.some(p => p.id === 'p15')) {
     state.products = state.products.concat(pendingSeedProducts());
     changed = true;
   }
   if (changed) saveState();
 }
 migrateState();
+
+/* 服务器数据就绪标记：产品 + （登录时）账号数据都到齐才算就绪，之后才渲染业务页面 */
+function markServerReady(kind) {
+  if (!HTTP_DATA_MODE) return;
+  state.readyFlags = state.readyFlags || {};
+  state.readyFlags[kind] = true;
+  const needSession = !!(state.token && state.user);
+  const ok = !!state.readyFlags.products && (!needSession || !!state.readyFlags.session);
+  if (state.serverReady !== ok) {
+    state.serverReady = ok;
+    saveState();
+    renderPage();
+  }
+}
+/* 兜底：服务器迟迟不回（网络异常）也要放行，不能让页面永远停在骨架屏 */
+if (HTTP_DATA_MODE) {
+  setTimeout(() => {
+    if (!state.serverReady) {
+      state.readyFlags = { products: true, session: true };
+      state.serverReady = true;
+      saveState();
+      renderPage();
+    }
+  }, 8000);
+}
 initTrialBanner();
 
 function syncVerification() {
@@ -893,6 +967,17 @@ function handleAction(el) {
       break;
     }
     case 'freeze-user': {
+      /* 线上走服务器接口：冻结/解冻必须真的改数据库，否则刷新就复原，
+       * 而且冻结后旧令牌也照样能进后台（用户反馈的"冻结了还能进去"）。 */
+      if (api.config && api.config.mode === 'http') {
+        const frozen = el.dataset.freeze !== '0';
+        runBusy(el, () => apiRequest('/admin/users/' + id + '/' + (frozen ? 'freeze' : 'unfreeze'), { method: 'POST', token: authTokenOf(), body: {} })
+          .then(() => {
+            toast(frozen ? t('userFrozen') : t('userUnfrozen'));
+            return typeof hydrateSessionData === 'function' ? hydrateSessionData() : null;
+          }));
+        break;
+      }
       const u = (state.users || []).find(x => x.id === id);
       if (!u || u.role === 'admin') break;
       u.status = u.status === 'frozen' ? 'active' : 'frozen';
@@ -1054,12 +1139,20 @@ function renderHeader() {
       (href === '/recruit' && path.indexOf('/recruit') === 0);
     a.classList.toggle('active', active);
   });
+  /* 收藏快捷入口已从页头移除（管理端看不到、也确实多余，收藏在工作台里看） */
   const fc = $('#favCount');
-  fc.textContent = state.favorites.length;
-  fc.hidden = state.favorites.length === 0;
+  if (fc) {
+    fc.textContent = state.favorites.length;
+    fc.hidden = state.favorites.length === 0;
+  }
   const ua = $('#userArea');
   const u = state.user;
   let bellHtml = '';
+  /* 线上身份还没确认前不显示任何账号名（避免先闪一个旧账号） */
+  if (HTTP_DATA_MODE && !state.serverReady && !u) {
+    ua.innerHTML = '<span class="user-area-ghost" aria-hidden="true"></span>';
+    return;
+  }
   if (u) {
     const notifRows = (state.notifications || []).filter(n => u.role === 'admin' || n.toUserId === u.id).slice(0, 5);
     const unreadN = notifRows.filter(n => !n.read).length;

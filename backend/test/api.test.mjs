@@ -4,6 +4,8 @@ process.env.TRANSLATION_PROVIDER = 'mock';
 process.env.TRANSLATION_DAILY_QUOTA = '10';
 process.env.REGISTER_LIMIT = '100';
 process.env.LOGIN_LIMIT = '100';
+/* 测试需要反复用一次性地址注册（test.com / example.com），生产默认拦截 */
+process.env.BLOCK_DISPOSABLE_EMAIL = '0';
 
 const { startServer } = await import('../src/server.mjs');
 const { get } = await import('../src/db.mjs');
