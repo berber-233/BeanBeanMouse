@@ -98,7 +98,54 @@ function toggleFav(id) {
 }
 
 /* ---------- 登录 / 登出 ---------- */
-function loginAs(role) {
+/* 演示身份对应的后端账号（公开的演示凭据） */
+const DEMO_CRED = {
+  admin: ['admin@demo.com', 'admin123'],
+  seller: ['seller@demo.com', 'seller123'],
+  buyer: ['buyer@demo.com', 'buyer123']
+};
+
+/* 登录成功后把 token 与用户写进本地状态（token 是调用受保护接口的前提） */
+function applyLogin(r) {
+  if (!r) return;
+  if (r.token) state.token = r.token;
+  if (r.user) state.user = Object.assign({}, state.user || {}, r.user);
+  saveState();
+  if (typeof reloadState === 'function') { try { reloadState(); } catch (e) { /* 忽略 */ } }
+}
+
+/* 邮箱 + 密码登录 */
+async function submitLogin(f) {
+  const fd = new FormData(f);
+  const email = String(fd.get('email') || '').trim();
+  const password = String(fd.get('password') || '');
+  if (!email || !password) { toast(t('askNeedContact')); return; }
+  try {
+    const r = await api.auth.login({ email, password });
+    applyLogin(r);
+    toast(t('signedIn') + ((r && r.user && r.user.name) || ''));
+    go('/dashboard');
+  } catch (e) {
+    toast(t('loginFailed') + '：' + (e && e.message ? e.message : ''));
+  }
+}
+
+async function loginAs(role) {
+  /* 线上（http 模式）：演示身份也走真实登录，拿到 token 才能用受保护接口 */
+  if (api.config && api.config.mode === 'http') {
+    const cred = DEMO_CRED[role];
+    if (cred) {
+      try {
+        const r = await api.auth.login({ email: cred[0], password: cred[1] });
+        applyLogin(r);
+        toast(t('signedIn') + ((r && r.user && r.user.name) || ''));
+        go('/dashboard');
+      } catch (e) {
+        toast(t('loginFailed') + '：' + (e && e.message ? e.message : ''));
+      }
+      return;
+    }
+  }
   const rec = (state.users || []).find(x => x.id === DEMO_USERS[role].id);
   if (rec && rec.status === 'frozen') { toast(t('frozenBlocked')); return; }
   state.user = JSON.parse(JSON.stringify(DEMO_USERS[role]));
@@ -412,7 +459,7 @@ function renderAbout() {
   const c = [
     { k: 'aboutContactEmail', v: 'beanbeanmouse.trade@outlook.com', href: 'mailto:beanbeanmouse.trade@outlook.com' },
     { k: 'aboutContactWechat', v: 'beanbeanmouse', href: '' },
-    { k: 'aboutContactPhone', v: t('aboutPending'), href: '' },
+    { k: 'aboutContactPhone', v: '13725078850', href: 'tel:13725078850' },
     { k: 'aboutContactAddress', v: t('aboutPending'), href: '' }
   ];
   return '<div class="container page">'
@@ -3641,6 +3688,12 @@ function renderLogin() {
     + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
     + '<h1>' + t('loginTitle') + '</h1>'
     + '<p class="sub">' + t('loginDesc') + '</p>'
+    + '<form class="login-form" data-form="login-form" novalidate>'
+    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="you@example.com"></div>'
+    + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
+    + '<button type="submit" class="btn btn-accent btn-block">' + t('login') + '</button>'
+    + '</form>'
+    + '<p class="small muted login-divider">' + t('loginOrDemo') + '</p>'
     + '<div class="role-cards">'
     + '<div class="role-card" data-action="login-role" data-role="buyer">'
     + '<div class="role-ico" style="background:linear-gradient(135deg,#2563EB,#7C3AED)">🛒</div>'

@@ -1709,6 +1709,14 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .verify-card h1 { margin: 0 0 10px; font-size: 22px; }
 .verify-actions { margin-top: 18px; }
 .verify-actions .field { text-align: left; margin-bottom: 12px; }
+
+/* ==================== 附件/图片上传：暂时隐藏（2026-09-26） ====================
+ * 对象存储（R2）未开通，上传会返回 503，用户点了只会报错。
+ * 与其让它报错，不如先收起入口；等 R2 开通后删掉这条规则即可全部恢复。
+ * 覆盖：询盘附件、报价附件、名片上传、名片 LOGO、商品图片上传。 */
+.attach-field,
+.field:has(input[type="file"]),
+.panel:has(> .attach-field) { display: none !important; }
 /* 标题里出现的内联图标（盾牌/用户）跟随文字大小与颜色 */
 .modal-head h3 svg, .panel-head h2 svg, .detail-block h2 svg { vertical-align: -3px; margin-right: 6px; }
 

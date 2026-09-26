@@ -570,6 +570,7 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'product-form') p = submitProduct(f);
   else if (f.dataset.form === 'reply-form') p = submitReply(f);
   else if (f.dataset.form === 'quote-form') p = submitQuote(f);
+  else if (f.dataset.form === 'login-form') p = submitLogin(f);
   else if (f.dataset.form === 'register-form') p = submitRegister(f);
   else if (f.dataset.form === 'company-form') p = submitCompanyForm(f);
   else if (f.dataset.form === 'catreq-form') p = submitCatReqForm(f);
