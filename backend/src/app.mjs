@@ -152,6 +152,26 @@ function loginRateLimit(ip) {
   return rec.count;
 }
 
+/* 管理员登录单独限流：更严（默认 15 分钟 5 次），并把失败尝试写进审计日志。
+ * 演示期管理员密码是公开的，这一层是"还没改密码"时的兜底。 */
+const adminLoginAttempts = new Map();
+const ADMIN_LOGIN_LIMIT = Number(ENV.ADMIN_LOGIN_LIMIT || 8);
+function adminLoginRateLimit(ip) {
+  const now = Date.now();
+  const win = 15 * 60 * 1000;
+  const rec = adminLoginAttempts.get(ip) || { count: 0, resetAt: now + win };
+  if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + win; }
+  rec.count++;
+  adminLoginAttempts.set(ip, rec);
+  return rec.count;
+}
+function adminLoginRateReset(ip) { adminLoginAttempts.delete(ip); }
+
+/* 公开的默认管理员密码：登录时若还在用它，前端会提示立即修改 */
+const DEFAULT_ADMIN_PASSWORD = String(ENV.DEFAULT_ADMIN_PASSWORD || 'admin123');
+/* 登录态有效期：默认 7 天（原先 1 小时，用着用着就被踢回登录页，像"请先登录"的错觉） */
+const TOKEN_TTL_SEC = Math.max(300, Number(ENV.TOKEN_TTL_SEC || 7 * 24 * 3600));
+
 /* 注册限流：同 IP 每分钟最多 5 次（防批量机器人注册，可通过 REGISTER_LIMIT 调整） */
 const registerAttempts = new Map();
 const REGISTER_LIMIT = Number(ENV.REGISTER_LIMIT || 5);
@@ -527,15 +547,27 @@ async function route(m, segs, q, req, res) {
         console.error('[auth.login] 同一邮箱存在 ' + dup.length + ' 个账号（历史重复数据）：' + email);
       }
       const u = dup[0];
+      const isAdminLogin = !!(u && u.role === 'admin');
+      if (isAdminLogin && adminLoginRateLimit(ip) > ADMIN_LOGIN_LIMIT) {
+        return fail(res, 429, 'TOO_MANY_ATTEMPTS', '管理员登录尝试过于频繁，请 15 分钟后再试');
+      }
       if (!u || !await verifyPassword(body.password, u.password_hash)) {
+        if (isAdminLogin) await audit(u.id, 'auth.login.failed', 'user', u.id, '管理员密码错误 ip=' + ip);
         return fail(res, 401, 'INVALID_CREDENTIALS', '账号或密码错误');
       }
       if (u.status === 'frozen') return fail(res, 401, 'ACCOUNT_FROZEN', '账号已被冻结');
       if (u.review_state === 'pending') return fail(res, 403, 'PENDING_REVIEW', '账号正在等待管理员审核，通过后即可登录');
       if (u.review_state === 'rejected') return fail(res, 403, 'ACCOUNT_REJECTED', '注册申请未通过审核，如有疑问请联系我们');
       if (REQUIRE_EMAIL_VERIFY && !u.email_verified) return fail(res, 403, 'VERIFY_EMAIL_REQUIRED', '请先验证邮箱再登录');
+      if (isAdminLogin) adminLoginRateReset(ip);
       await run('UPDATE users SET last_login_at = ? WHERE id = ?', Date.now(), u.id);
-      return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }), user: publicUser(u) });
+      /* 还在用公开默认密码的管理员：登录放行，但明确提示去改 */
+      const mustChangePassword = isAdminLogin && String(body.password) === DEFAULT_ADMIN_PASSWORD;
+      return send(res, 200, {
+        token: await signToken({ uid: u.id, role: u.role }, TOKEN_TTL_SEC),
+        user: publicUser(u),
+        mustChangePassword
+      });
     }
     if (m === 'POST' && b === 'verify-email') {
       const body = await readBody(req);
@@ -571,7 +603,7 @@ async function route(m, segs, q, req, res) {
     if (m === 'POST' && b === 'refresh') {
       const u = await requireAuth(res, req);
       if (!u) return;
-      return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }) });
+      return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }, TOKEN_TTL_SEC), user: publicUser(u) });
     }
     /* 修改密码：演示账号的密码是公开的，正式试用前必须先能改成自己的 */
     if (m === 'POST' && b === 'change-password') {

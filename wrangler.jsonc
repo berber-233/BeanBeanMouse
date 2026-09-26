@@ -33,6 +33,10 @@
     // 新注册账号需管理员审核通过后才能登录（试用期的人工把关，替代邮件验证）
     "REQUIRE_ACCOUNT_REVIEW": "1",
     "NEWS_AUTO_REFRESH": "0",
-    "PBKDF2_ITERATIONS": "100000"
+    "PBKDF2_ITERATIONS": "100000",
+    // 登录态有效期（秒）：默认 7 天，避免"用着用着被踢回登录页"
+    "TOKEN_TTL_SEC": "604800",
+    // 管理员登录单独限流（每 IP / 15 分钟），防暴力破解
+    "ADMIN_LOGIN_LIMIT": "8"
   }
 }

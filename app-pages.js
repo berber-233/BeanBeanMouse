@@ -121,6 +121,8 @@ function applyLogin(r) {
   /* 整体替换而不是合并：避免残留上一个账号的字段（一个邮箱一个号） */
   if (r.user) state.user = Object.assign({}, r.user);
   else state.user = null;
+  /* 后端提示"还在用默认管理员密码"时，进后台后要看到提醒条 */
+  state.mustChangePassword = !!(r && r.mustChangePassword);
   saveState();
   /* 登录后立刻拉取"这个账号"的数据（询盘/建议/通知/管理端列表），否则工作台会拿旧账号或演示数据顶上 */
   if (typeof hydrateSessionData === 'function') { try { hydrateSessionData(); } catch (e) { /* 忽略 */ } }
@@ -171,6 +173,7 @@ function logout(guest, goLogin) {
   try { if (api && api.auth && api.auth.logout) api.auth.logout(); } catch (e) { /* 服务端令牌无状态，失败也不影响本地退出 */ }
   state.token = '';
   state.user = null;
+  state.mustChangePassword = false;
   /* 换账号时清掉上一个账号的服务器数据，避免下一个账号在拉取完成前看到别人的询盘/通知 */
   if (api && api.config && api.config.mode === 'http') {
     state.inquiries = [];
@@ -222,6 +225,7 @@ function render() {
   else if (path === '/contracts') { app.innerHTML = renderContracts(); }
   else if (path.indexOf('/product/') === 0) { const _pid = path.slice(9); app.innerHTML = renderDetail(_pid) + stickyAskBar(_pid); }
   else if (path === '/login') app.innerHTML = renderLogin();
+  else if (path === '/admin-login') app.innerHTML = renderAdminLogin();
   else if (path.indexOf('/seller/') === 0) app.innerHTML = renderSellerPage(path.slice(8));
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
   else app.innerHTML = renderHome();
@@ -3190,7 +3194,11 @@ async function submitChangePassword(form) {
   try {
     await api.auth.changePassword({ currentPassword, newPassword });
     form.reset();
+    /* 改掉默认密码后，后台顶部的提醒条不再出现 */
+    state.mustChangePassword = false;
+    saveState();
     toast(t('pwdChanged'));
+    renderPage();
   } catch (e) {
     toast((e && e.message) ? e.message : t('pwdFailed'));
   }
@@ -3777,6 +3785,62 @@ function renderLogin() {
     + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
     + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<div class="login-note"> ' + t('loginNote') + '</div>'
+    + '<p class="login-admin-link"><a href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + ' →</a></p>'
+    + '</div></div>';
+}
+
+/* ---------- 管理员登录（独立入口）----------
+ * 与普通登录分开：没有注册/游客/演示身份这些干扰项，提示语也只面向运营人员，
+ * 少一次误点进错的账号，也让"这是管理入口"这件事在视觉上一眼可辨。 */
+function renderAdminLogin() {
+  document.title = t('adminLoginTitle') + ' · BeanBeanMouse';
+  return '<div class="container login-page"><div class="login-card admin-login-card">'
+    + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-icon.png" alt="BeanBeanMouse" width="58" height="58" decoding="async">'
+    + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('adminLoginTag') + '</span></div></div>'
+    + '<h1>' + icon('shield') + ' ' + t('adminLoginTitle') + '</h1>'
+    + '<p class="sub">' + t('adminLoginSub') + '</p>'
+    + '<form class="login-form" data-form="admin-login-form" novalidate>'
+    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="admin@example.com"></div>'
+    + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
+    + '<button type="submit" class="btn btn-primary btn-block">' + t('adminLoginBtn') + '</button>'
+    + '</form>'
+    + '<div class="admin-login-note">' + icon('shield') + ' ' + t('adminLoginAuditNote') + '</div>'
+    + '<div class="admin-login-links">'
+    + '<a href="#/login" data-nav="/login">' + t('adminBackToLogin') + '</a>'
+    + '<a href="#/" data-nav="/">' + t('home') + '</a>'
+    + '</div></div></div>';
+}
+
+async function submitAdminLogin(f) {
+  const fd = new FormData(f);
+  const email = String(fd.get('email') || '').trim();
+  const password = String(fd.get('password') || '');
+  if (!email || !password) { toast(t('askNeedContact')); return; }
+  try {
+    const r = await api.auth.login({ email, password });
+    if (!r || !r.user || r.user.role !== 'admin') {
+      /* 普通账号不要从管理入口进去：立刻退回未登录状态 */
+      try { await api.auth.logout(); } catch (e) { /* 忽略 */ }
+      state.token = '';
+      state.user = null;
+      saveState();
+      toast(t('adminNotAdmin'));
+      return;
+    }
+    applyLogin(r);
+    toast(t('signedIn') + (r.user.name || ''));
+    go('/dashboard');
+  } catch (e) {
+    toast(t('loginFailed') + '：' + (e && e.message ? e.message : ''));
+  }
+}
+
+/* 默认密码提醒条：改完密码后消失 */
+function adminPwdWarnHtml() {
+  return '<div class="container admin-pwd-warn-wrap"><div class="admin-pwd-warn">'
+    + '<span class="apw-ico">🔒</span>'
+    + '<div class="apw-txt"><b>' + t('adminPwdWarn') + '</b><span>' + t('adminPwdWarnSub') + '</span></div>'
+    + '<a class="btn btn-sm btn-primary" href="#/dashboard/profile" data-nav="/dashboard/profile">' + t('adminPwdWarnBtn') + '</a>'
     + '</div></div>';
 }
 
@@ -3787,7 +3851,9 @@ function renderDashboard(path) {
     toast(t('needLogin'));
     return renderLogin();
   }
-  return u.role === 'seller' ? renderSellerDash(path) : u.role === 'admin' ? renderAdminDash(path) : renderBuyerDash(path);
+  /* 还在用公开默认密码的管理员：后台顶部常驻提醒，改完即消失 */
+  const warn = (u.role === 'admin' && state.mustChangePassword) ? adminPwdWarnHtml() : '';
+  return warn + (u.role === 'seller' ? renderSellerDash(path) : u.role === 'admin' ? renderAdminDash(path) : renderBuyerDash(path));
 }
 
 function sideNav(items, activeTab) {
@@ -3910,6 +3976,7 @@ function renderAdminDash(path) {
     { tab: 'aftersales', icon: 'shield', label: t('adminAfterSales'), count: (state.afterSales || []).filter(c => c.status === 'arbitrating').length || null },
     { tab: 'feedback', icon: 'mail', label: t('adminFeedback'), count: (state.suggestions || []).filter(s => s.status === 'new').length || null },
     { tab: 'users', icon: 'users', label: t('userManage') },
+    { tab: 'profile', icon: 'users', label: t('profileTab') },
     { tab: 'logs', icon: 'clock', label: t('auditLog') }
   ];
   let body = '';
@@ -3921,6 +3988,7 @@ function renderAdminDash(path) {
   else if (activeTab === 'aftersales') body = adminAfterSalesBody();
   else if (activeTab === 'feedback') body = adminFeedbackBody();
   else if (activeTab === 'users') body = adminUsersBody();
+  else if (activeTab === 'profile') body = renderProfileBody();
   else if (activeTab === 'logs') body = adminLogsBody();
   else body = adminOverviewBody();
   const summary = [

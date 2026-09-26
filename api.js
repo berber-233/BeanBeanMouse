@@ -69,12 +69,48 @@ async function apiRequest(path, options = {}) {
     headers: headers,
     body: body ? JSON.stringify(body) : undefined
   });
+  /* 登录态过期（401）：先用旧令牌换一个新令牌再重试一次。
+   * 没有这一步，用户会以为"明明登录着却说请先登录"。 */
+  if (res.status === 401 && !options.__retried && path.indexOf('/auth/login') !== 0 && path.indexOf('/auth/refresh') !== 0) {
+    const fresh = await tryRefreshToken();
+    if (fresh) return apiRequest(path, Object.assign({}, options, { __retried: true, token: fresh }));
+  }
   if (!res.ok) {
     let msg = 'HTTP ' + res.status;
     try { const j = await res.json(); msg = j.message || msg; } catch (e) { /* 忽略 */ }
     throw new Error(msg);
   }
   return res.json();
+}
+
+/* 用当前令牌换新令牌（静默续期）。成功后写回本地状态，返回新令牌。 */
+let refreshing = null;
+async function tryRefreshToken() {
+  const old = storedToken();
+  if (!old) return '';
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    try {
+      const res = await fetch(api.config.baseUrl + '/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + old } });
+      if (!res.ok) return '';
+      const j = await res.json();
+      if (!j || !j.token) return '';
+      try {
+        const raw = localStorage.getItem(API_STORE_KEY);
+        const s = raw ? JSON.parse(raw) : {};
+        s.token = j.token;
+        if (j.user) s.user = j.user;
+        localStorage.setItem(API_STORE_KEY, JSON.stringify(s));
+      } catch (e) { /* 写不进本地也不影响这次请求 */ }
+      try { if (typeof state !== 'undefined' && state) state.token = j.token; } catch (e) { /* 忽略 */ }
+      return j.token;
+    } catch (e) {
+      return '';
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
 }
 
 /* ---------- mock 数据辅助（仅本地演示用） ---------- */
