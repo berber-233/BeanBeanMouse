@@ -4,7 +4,8 @@
   "private": true,
   "description": "BeanBeanMouse (豆豆鼠) static site build for Cloudflare Pages",
   "scripts": {
-    "build": "node scripts/build-site.mjs"
+    "build": "node scripts/build-site.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.62.1",
