@@ -743,6 +743,7 @@ function handleAction(el) {
     case 'login-role': loginAs(el.dataset.role); break;
     case 'login-guest': logout(true); break;
     case 'show-register': showModal(registerFormHtml()); break;
+    case 'open-login': showModal(loginModalHtml()); break;
     case 'company-form': showModal(companyFormHtml()); break;
     case 'catreq-open': showModal(catReqFormHtml()); break;
     case 'order-create': createOrderFromInquiry(id); break;
@@ -1146,6 +1147,12 @@ function renderHeader() {
     fc.hidden = state.favorites.length === 0;
   }
   const ua = $('#userArea');
+  /* 顶部提示条只初始化过一次，切语言后不会更新——这里按当前语言刷新它的文案 */
+  const trial = document.getElementById('trialBanner');
+  if (trial && !trial.hidden) {
+    const trialTxt = document.getElementById('trialBannerText');
+    if (trialTxt) trialTxt.textContent = t('trialNotice') + ' ';
+  }
   const u = state.user;
   let bellHtml = '';
   /* 线上身份还没确认前不显示任何账号名（避免先闪一个旧账号） */
@@ -1184,7 +1191,8 @@ function renderHeader() {
             + '</div>'
       ;
   } else {
-    ua.innerHTML = '<a class="btn btn-sm btn-primary" href="#/login">' + t('login') + '</a>';
+    /* 登录改为弹窗：不再整页跳走，用户正在看的内容不丢 */
+    ua.innerHTML = '<button type="button" class="btn btn-sm btn-primary" data-action="open-login">' + t('login') + '</button>';
   }
 }
 
@@ -1229,6 +1237,15 @@ function applyStaticI18n() {
     const k = el.dataset.i18n;
     const v = t(k);
     if (v !== k) el.textContent = v;
+  });
+  /* 属性型文案（无障碍标签、提示）也要跟着语言走，否则切到英文后屏幕阅读器还是中文 */
+  $$('[data-i18n-aria]').forEach(el => {
+    const v = t(el.dataset.i18nAria);
+    if (v && v !== el.dataset.i18nAria) el.setAttribute('aria-label', v);
+  });
+  $$('[data-i18n-title]').forEach(el => {
+    const v = t(el.dataset.i18nTitle);
+    if (v && v !== el.dataset.i18nTitle) el.setAttribute('title', v);
   });
 }
 

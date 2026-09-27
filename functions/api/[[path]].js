@@ -11,6 +11,7 @@ import { makeD1Store } from '../../backend/src/db-d1.mjs';
 import { configureStorage, setStorageImpl } from '../../backend/src/storage.mjs';
 import { makeR2Storage, makeDisabledStorage } from '../../backend/src/storage-r2.mjs';
 import { configureMailer } from '../../backend/src/mailer.mjs';
+import { sendViaAliyun, isAliyunMailConfigured } from '../../backend/src/mail-aliyun.mjs';
 
 /* 同一个 isolate 内 env 是稳定的，应用实例只建一次 */
 let appPromise = null;
@@ -60,6 +61,16 @@ function mailTransport(env) {
         body: JSON.stringify({ from: from.email, to, subject, text: body, html })
       });
       if (!r.ok) throw new Error('MAIL_HTTP_' + r.status);
+    };
+  }
+
+  /* aliyun：国内邮件服务（阿里云邮件推送），支付宝即可开通，不需要外币卡 */
+  if (mode === 'aliyun') {
+    if (!isAliyunMailConfigured(env)) {
+      return async () => { throw new Error('MAIL_TRANSPORT=aliyun 但阿里云邮件推送凭据未配置'); };
+    }
+    return async ({ to, subject, body, html }) => {
+      await sendViaAliyun(env, { to, subject, body, html });
     };
   }
 

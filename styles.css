@@ -1438,7 +1438,7 @@ body {
 .storefront {
   background: linear-gradient(180deg, #FFF7E8 0%, #FFEFD6 58%, #FFF9EC 100%);
   border-bottom: 1px solid var(--border);
-  padding: 44px 0 36px;
+  padding: 30px 0 26px;
 }
 .store-inner {
   max-width: 1180px; margin: 0 auto; padding: 0 20px;
@@ -1450,10 +1450,10 @@ body {
   background: #FFF; border: 1px solid var(--border-2); color: var(--primary);
   font-size: 13px; font-weight: 600;
 }
-.store-title { margin: 0 0 14px; font-size: 34px; line-height: 1.28; color: var(--navy-900); letter-spacing: .2px; }
-.store-sub { margin: 0 0 20px; font-size: 15px; line-height: 1.85; color: var(--text-2); max-width: 46em; }
-.store-cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 14px; }
-.store-trust { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.store-title { margin: 0 0 10px; font-size: 30px; line-height: 1.26; color: var(--navy-900); letter-spacing: .2px; }
+.store-sub { margin: 0 0 16px; font-size: 14.5px; line-height: 1.8; color: var(--text-2); max-width: 46em; }
+.store-cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 12px; }
+.store-trust { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .trust-chip {
   font-size: 12.5px; color: var(--primary); background: #FFF; border: 1px solid var(--border-2);
   border-radius: 6px; padding: 4px 9px;
@@ -1468,6 +1468,17 @@ body {
   border: 1px solid var(--border-2); border-radius: 8px; padding: 6px 11px;
   font-size: 12.5px; color: var(--primary); font-weight: 600;
 }
+/* 门面里的搜索框：以前用的是深色头图时代的重阴影，落在暖色浅底上像"浮了两层" */
+.store-copy .hero-search {
+  margin: 0; max-width: 560px;
+  border: 1px solid var(--border-2);
+  box-shadow: 0 6px 18px rgba(143, 94, 10, .10);
+}
+.store-copy .hero-search:focus-within { border-color: var(--primary); box-shadow: 0 6px 20px rgba(143, 94, 10, .18); }
+.store-copy .hero-popular { color: var(--muted); margin-top: 12px; }
+.store-copy .hero-popular a { color: var(--primary); }
+.store-copy .hero-popular a:hover { color: var(--primary-600, var(--primary)); text-decoration: underline; }
+.section-links { display: flex; gap: 14px; align-items: baseline; }
 .sub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
 .sub-card {
   display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-decoration: none;
@@ -1848,3 +1859,27 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 /* 页头身份未确认前的占位（避免先闪旧账号名） */
 .user-area-ghost { display: inline-block; width: 92px; height: 30px; border-radius: 15px; background: #F1EFE9; }
 .email-flag { font-size: 10.5px; padding: 1px 6px; }
+
+/* ---------- 登录弹窗（页头"登录"直接弹，带主题元素） ---------- */
+.login-modal-head {
+  background: linear-gradient(120deg, #FFF7E8 0%, #FFEFD6 100%);
+  border-bottom: 1px solid var(--border-2);
+  align-items: center;
+}
+.lm-brand { display: flex; align-items: center; gap: 10px; }
+.lm-brand img { border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); }
+.lm-brand-txt { display: flex; flex-direction: column; line-height: 1.25; }
+.lm-brand-txt b { font-size: 16px; color: var(--navy-900); }
+.lm-brand-txt b span { color: var(--primary); }
+.lm-brand-txt > span { font-size: 11px; letter-spacing: 1.4px; color: var(--muted); }
+.login-modal-body { padding-top: 16px; }
+.login-modal-body .lm-title { margin: 0 0 4px; font-size: 19px; }
+.login-modal-body .lm-sub { margin: 0 0 16px; font-size: 13.5px; color: var(--muted); line-height: 1.7; }
+.login-modal-body .field { margin-bottom: 12px; }
+.lm-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.lm-links .btn { flex: 1 1 auto; justify-content: center; }
+.lm-trust { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 12.5px; color: var(--text-2); }
+.lm-note {
+  margin: 12px 0 0; padding: 10px 12px; font-size: 12.5px; line-height: 1.7; color: var(--muted);
+  background: #F7F5F0; border: 1px dashed var(--border-2); border-radius: 9px;
+}

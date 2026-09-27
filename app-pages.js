@@ -138,10 +138,36 @@ async function submitLogin(f) {
     const r = await api.auth.login({ email, password });
     applyLogin(r);
     toast(t('signedIn') + ((r && r.user && r.user.name) || ''));
+    closeModal();          /* 弹窗登录：登录成功后先关窗再进工作台，避免弹窗悬在页面上 */
     go('/dashboard');
   } catch (e) {
     toast(t('loginFailed') + '：' + (e && e.message ? e.message : ''));
   }
+}
+
+/* 登录弹窗：页头点"登录"直接弹；表单与登录页共用 data-form="login-form"，
+ * 逻辑只有一份。主题元素用吉祥物 + 暖色头部，和门面同一套视觉。 */
+function loginModalHtml() {
+  return '<div class="modal-head login-modal-head">'
+    + '<div class="lm-brand"><img src="assets/mascot-icon.png" alt="" width="38" height="38" decoding="async">'
+    + '<div class="lm-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body login-modal-body">'
+    + '<h3 class="lm-title">' + t('loginTitle') + '</h3>'
+    + '<p class="lm-sub">' + t('loginDesc') + '</p>'
+    + '<form class="login-form" data-form="login-form" novalidate>'
+    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="you@example.com"></div>'
+    + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
+    + '<button type="submit" class="btn btn-accent btn-block">' + t('login') + '</button>'
+    + '</form>'
+    + '<div class="lm-links">'
+    + '<button type="button" class="btn btn-sm" data-action="show-register">📝 ' + t('registerTab') + '</button>'
+    + '<button type="button" class="btn btn-sm guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
+    + '<a class="btn btn-sm" href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + '</a>'
+    + '</div>'
+    + '<div class="lm-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
+    + '<p class="lm-note">' + t('loginNote') + '</p>'
+    + '</div>';
 }
 
 async function loginAs(role) {
@@ -214,6 +240,9 @@ function render() {
     window.scrollTo(0, 0);
     return;
   }
+  /* 进工作台/管理端时顺手拉一次最新数据：别人刚提交的询盘、品类需求、消息，
+   * 切个标签就能看到，不用手动刷新浏览器（最短间隔 3 秒，避免来回请求）。 */
+  if (path.indexOf('/dashboard') === 0) hydrateThrottled();
   if (path === '' || path === '/') app.innerHTML = renderHome();
   else if (path === '/products') { app.innerHTML = renderProducts(params); bindProductsPage(); }
   else if (path === '/news') { app.innerHTML = renderHome(); }   /* 贸易资讯模块已封存（2026-09-17），暂不展示 */
@@ -404,7 +433,8 @@ function renderHome() {
   /* 精选：推广位优先（否则新上架的推广商品订单数为 0，永远进不了首页，推广位就白买了），其余按订单量 */
   const promotedFirst = live.filter(p => p.promoted)
     .concat(live.filter(p => !p.promoted).sort((a, b) => (b.orders || 0) - (a.orders || 0)));
-  const featured = promotedFirst.slice(0, 8);
+  /* 首页精选只放 4 个：再长就把别的模块往下推，首页也会显得杂 */
+  const featured = promotedFirst.slice(0, 4);
   const hotKw = state.lang === 'zh'
     ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂', '智能喂食器']
     : ['hamster cage', 'cat tree', 'large dog harness', 'cat litter', 'smart feeder'];
@@ -446,13 +476,11 @@ function renderHome() {
         + '<span class="sub-count">' + count + ' ' + t('totalProducts') + '</span>'
         + '</a>';
     }).join('') + '</div></section>'
-    /* 精选商品 */
-    + '<section class="section"><div class="section-head"><h2>' + t('featuredTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></div>'
+    /* 精选商品：只 4 个；视频内容集中在"客户实拍视频墙"页，首页只留一个入口 */
+    + '<section class="section"><div class="section-head"><h2>' + t('featuredTitle') + '</h2>'
+    + '<span class="section-links"><a href="#/videos" class="small" data-nav="/videos">' + t('videoWallTitle') + ' →</a>'
+    + '<a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></span></div>'
     + '<div class="product-grid">' + featured.map(productCard).join('') + '</div></section>'
-    /* 视频墙预告 */
-    + '<section class="section"><div class="section-head"><h2>' + t('videoWallTitle') + '</h2><a href="#/videos" class="small" data-nav="/videos">' + t('videoWallMore') + ' →</a></div>'
-    + '<p class="section-note">' + t('videoWallDesc') + '</p>'
-    + '<div class="video-grid">' + VIDEO_SHOWCASE.map(videoCard).join('') + '</div></section>'
     /* 服务承诺 */
     + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
     + '<div class="promise-grid">' + [
@@ -3601,6 +3629,44 @@ async function refreshConvReaders(convId) {
     saveState();
   } catch (e) { /* 忽略 */ }
 }
+
+/* 会话消息改为从服务器读（会话 id 就是询盘 id）。
+ * 之前只在本地拼一条询盘消息，双方真正的往来内容看不到。 */
+const convMsgLoaded = {};
+function senderNameOf(convId, senderId) {
+  const u = state.user;
+  if (u && senderId === u.id) return u.name || '';
+  const i = (state.inquiries || []).find(x => x.id === convId) || {};
+  if (senderId && i.buyerId && senderId === i.buyerId) return i.name || (state.lang === 'zh' ? '买家' : 'Buyer');
+  const known = (state.adminUsers || []).find(x => x.id === senderId);
+  if (known) return known.name || '';
+  return state.lang === 'zh' ? '供应商' : 'Supplier';
+}
+async function loadConversationMessages(convId, force) {
+  if (api.config.mode !== 'http' || !convId) return;
+  if (convMsgLoaded[convId] && !force) return;
+  convMsgLoaded[convId] = true;
+  try {
+    const rows = await api.messages.list(convId);
+    const mapped = (Array.isArray(rows) ? rows : []).map(m => ({
+      id: m.id,
+      conversationId: m.conversation_id || convId,
+      fromUserId: m.sender_id || '',
+      fromName: senderNameOf(convId, m.sender_id),
+      text: m.content || '',
+      attachments: [],
+      at: m.created_at
+    })).sort((a, b) => a.at - b.at);
+    state.conversations = state.conversations || {};
+    const conv = state.conversations[convId] || (state.conversations[convId] = { id: convId, inquiryId: convId, messages: [] });
+    /* 服务器有记录就以服务器为准；没有则保留本地按询盘生成的首条消息 */
+    if (mapped.length) conv.messages = mapped;
+    saveState();
+    renderPage();
+  } catch (e) {
+    convMsgLoaded[convId] = false;
+  }
+}
 function renderMessagesBody(convId) {
   const u = state.user;
   if (!u) return '';
@@ -3617,6 +3683,7 @@ function renderMessagesBody(convId) {
     }
     refreshConvReaders(active.id);
     bindChatLive(active.id);
+    loadConversationMessages(active.id);
   }
   const listHtml = convs.length
     ? convs.map(c => {
@@ -3675,6 +3742,7 @@ async function sendChatMessage(form) {
   try {
     await api.messages.send(convId, text);
     form.querySelector('input[name="text"]').value = '';
+    convMsgLoaded[convId] = false;   /* 发完重新拉一次，双方看到同一份记录 */
     if (api.config.mode !== 'http' && !convAutoReplied[convId]) {
       convAutoReplied[convId] = true;
       const i = (state.inquiries || []).find(x => x.id === convId);
@@ -4686,18 +4754,19 @@ function buyerInquiryItem(i) {
 
 /* ---------- 对话式询价（pet0.2）：分步引导，像聊天一样问需求 ---------- */
 const ASK_PETS = [
-  { id: 'cat', zh: '🐱 猫', en: 'Cat' },
-  { id: 'dog-small', zh: '🐶 小型犬', en: 'Small dog' },
-  { id: 'dog-large', zh: '🦮 大型犬', en: 'Large dog' },
-  { id: 'hamster', zh: '🐹 仓鼠', en: 'Hamster' },
-  { id: 'small-pet', zh: '🐰 小宠（兔 / 豚鼠）', en: 'Small pet' },
-  { id: 'other', zh: '还没定 / 其他', en: 'Not sure / other' }
+  /* 口径统一为"采购方视角"：问的是市场与渠道，不是"你家养什么" */
+  { id: 'cat', zh: '🐱 猫用品市场', en: 'Cat supplies' },
+  { id: 'dog-small', zh: '🐶 小型犬市场', en: 'Small-dog supplies' },
+  { id: 'dog-large', zh: '🦮 中大型犬市场', en: 'Medium / large-dog supplies' },
+  { id: 'hamster', zh: '🐹 仓鼠 / 小宠市场', en: 'Hamster / small-pet supplies' },
+  { id: 'small-pet', zh: '🐰 兔 / 豚鼠市场', en: 'Rabbit / guinea-pig supplies' },
+  { id: 'other', zh: '综合采购 / 其他', en: 'Mixed / other' }
 ];
 const ASK_QTY = [
-  { id: 'sample', zh: '样品或 1–10 件', en: 'Sample or 1–10' },
-  { id: 'small', zh: '11–100 件', en: '11–100' },
-  { id: 'mid', zh: '101–500 件', en: '101–500' },
-  { id: 'large', zh: '500 件以上', en: '500+' }
+  { id: 'sample', zh: '样品 / 试单（1–10 件）', en: 'Sample or trial order (1–10)' },
+  { id: 'small', zh: '小批量（11–100 件）', en: 'Small batch (11–100)' },
+  { id: 'mid', zh: '常规批发（101–500 件）', en: 'Wholesale (101–500)' },
+  { id: 'large', zh: '整柜 / 大批量（500 件以上）', en: 'Container / 500+ units' }
 ];
 let askFlow = null;
 

@@ -13,7 +13,7 @@ import { seedIfEmpty, antiFakeCode } from './seed.mjs';
 import { hashPassword, verifyPassword, signToken, verifyToken, configureAuth } from './auth.mjs';
 import { translateText, translateError } from './translate.mjs';
 import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE } from './storage.mjs';
-import { sendMail, notifyUser } from './mailer.mjs';
+import { sendMail, notifyUser, mailerInfo } from './mailer.mjs';
 import { verifyEmailContent } from './email-template.mjs';
 
 export function createApp({ env = {}, deps = {} } = {}) {
@@ -1160,7 +1160,13 @@ async function route(m, segs, q, req, res) {
       if (!body.text) return fail(res, 400, 'VALIDATION', 'text 为必填');
       let conv = await get('SELECT * FROM conversations WHERE id = ?', b);
       if (!conv) {
-        await run('INSERT INTO conversations (id, buyer_id, seller_id, created_at) VALUES (?,?,?,?)', b, u.id, u.id, Date.now());
+        /* 会话 id 就是询盘 id：参与方必须按询盘/商品归属来定，
+         * 以前把 buyer_id 和 seller_id 都写成"发消息的人"，结果卖家读自己的会话被 403 拦下。 */
+        const inq = await get('SELECT * FROM inquiries WHERE id = ?', b);
+        const prod = inq ? await get('SELECT * FROM products WHERE id = ?', inq.product_id) : null;
+        const buyerId = (inq && inq.buyer_id) || u.id;
+        const sellerId = (prod && prod.seller_id) || u.id;
+        await run('INSERT INTO conversations (id, buyer_id, seller_id, created_at) VALUES (?,?,?,?)', b, buyerId, sellerId, Date.now());
       }
       const id = randomUUID();
       await run(
@@ -1646,6 +1652,15 @@ async function route(m, segs, q, req, res) {
       const u = await requireAuth(res, req, ['admin']);
       if (!u) return;
       return send(res, 200, paginate(await all('SELECT * FROM audit_logs ORDER BY created_at DESC'), q));
+    }
+    /* 邮件通道自检：确认"配好了没 / 最近发出去的成没成"，省得靠猜 */
+    if (b === 'mail-status' && m === 'GET') {
+      const u = await requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const info = mailerInfo();
+      const recent = await all('SELECT id, recipient, subject, status, error, sent_at FROM mail_outbox ORDER BY sent_at DESC LIMIT 20');
+      const failed = (await get("SELECT COUNT(*) AS c FROM mail_outbox WHERE status = 'failed'")).c;
+      return send(res, 200, { ...info, failed, recent });
     }
   }
 

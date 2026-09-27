@@ -80,7 +80,19 @@ async function apiRequest(path, options = {}) {
     try { const j = await res.json(); msg = j.message || msg; } catch (e) { /* 忽略 */ }
     throw new Error(msg);
   }
+  /* 写操作成功后自动刷新"登录范围内的数据"（订单/售后/推广/品类需求等），
+   * 否则界面还停在本地的旧列表上，看起来像"改了没反应"。 */
+  if (method !== 'GET') scheduleSessionRefresh();
   return res.json();
+}
+
+let sessionRefreshTimer = null;
+function scheduleSessionRefresh() {
+  if (typeof hydrateSessionData !== 'function') return;
+  clearTimeout(sessionRefreshTimer);
+  sessionRefreshTimer = setTimeout(() => {
+    try { hydrateSessionData(); } catch (e) { /* 忽略 */ }
+  }, 300);
 }
 
 /* 用当前令牌换新令牌（静默续期）。成功后写回本地状态，返回新令牌。 */

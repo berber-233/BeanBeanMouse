@@ -15,6 +15,7 @@ import { configureStorage, setStorageImpl } from './storage.mjs';
 import { makeNodeStorage } from './storage-node.mjs';
 import { configureMailer } from './mailer.mjs';
 import { sendSmtp } from './smtp.mjs';
+import { sendViaAliyun } from './mail-aliyun.mjs';
 import { handleWsUpgrade, wsBroadcast } from './ws.mjs';
 
 /* ---- 平台实现注入 ---- */
@@ -42,7 +43,9 @@ configureMailer({
           to, subject, body
         });
       }
-    : undefined
+    : MAIL_TRANSPORT === 'aliyun'
+      ? async ({ to, subject, body, html }) => { await sendViaAliyun(process.env, { to, subject, body, html }); }
+      : undefined
 });
 
 const app = createApp({ env: { ...process.env }, deps: { wsBroadcast } });

@@ -202,6 +202,69 @@ function mapServerAdminUser(u) {
     signupIp: u.signup_ip || '', signupUa: u.signup_ua || '', emailFlag: u.email_flag || ''
   };
 }
+/* 订单 / 售后 / 推广 / 品类需求：同样是"服务器说了算"，前端只做字段映射 */
+function mapServerOrder(o) {
+  return {
+    id: o.id,
+    inquiryId: o.inquiry_id || '',
+    quoteId: o.quote_id || '',
+    productId: o.product_id || '',
+    buyerId: o.buyer_id || '',
+    sellerId: o.seller_id || '',
+    status: o.status,
+    total: Number(o.total) || 0,
+    currency: o.currency || 'USD',
+    quantity: Number(o.quantity) || 0,
+    unit: o.unit || 'pcs',
+    shippingMarks: o.shipping_marks || '',
+    createdAt: o.created_at,
+    confirmedAt: o.confirmed_at || null,
+    receiptConfirmedAt: o.receipt_confirmed_at || null,
+    updatedAt: o.updated_at || o.created_at,
+    tips: (o.tips || []).map(x => ({
+      id: x.id, orderId: x.order_id, fromUserId: x.from_user_id, toUserId: x.to_user_id,
+      amount: Number(x.amount) || 0, currency: x.currency || 'USD', note: x.note || '',
+      status: x.status, createdAt: x.created_at, cancelledAt: x.cancelled_at || null
+    })),
+    shipments: (o.shipments || []).map(s => ({
+      id: s.id, orderId: s.order_id, carrier: s.carrier || '', trackingNo: s.tracking_no || '',
+      mode: s.mode || 'sea', status: s.status || 'processing', origin: s.origin || '',
+      destination: s.destination || '', currentLocation: s.current_location || '',
+      eta: s.eta || null, remark: s.remark || '', createdAt: s.created_at, updatedAt: s.updated_at || s.created_at,
+      events: (s.events || []).map(ev => ({
+        id: ev.id, status: ev.status, location: ev.location || '', note: ev.note || '', eventTime: ev.event_time
+      }))
+    })),
+    evidence: o.evidence || [],
+    evidenceVerified: !!o.evidenceVerified
+  };
+}
+function mapServerAfterSales(r) {
+  return {
+    id: r.id, orderId: r.order_id, buyerId: r.buyer_id, sellerId: r.seller_id,
+    type: r.type, description: r.description || '', resolution: r.resolution || '',
+    status: r.status, dispute: !!r.dispute, sellerReply: r.seller_reply || '',
+    sellerAction: r.seller_action || '', ruling: r.ruling || '',
+    createdAt: r.created_at, updatedAt: r.updated_at || r.created_at
+  };
+}
+function mapServerPromotion(r) {
+  return {
+    id: r.id, productId: r.product_id, sellerId: r.seller_id,
+    days: Number(r.days) || 0, budget: r.budget || '', note: r.note || '',
+    status: r.status, rejectReason: r.reject_reason || '',
+    createdAt: r.created_at, reviewedAt: r.reviewed_at || null
+  };
+}
+function mapServerCategoryRequest(r) {
+  let markets = [];
+  try { markets = JSON.parse(r.target_markets || '[]'); } catch (e) { markets = []; }
+  return {
+    id: r.id, userId: r.user_id, name: r.name, description: r.description || '',
+    targetMarkets: Array.isArray(markets) ? markets : [], status: r.status,
+    note: r.note || '', createdAt: r.created_at, updatedAt: r.updated_at || r.created_at
+  };
+}
 async function hydrateSessionData() {
   if (typeof api === 'undefined' || !api.config || api.config.mode !== 'http') return false;
   if (!state.token || !state.user || sessionHydrating) return false;
@@ -212,6 +275,15 @@ async function hydrateSessionData() {
       api.inquiries.list().then(rows => {
         state.inquiries = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerInquiry);
       }),
+      apiRequest('/orders').then(rows => {
+        state.orders = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerOrder);
+      }),
+      apiRequest('/after-sales').then(rows => {
+        state.afterSales = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerAfterSales);
+      }),
+      apiRequest('/category-requests').then(rows => {
+        state.categoryRequests = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerCategoryRequest);
+      }),
       api.suggestions.list().then(rows => {
         state.suggestions = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerSuggestion);
       }),
@@ -219,6 +291,12 @@ async function hydrateSessionData() {
         state.notifications = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerNotification);
       })
     ];
+    /* 推广位只对卖家/管理员开放（买家请求会被 403，避免无意义的报错进控制台） */
+    if (state.user.role === 'seller' || state.user.role === 'admin') {
+      jobs.push(apiRequest('/promotions').then(rows => {
+        state.promotions = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerPromotion);
+      }));
+    }
     if (isAdmin) {
       jobs.push(apiRequest('/admin/users', {}).then(r => {
         state.adminUsers = ((r && r.items) || []).map(mapServerAdminUser);
@@ -251,6 +329,18 @@ async function hydrateSessionData() {
   }
 }
 window.hydrateSessionData = hydrateSessionData;
+
+/* 节流版：工作台切换标签时调用，3 秒内只真正拉一次 */
+let lastHydrateAt = 0;
+function hydrateThrottled(minGapMs) {
+  const gap = minGapMs === undefined ? 3000 : minGapMs;
+  if (typeof api === 'undefined' || !api.config || api.config.mode !== 'http') return;
+  if (!state.token || !state.user) return;
+  const now = Date.now();
+  if (now - lastHydrateAt < gap) return;
+  lastHydrateAt = now;
+  hydrateSessionData();
+}
 
 /* ---------- 运输动画视频：进入视口才播放，离开即暂停（省流量），并尊重 reduced-motion ---------- */
 (function transportVideoAutoplay() {

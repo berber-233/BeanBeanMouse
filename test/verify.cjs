@@ -122,7 +122,12 @@ function resolveBrowser() {
   check('pet0.2: sub-category icon loads', await page.locator('.sub-card img').first().evaluate(img => img.complete && img.naturalWidth > 0));
   check('pet0.2: hero asks warm/pet framing', (await page.locator('.store-eyebrow').textContent()).length > 4);
   check('pet0.2: trust chips present', await page.locator('.trust-chip').count() === 4);
-  check('pet0.2: video wall teaser on home', await page.locator('.video-card').count() >= 3);
+  /* 首页不再铺视频卡（太占版面、和"客户实拍视频墙"重复）：只保留一个入口，
+   * 视频内容集中在 /videos 页。 */
+  check('pet0.2: 首页不再铺视频卡', await page.locator('.video-card').count() === 0);
+  check('pet0.2: 首页保留视频墙入口', await page.locator('.section-links [data-nav="/videos"]').count() === 1);
+  check('pet0.2: 首页精选只 4 个', await page.locator('.product-grid .product-card').count() === 4);
+  check('pet0.2: 首页搜索框单层结构', await page.locator('.store-copy .hero-search').count() === 1);
   check('pet0.2: service promises on home', await page.locator('.promise-card').count() === 4);
   check('home: product cards >= 4', await page.locator('.product-card').count() >= 4);
   check('home: simplified (no steps section)', await page.locator('.steps').count() === 0);
