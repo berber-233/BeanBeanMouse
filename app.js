@@ -57,6 +57,9 @@ document.addEventListener('click', e => {
 
 /* ---------- 启动 ---------- */
 window.addEventListener('hashchange', render);
+/* 路由变化时关掉还开着的弹窗：否则用户在弹窗里点了导航（或浏览器回退），
+ * 弹窗会盖在新页面上，什么都点不动（探针里就撞到过）。 */
+window.addEventListener('hashchange', () => { try { closeModal(); } catch (e) { /* 忽略 */ } });
 window.addEventListener('resize', fitHeroTitle);
 render();
 

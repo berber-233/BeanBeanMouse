@@ -172,6 +172,11 @@ function loadState() {
   } else {
     fresh = seedDemoData();
   }
+  /* 首次访问按浏览器语言选界面语言：中文浏览器进中文、海外买家进英文，
+   * 免得每次都先看到不是自己语言的那一版（用户反馈过顶部文案"不跟着切"）。 */
+  if (!fresh.lang) {
+    try { fresh.lang = detectBrowserLang(); } catch (e) { fresh.lang = 'en'; }
+  }
   fresh.dataVersion = DATA_VERSION;
   api.storage.setState(fresh);
   return fresh;

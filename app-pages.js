@@ -134,6 +134,7 @@ async function submitLogin(f) {
   const email = String(fd.get('email') || '').trim();
   const password = String(fd.get('password') || '');
   if (!email || !password) { toast(t('askNeedContact')); return; }
+  clearLoginError(f);
   try {
     const r = await api.auth.login({ email, password });
     applyLogin(r);
@@ -141,8 +142,57 @@ async function submitLogin(f) {
     closeModal();          /* 弹窗登录：登录成功后先关窗再进工作台，避免弹窗悬在页面上 */
     go('/dashboard');
   } catch (e) {
-    toast(t('loginFailed') + '：' + (e && e.message ? e.message : ''));
+    const raw = (e && e.message) ? e.message : '';
+    if (/账号或密码错误|INVALID_CREDENTIALS/i.test(raw)) {
+      /* 密码错的时候必须给出路：直接在表单里给"忘记密码"入口，
+       * 而不是只弹一句提示让用户自己找（用户反馈过这个）。 */
+      showLoginError(f, t('loginWrongCreds'), { forgot: true });
+      toast(t('loginWrongCreds'));
+    } else {
+      showLoginError(f, t('loginFailed') + '：' + raw);
+      toast(t('loginFailed') + '：' + raw);
+    }
   }
+}
+
+/* 登录表单的字段（登录页 / 弹窗 / 管理端共用同一份，避免改一处漏一处） */
+function loginFieldsHtml(opts) {
+  const o = opts || {};
+  const showForgot = state.mailReady && o.forgot !== false;
+  return '<div class="field"><label>' + t('regEmail') + '</label>'
+    + '<input class="input" type="email" name="email" required autocomplete="username" placeholder="' + esc(o.emailPlaceholder || 'you@example.com') + '"></div>'
+    + '<div class="field"><div class="label-row"><label>' + t('regPassword') + '</label>'
+    + (showForgot ? '<a class="label-link" href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a>' : '')
+    + '</div><input class="input" type="password" name="password" required autocomplete="current-password"></div>';
+}
+/* 表单内提示区：错误直接显示在按钮下面，带"忘记密码"链接 */
+function loginMessageSlot() {
+  return '<p class="form-message" data-login-msg hidden></p>';
+}
+function clearLoginError(form) {
+  const el = form.querySelector('[data-login-msg]');
+  if (el) { el.hidden = true; el.textContent = ''; }
+}
+function showLoginError(form, text, opts) {
+  const el = form.querySelector('[data-login-msg]');
+  if (!el) { return; }
+  const o = opts || {};
+  el.hidden = false;
+  el.textContent = text;
+  if (!o.forgot) return;
+  const extra = document.createElement('span');
+  extra.className = 'form-message-extra';
+  if (state.mailReady) {
+    extra.appendChild(document.createTextNode(' ' + t('loginResetHint') + ' '));
+    const a = document.createElement('a');
+    a.href = '#/forgot-password';
+    a.setAttribute('data-nav', '/forgot-password');
+    a.textContent = t('loginResetLink');
+    extra.appendChild(a);
+  } else {
+    extra.appendChild(document.createTextNode(' ' + t('pwdForgetHint')));
+  }
+  el.appendChild(extra);
 }
 
 /* 登录弹窗：页头点"登录"直接弹；表单与登录页共用 data-form="login-form"，
@@ -156,9 +206,9 @@ function loginModalHtml() {
     + '<h3 class="lm-title">' + t('loginTitle') + '</h3>'
     + '<p class="lm-sub">' + t('loginDesc') + '</p>'
     + '<form class="login-form" data-form="login-form" novalidate>'
-    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="you@example.com"></div>'
-    + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
+    + loginFieldsHtml()
     + '<button type="submit" class="btn btn-accent btn-block">' + t('login') + '</button>'
+    + loginMessageSlot()
     + '</form>'
     + '<div class="lm-links">'
     + '<button type="button" class="btn btn-sm" data-action="show-register">📝 ' + t('registerTab') + '</button>'
@@ -3901,9 +3951,9 @@ function renderLogin() {
     + '<h1>' + t('loginTitle') + '</h1>'
     + '<p class="sub">' + t('loginDesc') + '</p>'
     + '<form class="login-form" data-form="login-form" novalidate>'
-    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="you@example.com"></div>'
-    + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
+    + loginFieldsHtml()
     + '<button type="submit" class="btn btn-accent btn-block">' + t('login') + '</button>'
+    + loginMessageSlot()
     + '</form>'
     + (showDemo
       ? '<p class="small muted login-divider">' + t('loginOrDemo') + '</p>'
@@ -4009,9 +4059,9 @@ function renderAdminLogin() {
     + '<h1>' + icon('shield') + ' ' + t('adminLoginTitle') + '</h1>'
     + '<p class="sub">' + t('adminLoginSub') + '</p>'
     + '<form class="login-form" data-form="admin-login-form" novalidate>'
-    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="admin@example.com"></div>'
-    + '<div class="field"><label>' + t('regPassword') + '</label><input class="input" type="password" name="password" required autocomplete="current-password"></div>'
+    + loginFieldsHtml({ emailPlaceholder: 'admin@beanbeanmouse.com' })
     + '<button type="submit" class="btn btn-primary btn-block">' + t('adminLoginBtn') + '</button>'
+    + loginMessageSlot()
     + '</form>'
     + '<div class="admin-login-note">' + icon('shield') + ' ' + t('adminLoginAuditNote') + '</div>'
     + '<div class="admin-login-links">'
@@ -4025,6 +4075,7 @@ async function submitAdminLogin(f) {
   const email = String(fd.get('email') || '').trim();
   const password = String(fd.get('password') || '');
   if (!email || !password) { toast(t('askNeedContact')); return; }
+  clearLoginError(f);
   try {
     const r = await api.auth.login({ email, password });
     if (!r || !r.user || r.user.role !== 'admin') {
@@ -4033,6 +4084,7 @@ async function submitAdminLogin(f) {
       state.token = '';
       state.user = null;
       saveState();
+      showLoginError(f, t('adminNotAdmin'));
       toast(t('adminNotAdmin'));
       return;
     }
@@ -4040,7 +4092,14 @@ async function submitAdminLogin(f) {
     toast(t('signedIn') + (r.user.name || ''));
     go('/dashboard');
   } catch (e) {
-    toast(t('loginFailed') + '：' + (e && e.message ? e.message : ''));
+    const raw = (e && e.message) ? e.message : '';
+    if (/账号或密码错误|INVALID_CREDENTIALS/i.test(raw)) {
+      showLoginError(f, t('loginWrongCreds'), { forgot: true });
+      toast(t('loginWrongCreds'));
+    } else {
+      showLoginError(f, t('loginFailed') + '：' + raw);
+      toast(t('loginFailed') + '：' + raw);
+    }
   }
 }
 
