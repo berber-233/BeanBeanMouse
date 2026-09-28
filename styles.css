@@ -1860,6 +1860,8 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 /* 页头身份未确认前的占位（避免先闪旧账号名） */
 .user-area-ghost { display: inline-block; width: 92px; height: 30px; border-radius: 15px; background: #F1EFE9; }
 .email-flag { font-size: 10.5px; padding: 1px 6px; }
+.email-verified { font-size: 10.5px; padding: 1px 6px; background: #E8F5EC; color: #1B7A45; border: 1px solid #BFE3CC; }
+.email-unverified { font-size: 10.5px; padding: 1px 6px; background: #FDF3E7; color: #8A5A00; border: 1px solid #F0D8AE; }
 
 /* ---------- 登录弹窗（页头"登录"直接弹，带主题元素） ---------- */
 .login-modal-head {

@@ -5139,7 +5139,10 @@ function serverUsersBody(list) {
     return '<tr>'
       + '<td><div class="prod-cell"><span class="avatar" style="width:30px;height:30px;font-size:12px">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span><span class="t">' + esc(u.name || '—') + '</span></div></td>'
       + '<td>' + esc(roleLabel(u)) + '</td>'
-      + '<td>' + esc(u.email || '—') + (flag ? '<br><span class="chip email-flag">' + esc(flag) + '</span>' : '') + '</td>'
+      + '<td>' + esc(u.email || '—') + (flag ? '<br><span class="chip email-flag">' + esc(flag) + '</span>' : '')
+      /* 邮箱验证现在是新账号唯一的门槛：客户说"登不进来"时，这里一眼能看出来 */
+      + '<br><span class="chip ' + (u.emailVerified ? 'email-verified' : 'email-unverified') + '">'
+      + esc(u.emailVerified ? t('emailVerifiedOn') : t('emailVerifiedOff')) + '</span></td>'
       + '<td><span class="status-pill ' + rsCls + '">' + esc(rsLabel) + '</span></td>'
       + '<td><span class="status-pill ' + (frozen ? 'rej' : 'live') + '">' + (frozen ? t('frozenStatus') : t('activeStatus')) + '</span></td>'
       + '<td class="small muted">' + fmtDate(u.joinedAt) + (u.signupIp ? '<br>' + esc(String(u.signupIp).slice(0, 32)) : '') + '</td>'

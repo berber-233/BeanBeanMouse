@@ -1746,6 +1746,17 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, paginate(await all('SELECT * FROM audit_logs ORDER BY created_at DESC'), q));
     }
     /* 邮件通道自检：确认"配好了没 / 最近发出去的成没成"，省得靠猜 */
+    /* 注册/登录策略自检：一眼看到当前是"邮箱验证"还是"人工审核"在把关 */
+    if (b === 'auth-policy' && m === 'GET') {
+      const u = await requireAuth(res, req, ['admin']);
+      if (!u) return;
+      return send(res, 200, {
+        requireEmailVerify: REQUIRE_EMAIL_VERIFY,
+        requireAccountReview: REQUIRE_ACCOUNT_REVIEW,
+        mailReady: mailReady(),
+        mailTransport: mailerInfo().transport
+      });
+    }
     if (b === 'mail-status' && m === 'GET') {
       const u = await requireAuth(res, req, ['admin']);
       if (!u) return;
