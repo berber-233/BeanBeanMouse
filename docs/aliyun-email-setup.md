@@ -163,6 +163,41 @@
 | 域名验证一直失败 | 90% 是 Cloudflare 里 CNAME 还开着橙云代理，或 Name 多写了 `.beanbeanmouse.com` | 按第 3 步第 4 点逐条核对 |
 | 发信成功但进垃圾箱 | 新域名需要"预热"，SPF/DKIM 生效后逐步好转 | 先给常见邮箱（QQ/Gmail/Outlook）各发一封，让信誉积累；正式群发前避免短时间大量发送 |
 
+---
+
+## 附：轮换 AccessKey（建议定期做，或密钥外泄后立刻做）
+
+> 背景：AccessKey Secret 只要在聊天、邮件、截图里出现过，就应该视为"已外泄"。
+> 轮换的原则是**先建新、再换用、最后删旧**，中间不停服。
+
+### 命名建议
+
+| 用途 | 建议名称 | 说明 |
+| --- | --- | --- |
+| 站点邮件发送（当前） | `beanbeanmouse-mailer` | 只做发信，权限只给邮件推送 |
+| 以后若接对象存储/附件 | `beanbeanmouse-storage` | 一个服务一个子账号，互不影响 |
+| 以后若接部署自动化 | `beanbeanmouse-deploy` | 只给 Pages/D1 相关权限 |
+
+命名规则：1–64 个字符，可用英文字母、数字、`.`、`_`、`-`；不要用中文。
+**绝不使用主账号 AccessKey**，也不给子账号"控制台登录"权限（只需要 OpenAPI 访问）。
+
+### 操作步骤（阿里云控制台）
+
+1. 进 **访问控制 RAM** → **用户** → **创建用户**
+   - 登录名：`beanbeanmouse-mailer`
+   - 访问方式：只勾 **OpenAPI 调用访问（使用永久 AccessKey）**
+2. 授权：给该用户挂 **`AliyunDirectMailFullAccess`**
+   （或自定义策略：`{ "Version": "1", "Statement": [{ "Effect": "Allow", "Action": "dm:*", "Resource": "*" }] }`）
+3. 进该用户 → **认证管理 / AccessKey** → **创建 AccessKey**
+4. 复制 `AccessKey ID` 和 `AccessKey Secret`（Secret 只显示一次）
+5. 把这两个值发给开发者（我），我会：
+   - 写入 Cloudflare Pages 加密变量（`ALIYUN_DM_ACCESS_KEY_ID` / `ALIYUN_DM_ACCESS_KEY_SECRET`）
+   - 用 `/admin/mail-config-check` 核对长度与哈希前缀（不回显明文）
+   - 发一封真实测试邮件，确认返回 `status = sent`
+6. **确认新钥匙能发信后**，再回 RAM 把**旧 AccessKey 禁用/删除**（先禁用观察一天更稳妥）
+
+> 一台 RAM 用户最多可有 2 个 AccessKey，所以"先建新、后删旧"完全可行，不会中断发信。
+
 ## 附：官方硬性要求（影响我们邮件模板，已遵守）
 
 - 邮件正文要有**称呼**与**合规内容**，不要出现二维码、微信、QQ、Facebook、网盘等社交/资源分享类信息。
