@@ -24,10 +24,17 @@
 
   "vars": {
     // 非敏感配置；密钥类请用 `npx wrangler pages secret put <NAME> --project-name beanbean-mouse`
-    "MAIL_TRANSPORT": "service",
-    // 邮件通道真正可用后再置 "1"：它会开启"忘记密码"自助入口（半开通时不显示，免得用户收不到信）
+    // 邮件通道：service=Cloudflare Email（需外币订阅，暂不可用）/ aliyun=阿里云邮件推送（当前使用）
+    "MAIL_TRANSPORT": "aliyun",
+    // 邮件通道真正可用后才置 "1"：它会开启"忘记密码"自助入口（半开通时不显示，免得用户收不到信）
+    // 待 RAM 权限授予并通过实测后再置 "1"（当前阿里云子账号缺 dm 权限，置 0 以隐藏"忘记密码"入口）
     "MAIL_READY": "0",
-    "MAIL_FROM": "no-reply@beanbeanmouse.com",
+    // 阿里云邮件推送（DirectMail）：AccessKey 存在 Pages Secret 里，这里只放非敏感项
+    "ALIYUN_DM_ACCOUNT": "no-reply@mail.beanbeanmouse.com",
+    "ALIYUN_DM_FROM_ALIAS": "BeanBeanMouse",
+    "ALIYUN_DM_REPLY_TO": "beanbeanmouse.trade@outlook.com",
+    "ALIYUN_DM_REGION": "cn-hangzhou",
+    "MAIL_FROM": "no-reply@mail.beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",
     // 试用期关闭"必须验证邮箱才能登录"（用户银行卡无法订阅外币增值服务，邮件通道暂不可用）。
     // 将来邮件通道可用后，改为 "1" 即可恢复强制验证，代码无需改动。

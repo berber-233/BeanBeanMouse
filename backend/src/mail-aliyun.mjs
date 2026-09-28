@@ -105,7 +105,27 @@ export async function sendViaAliyun(env, { to, subject, body, html }) {
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || (data.Code && data.Code !== 'OK')) {
-    throw new Error('ALIYUN_DM_' + (data.Code || res.status) + ': ' + (data.Message || '发送失败'));
+    throw new Error('ALIYUN_DM_' + (data.Code || res.status) + ': ' + (data.Message || '发送失败') + aliasHint(data));
   }
   return { ok: true, requestId: data.RequestId || '' };
+}
+
+/* 把阿里云的错误码翻译成"下一步该干什么"：这些坑我们踩过一次就别再翻文档了 */
+function aliasHint(data) {
+  const code = String((data && data.Code) || '');
+  const msg = String((data && data.Message) || '');
+  const rid = data && data.RequestId ? '（RequestId ' + data.RequestId + '）' : '';
+  if (code === 'Forbidden' || /not authorized/i.test(msg)) {
+    return ' → 这是 RAM 权限问题：请在阿里云"访问控制 RAM"里给这个子账号挂上 AliyunDirectMailFullAccess（或 dm:* 策略）后重试' + rid;
+  }
+  if (/not verified|unverified|domain/i.test(msg + code)) {
+    return ' → 发信域名或发信地址还没验证通过：回到"邮件推送控制台 → 发信域名"确认已显示"已验证"' + rid;
+  }
+  if (/InvalidMailAddress|AccountName/i.test(msg + code)) {
+    return ' → 发信地址写错或未创建：应为 no-reply@<已验证的发信域名>' + rid;
+  }
+  if (/Throttl|limit|quota/i.test(msg + code)) {
+    return ' → 触发限流或额度用尽（免费 2000 封、每天最多 200 封）' + rid;
+  }
+  return rid;
 }
