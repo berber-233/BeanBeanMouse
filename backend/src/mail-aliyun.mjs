@@ -17,12 +17,12 @@
 
 const API_VERSION = '2015-11-23';
 
-/* 阿里云要求的 percentEncode：在 encodeURIComponent 基础上再处理 + * ~ */
+/* 阿里云要求的 percentEncode：除 A-Za-z0-9 与 -_.~ 之外全部编码。
+ * 注意 encodeURIComponent 会"放过" ! ' ( ) * —— 这四个必须补上，
+ * 否则只要正文里出现 "<!doctype" 或 'Segoe UI' 这种字符，签名就会对不上（我们踩过这个坑）。 */
 export function percentEncode(str) {
   return encodeURIComponent(String(str))
-    .replace(/\+/g, '%20')
-    .replace(/\*/g, '%2A')
-    .replace(/%7E/g, '~');
+    .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 export function canonicalQuery(params) {
@@ -52,18 +52,23 @@ export async function sendViaAliyun(env, { to, subject, body, html }) {
   if (!isAliyunMailConfigured(env)) {
     throw new Error('阿里云邮件推送未配置（需要 ALIYUN_DM_ACCESS_KEY_ID / SECRET / ACCOUNT）');
   }
+  /* 凭据一定要 trim：用管道写入 Cloudflare Secret 时很容易带上换行/空格，
+   * 症状是阿里云回 "SignatureDoesNotMatch"，而且它回显的参数看着完全正常（我们踩过）。 */
+  const AK = String(env.ALIYUN_DM_ACCESS_KEY_ID).trim();
+  const SK = String(env.ALIYUN_DM_ACCESS_KEY_SECRET).trim();
+  const ACCOUNT = String(env.ALIYUN_DM_ACCOUNT).trim();
   const region = env.ALIYUN_DM_REGION || 'cn-hangzhou';
   const params = {
     Action: 'SingleSendMail',
     Version: API_VERSION,
     Format: 'JSON',
-    AccessKeyId: env.ALIYUN_DM_ACCESS_KEY_ID,
+    AccessKeyId: AK,
     SignatureMethod: 'HMAC-SHA1',
     SignatureVersion: '1.0',
     SignatureNonce: (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2),
     Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     RegionId: region,
-    AccountName: env.ALIYUN_DM_ACCOUNT,
+    AccountName: ACCOUNT,
     AddressType: '1',
     ReplyToAddress: 'false',
     ToAddress: to,
@@ -71,13 +76,13 @@ export async function sendViaAliyun(env, { to, subject, body, html }) {
     TextBody: body || (html ? String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '')
   };
   if (html) params.HtmlBody = html;
-  if (env.ALIYUN_DM_FROM_ALIAS) params.FromAlias = env.ALIYUN_DM_FROM_ALIAS;
+  if (env.ALIYUN_DM_FROM_ALIAS) params.FromAlias = String(env.ALIYUN_DM_FROM_ALIAS).trim();
   if (env.ALIYUN_DM_REPLY_TO) {
     params.ReplyToAddress = 'true';
-    params.ReplyTo = env.ALIYUN_DM_REPLY_TO;
+    params.ReplyTo = String(env.ALIYUN_DM_REPLY_TO).trim();
   }
 
-  params.Signature = await rpcSignature({ params, accessKeySecret: env.ALIYUN_DM_ACCESS_KEY_SECRET });
+  params.Signature = await rpcSignature({ params, accessKeySecret: SK });
 
   /* 接入点：官方文档里既出现过 dm.aliyuncs.com，也有按区域的 dm.<region>.aliyuncs.com。
    * 不赌哪一个，按顺序试，连不上就换下一个（只对网络层失败重试，服务端返回的错误照实抛出）。 */
@@ -115,6 +120,10 @@ function aliasHint(data) {
   const code = String((data && data.Code) || '');
   const msg = String((data && data.Message) || '');
   const rid = data && data.RequestId ? '（RequestId ' + data.RequestId + '）' : '';
+  /* 签名错误要最先判：阿里云会把参数原样回显，里面含 AccountName，容易被后面的规则误判成"地址写错" */
+  if (code === 'SignatureDoesNotMatch' || /signature is not matched/i.test(msg)) {
+    return ' → 签名不匹配：AccessKey Secret 存错了（最常见是写入时多了换行或空格）。重新写入 Secret 后重试' + rid;
+  }
   if (code === 'Forbidden' || /not authorized/i.test(msg)) {
     return ' → 这是 RAM 权限问题：请在阿里云"访问控制 RAM"里给这个子账号挂上 AliyunDirectMailFullAccess（或 dm:* 策略）后重试' + rid;
   }

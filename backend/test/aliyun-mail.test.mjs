@@ -9,7 +9,7 @@ const check = (name, ok, extra) => results.push([name, !!ok, extra || '']);
 
 /* 参考实现：node:crypto + 文档里的 percentEncode 规则 */
 function referenceSignature(params, secret, method = 'POST') {
-  const enc = s => encodeURIComponent(String(s)).replace(/\+/g, '%20').replace(/\*/g, '%2A').replace(/%7E/g, '~');
+  const enc = s => encodeURIComponent(String(s)).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
   const cqs = Object.keys(params).sort().map(k => enc(k) + '=' + enc(params[k])).join('&');
   const stringToSign = method + '&' + enc('/') + '&' + enc(cqs);
   return crypto.createHmac('sha1', secret + '&').update(stringToSign).digest('base64');
@@ -35,6 +35,10 @@ const secret = 'test-secret';
 
 check('percentEncode：空格→%20、*→%2A、~ 保留', percentEncode('a b') === 'a%20b' && percentEncode('a*b~c') === 'a%2Ab~c');
 check('percentEncode：加号按字面转义', percentEncode('a+b') === 'a%2Bb');
+/* 真实邮件模板里有 <!doctype> 和 'Segoe UI'，这四个字符不编码就会签名不匹配 */
+check('percentEncode：! \' ( ) 必须编码', percentEncode('a!b') === 'a%21b' && percentEncode("a'b") === 'a%27b'
+  && percentEncode('a(b)') === 'a%28b%29');
+check('percentEncode：一段 HTML 片段', percentEncode('<!doctype html>') === '%3C%21doctype%20html%3E');
 check('canonicalQuery 按 key 排序', canonicalQuery({ b: '2', a: '1' }) === 'a=1&b=2');
 
 const sig = await rpcSignature({ params, accessKeySecret: secret });

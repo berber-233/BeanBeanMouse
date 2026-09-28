@@ -1743,6 +1743,30 @@ async function route(m, segs, q, req, res) {
       const failed = (await get("SELECT COUNT(*) AS c FROM mail_outbox WHERE status = 'failed'")).c;
       return send(res, 200, { ...info, failed, recent });
     }
+    /* 邮件凭据自检：只回长度和哈希前缀，不回明文——用来确认"存进去的 Secret 没被加料"。
+     * 踩过的坑：用管道写 Cloudflare Secret 时可能带上换行，症状是阿里云回 SignatureDoesNotMatch。 */
+    if (b === 'mail-config-check' && m === 'GET') {
+      const u = await requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const ak = String(ENV.ALIYUN_DM_ACCESS_KEY_ID || '');
+      const sk = String(ENV.ALIYUN_DM_ACCESS_KEY_SECRET || '');
+      const acc = String(ENV.ALIYUN_DM_ACCOUNT || '');
+      const hint = async s => ({
+        length: s.length,
+        hasWhitespace: /\s/.test(s),
+        head: s.slice(0, 2),
+        tail: s.slice(-2),
+        sha256_8: s ? (await sha256(s)).slice(0, 8) : ''
+      });
+      return send(res, 200, {
+        transport: mailerInfo().transport,
+        ready: mailReady(),
+        region: ENV.ALIYUN_DM_REGION || '',
+        accessKeyId: await hint(ak),
+        accessKeySecret: await hint(sk),
+        account: acc
+      });
+    }
   }
 
   /* v0.2 模块：个人资料与名片 */
