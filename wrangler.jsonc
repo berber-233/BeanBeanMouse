@@ -36,9 +36,9 @@
     "ALIYUN_DM_REGION": "cn-hangzhou",
     "MAIL_FROM": "no-reply@mail.beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",
-    // 试用期关闭"必须验证邮箱才能登录"（用户银行卡无法订阅外币增值服务，邮件通道暂不可用）。
-    // 将来邮件通道可用后，改为 "1" 即可恢复强制验证，代码无需改动。
-    "REQUIRE_EMAIL_VERIFY": "0",
+    // 邮件通道（阿里云）已开通并实测发信成功，2026-09-28 起新注册必须完成邮箱验证才能登录。
+    // 需要临时放开时改回 "0" 即可，代码无需改动。
+    "REQUIRE_EMAIL_VERIFY": "1",
     // 新注册账号需管理员审核通过后才能登录（试用期的人工把关，替代邮件验证）
     "REQUIRE_ACCOUNT_REVIEW": "1",
     "NEWS_AUTO_REFRESH": "0",

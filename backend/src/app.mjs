@@ -602,10 +602,16 @@ async function route(m, segs, q, req, res) {
       }
       return send(res, 201, {
         user: publicUser(u),
-    emailVerified: !REQUIRE_EMAIL_VERIFY,
+        emailVerified: !REQUIRE_EMAIL_VERIFY,
+        needVerify: REQUIRE_EMAIL_VERIFY,
+        needReview: REQUIRE_ACCOUNT_REVIEW,
         mailSent,
-      message: REQUIRE_ACCOUNT_REVIEW
-        ? '注册成功，账号正在等待管理员审核，通过后即可登录'
+        message: REQUIRE_ACCOUNT_REVIEW
+        /* 两道门槛可能同时开着（邮箱验证 + 人工审核），提示必须把两件事都说清楚，
+         * 否则用户点了注册却不知道该去查邮箱还是等审核。 */
+        ? (REQUIRE_EMAIL_VERIFY
+          ? '注册成功：请先查收邮箱完成验证（24 小时内有效），账号还需管理员审核通过后才能登录'
+          : '注册成功，账号正在等待管理员审核，通过后即可登录')
         : (!REQUIRE_EMAIL_VERIFY
           ? '注册成功，现在就可以登录了'
           : (mailSent
@@ -634,7 +640,12 @@ async function route(m, segs, q, req, res) {
         return fail(res, 401, 'INVALID_CREDENTIALS', '账号或密码错误');
       }
       if (u.status === 'frozen') return fail(res, 401, 'ACCOUNT_FROZEN', '账号已被冻结');
-      if (u.review_state === 'pending') return fail(res, 403, 'PENDING_REVIEW', '账号正在等待管理员审核，通过后即可登录');
+      /* 两道门槛同时开着时，提示要把"还要验证邮箱"一起说清楚 */
+      if (u.review_state === 'pending') {
+        return fail(res, 403, 'PENDING_REVIEW', REQUIRE_EMAIL_VERIFY && !u.email_verified
+          ? '账号正在等待管理员审核；同时请先查收邮箱完成验证，两项都通过后才能登录'
+          : '账号正在等待管理员审核，通过后即可登录');
+      }
       if (u.review_state === 'rejected') return fail(res, 403, 'ACCOUNT_REJECTED', '注册申请未通过审核，如有疑问请联系我们');
       if (REQUIRE_EMAIL_VERIFY && !u.email_verified) return fail(res, 403, 'VERIFY_EMAIL_REQUIRED', '请先验证邮箱再登录');
       if (isAdminLogin) adminLoginRateReset(ip);

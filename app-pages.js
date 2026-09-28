@@ -148,6 +148,14 @@ async function submitLogin(f) {
        * 而不是只弹一句提示让用户自己找（用户反馈过这个）。 */
       showLoginError(f, t('loginWrongCreds'), { forgot: true });
       toast(t('loginWrongCreds'));
+    } else if (/请先验证邮箱|VERIFY_EMAIL_REQUIRED/i.test(raw)) {
+      /* 开了邮箱验证后，没验证的账号登不进来——顺手给"重发验证邮件"的入口 */
+      showLoginError(f, t('loginNeedVerify'));
+      appendVerifyLink(f);
+      toast(t('loginNeedVerify'));
+    } else if (/等待管理员审核|PENDING_REVIEW/i.test(raw)) {
+      showLoginError(f, t('loginPendingReview'));
+      toast(t('loginPendingReview'));
     } else {
       showLoginError(f, t('loginFailed') + '：' + raw);
       toast(t('loginFailed') + '：' + raw);
@@ -192,6 +200,20 @@ function showLoginError(form, text, opts) {
   } else {
     extra.appendChild(document.createTextNode(' ' + t('pwdForgetHint')));
   }
+  el.appendChild(extra);
+}
+/* 邮箱未验证时的附加链接（指到重发页面） */
+function appendVerifyLink(form) {
+  const el = form.querySelector('[data-login-msg]');
+  if (!el) return;
+  const extra = document.createElement('span');
+  extra.className = 'form-message-extra';
+  extra.appendChild(document.createTextNode(' '));
+  const a = document.createElement('a');
+  a.href = '#/verify-email';
+  a.setAttribute('data-nav', '/verify-email');
+  a.textContent = t('resendVerify');
+  extra.appendChild(a);
   el.appendChild(extra);
 }
 
@@ -2467,6 +2489,12 @@ async function submitRegister(form) {
   try {
     const r = await api.auth.register(payload);
     closeModal();
+    if (r && (r.needVerify || r.needReview)) {
+      /* 邮箱验证/人工审核没走完之前不能登录，这里必须把"下一步做什么"讲清楚 */
+      showModal(registerNextHtml(r, payload.email));
+      toast(t('registerOk'));
+      return;
+    }
     toast(t('registerOk'));
     if (r && r.emailVerified !== false) go('/dashboard');
   } catch (e) {
@@ -3359,6 +3387,27 @@ async function submitChangePassword(form) {
     }
     toast(msg);
   }
+}
+
+/* 注册后的"下一步"说明：查收邮件 / 等待审核 / 重发验证邮件 */
+function registerNextHtml(r, email) {
+  const needVerify = !!(r && r.needVerify);
+  const needReview = !!(r && r.needReview);
+  return '<div class="modal-head"><h3>' + t('regNextTitle') + '</h3>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + (needVerify
+      ? '<div class="reg-next-step"><b>1. ' + t('regNextCheckMail') + '</b>'
+        + '<p class="small muted">' + esc(email) + ' · ' + t('regNextMailNote') + '</p>'
+        + '<input type="hidden" id="resendEmail" value="' + esc(email) + '">'
+        + '<button type="button" class="btn btn-sm" data-action="resend-verify">' + t('resendVerify') + '</button></div>'
+      : '')
+    + (needReview
+      ? '<div class="reg-next-step"><b>' + (needVerify ? '2. ' : '') + t('regNextReview') + '</b>'
+        + '<p class="small muted">' + t('regNextReviewNote') + '</p></div>'
+      : '')
+    + '<button type="button" class="btn btn-primary btn-block" data-action="close-modal">' + t('regNextClose') + '</button>'
+    + '</div>';
 }
 
 async function submitProfile(form) {
