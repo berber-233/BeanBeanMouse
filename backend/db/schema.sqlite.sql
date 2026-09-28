@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   signup_ip TEXT,
   signup_ua TEXT,
   email_flag TEXT,
+  token_version INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 

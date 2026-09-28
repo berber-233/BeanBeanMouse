@@ -165,6 +165,7 @@ function loginModalHtml() {
     + '<button type="button" class="btn btn-sm guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
     + '<a class="btn btn-sm" href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + '</a>'
     + '</div>'
+    + (state.mailReady ? '<p class="lm-forgot"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
     + '<div class="lm-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<p class="lm-note">' + t('loginNote') + '</p>'
     + '</div>';
@@ -213,18 +214,31 @@ function logout(guest, goLogin) {
   go(goLogin ? '/login' : '/');
 }
 
-/* 标语一行自适应：无论语言多长都保持一行，过长自动缩小字号 */
+/* 标题一行自适应：门面大标题和旧头图标题都要压成一行。
+ * 桌面最小 22px；窄屏最小 15px——真放不下才允许折行（宁可折行也不横向溢出）。 */
 function fitHeroTitle() {
-  const h = document.querySelector('.hero h1');
-  if (!h) return;
-  h.style.fontSize = '';
-  const avail = Math.max(80, h.parentElement.clientWidth - 40);
-  let fs = parseFloat(window.getComputedStyle(h).fontSize) || 38;
-  h.style.fontSize = fs + 'px';
-  while (h.scrollWidth > avail && fs > 11) {
-    fs -= 0.5;
+  ['.store-title', '.hero h1'].forEach(sel => {
+    const h = document.querySelector(sel);
+    if (!h) return;
+    const narrow = (window.innerWidth || 1200) <= 640;
+    const minSize = narrow ? 15 : 22;
+    /* 先恢复自动换行再量宽度：otherwise nowrap 会把父列撑宽，量到的可用宽度是自欺欺人的 */
+    h.style.whiteSpace = 'normal';
+    h.style.fontSize = '';
+    const cssSize = parseFloat(window.getComputedStyle(h).fontSize) || 30;
+    h.style.whiteSpace = 'nowrap';
+    let fs = cssSize;
     h.style.fontSize = fs + 'px';
-  }
+    /* 基准用元素自己的宽度：块级元素宽度就是栏宽，文字超出时 scrollWidth 才会变大。
+     * （之前拿父宽度减边距比较，块宽永远大于该阈值，导致字号被一路压到最小值。） */
+    const fits = () => h.scrollWidth <= h.clientWidth + 1;
+    let guard = 0;
+    while (!fits() && fs > minSize && guard++ < 240) {
+      fs -= 0.5;
+      h.style.fontSize = fs + 'px';
+    }
+    if (!fits()) h.style.whiteSpace = 'normal';
+  });
 }
 
 /* ---------- 主渲染 ---------- */
@@ -262,6 +276,8 @@ function render() {
   else if (path.indexOf('/product/') === 0) { const _pid = path.slice(9); app.innerHTML = renderDetail(_pid) + stickyAskBar(_pid); }
   else if (path === '/login') app.innerHTML = renderLogin();
   else if (path === '/admin-login') app.innerHTML = renderAdminLogin();
+  else if (path === '/forgot-password') app.innerHTML = renderForgotPassword();
+  else if (path === '/reset-password') app.innerHTML = renderResetPassword(params);
   else if (path.indexOf('/seller/') === 0) app.innerHTML = renderSellerPage(path.slice(8));
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
   else app.innerHTML = renderHome();
@@ -1778,11 +1794,6 @@ function renderProfileBody() {
     + '<div class="card-preview">' + cardPreviewHtml + '</div>'
     + '<p class="small muted">' + t('cardUploadHint') + '</p>'
     + '</div></div>'
-    + '<div class="card panel mt-20"><div class="panel-head"><h2>🔒 ' + t('pwdTitle') + '</h2></div>'
-    + '<form data-form="change-password" novalidate><div class="form-grid">'
-    + '<div class="field"><label>' + t('pwdCurrent') + ' *</label><input class="input" type="password" name="currentPassword" required autocomplete="current-password"></div>'
-    + '<div class="field"><label>' + t('pwdNew') + ' *</label><input class="input" type="password" name="newPassword" required autocomplete="new-password"></div>'
-    + '</div><button type="submit" class="btn">' + t('pwdSubmit') + '</button></form></div>'
     + '<div class="card panel mt-20"><div class="panel-head"><h2>🎨 ' + t('cardTemplatesTitle') + '</h2><span class="small muted">' + t('cardTemplatesSub') + '</span></div>'
     + '<div class="tpl-grid">' + (typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []).map(tpl =>
       '<div class="tpl-card"><span class="tpl-swatch" style="background:' + tpl.swatch + '"></span>'
@@ -1807,7 +1818,35 @@ function renderProfileBody() {
     + '</div></div>'
     + '</div></div>'
     + '</div>'
-    + '</div>';
+    + '</div>'
+    /* 修改密码单独占整行：原先塞在右栏里，两列挤成窄条，标签全折行，看着就像坏的 */
+    + passwordPanelHtml();
+}
+
+/* 修改密码面板：整行宽度 + 二次确认 + 行内错误提示（原先是两个窄输入框加一个 toast，出错了也不知道错在哪） */
+function passwordPanelHtml() {
+  return '<div class="card panel mt-20 pwd-panel"><div class="panel-head"><h2>🔒 ' + t('pwdTitle') + '</h2>'
+    + '<span class="small muted">' + t('pwdPanelHint') + '</span></div>'
+    + '<form data-form="change-password" novalidate>'
+    + '<div class="form-grid">'
+    + '<div class="field"><label>' + t('pwdCurrent') + ' *</label>'
+    + '<input class="input" type="password" name="currentPassword" required autocomplete="current-password">'
+    + '<p class="field-error" data-err="currentPassword"></p></div>'
+    + '<div class="field"><label>' + t('pwdNew') + ' *</label>'
+    + '<input class="input" type="password" name="newPassword" required autocomplete="new-password" placeholder="' + t('pwdRule') + '">'
+    + '<p class="field-error" data-err="newPassword"></p></div>'
+    + '<div class="field"><label>' + t('pwdConfirm') + ' *</label>'
+    + '<input class="input" type="password" name="confirmPassword" required autocomplete="new-password">'
+    + '<p class="field-error" data-err="confirmPassword"></p></div>'
+    + '</div>'
+    + '<div class="flex gap-10" style="align-items:center;flex-wrap:wrap">'
+    + '<button type="submit" class="btn btn-primary">' + t('pwdSubmit') + '</button>'
+    + (state.mailReady
+      ? '<a class="small" href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a>'
+      : '<span class="small muted">' + t('pwdForgetHint') + '</span>')
+    + '</div>'
+    + '<p class="small muted" data-pwd-result hidden></p>'
+    + '</form></div>';
 }
 const card3d = { rx: -6, ry: 0, flipped: false };
 function card3dTransform() {
@@ -3234,22 +3273,41 @@ function adminFeedbackBody() {
 /* 修改密码（正式试用前必须能改掉公开的演示密码） */
 async function submitChangePassword(form) {
   const fd = new FormData(form);
-  const currentPassword = String(fd.get('currentPassword') || '');
-  const newPassword = String(fd.get('newPassword') || '');
-  if (!currentPassword || !newPassword) { toast(t('required')); return; }
-  if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-    toast(t('errPassword')); return;
-  }
+  const currentPassword = String(fd.get('currentPassword') || '').trim();
+  const newPassword = String(fd.get('newPassword') || '').trim();
+  const confirmPassword = String(fd.get('confirmPassword') || '').trim();
+  const ok = validateForm(form, {
+    currentPassword: [v => v ? '' : t('required')],
+    newPassword: [v => (v.length >= 8 && /[A-Za-z]/.test(v) && /[0-9]/.test(v)) ? '' : t('errPassword')],
+    confirmPassword: [v => v === newPassword ? '' : t('pwdMismatch')]
+  });
+  if (!ok) return;
+  if (newPassword === currentPassword) { setFieldError(form.querySelector('[name="newPassword"]'), t('pwdSameAsOld')); return; }
+  const resultEl = form.querySelector('[data-pwd-result]');
   try {
-    await api.auth.changePassword({ currentPassword, newPassword });
+    const r = await api.auth.changePassword({ currentPassword, newPassword });
+    /* 改密后服务端会换发新令牌，这里立刻替换，避免当前这台设备被自己的操作踢下线 */
+    if (r && r.token) { state.token = r.token; saveState(); }
     form.reset();
     /* 改掉默认密码后，后台顶部的提醒条不再出现 */
     state.mustChangePassword = false;
     saveState();
     toast(t('pwdChanged'));
+    if (resultEl) {
+      resultEl.hidden = false;
+      resultEl.textContent = '✓ ' + t('pwdChanged') + t('pwdReloginNote');
+    }
     renderPage();
   } catch (e) {
-    toast((e && e.message) ? e.message : t('pwdFailed'));
+    const msg = (e && e.message) ? e.message : t('pwdFailed');
+    /* 把服务端的错误落到具体字段上，用户才知道改哪一个输入框 */
+    if (/当前密码/.test(msg)) {
+      setFieldError(form.querySelector('[name="currentPassword"]'), msg);
+      if (resultEl) { resultEl.hidden = false; resultEl.textContent = t('pwdWrongHint'); }
+    } else {
+      if (resultEl) { resultEl.hidden = false; resultEl.textContent = msg; }
+    }
+    toast(msg);
   }
 }
 
@@ -3874,8 +3932,70 @@ function renderLogin() {
     + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
     + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<div class="login-note"> ' + t('loginNote') + '</div>'
+    + (state.mailReady ? '<p class="login-admin-link"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
     + '<p class="login-admin-link"><a href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + ' →</a></p>'
     + '</div></div>';
+}
+
+/* ---------- 忘记密码 / 重置密码（邮件通道开通后自动生效）---------- */
+function authPageShell(title, desc, inner) {
+  return '<div class="container login-page"><div class="login-card">'
+    + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-icon.png" alt="BeanBeanMouse" width="58" height="58" decoding="async">'
+    + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
+    + '<h1>' + title + '</h1><p class="sub">' + desc + '</p>' + inner
+    + '<div class="admin-login-links"><a href="#/login" data-nav="/login">' + t('adminBackToLogin') + '</a>'
+    + '<a href="#/" data-nav="/">' + t('home') + '</a></div>'
+    + '</div></div>';
+}
+function renderForgotPassword() {
+  document.title = t('forgotTitle') + ' · BeanBeanMouse';
+  return authPageShell(t('forgotTitle'), state.mailReady ? t('forgotDesc') : t('forgotMailNotReady'),
+    '<form class="login-form" data-form="forgot-form" novalidate>'
+    + '<div class="field"><label>' + t('regEmail') + '</label><input class="input" type="email" name="email" required autocomplete="username" placeholder="you@example.com"></div>'
+    + '<button type="submit" class="btn btn-accent btn-block"' + (state.mailReady ? '' : ' disabled') + '>' + t('forgotSubmit') + '</button>'
+    + '</form><p class="small muted" data-forgot-result hidden></p>');
+}
+function renderResetPassword(params) {
+  document.title = t('resetTitle') + ' · BeanBeanMouse';
+  const token = (params && params.get('token')) || '';
+  return authPageShell(t('resetTitle'), t('resetDesc'),
+    '<form class="login-form" data-form="reset-form" novalidate data-token="' + esc(token) + '">'
+    + '<div class="field"><label>' + t('pwdNew') + '</label><input class="input" type="password" name="newPassword" required autocomplete="new-password" placeholder="' + t('pwdRule') + '"></div>'
+    + '<div class="field"><label>' + t('pwdConfirm') + '</label><input class="input" type="password" name="confirmPassword" required autocomplete="new-password"></div>'
+    + '<button type="submit" class="btn btn-accent btn-block">' + t('resetSubmit') + '</button>'
+    + '</form><p class="small muted" data-reset-result hidden></p>');
+}
+async function submitForgotPassword(form) {
+  const email = String((form.querySelector('[name="email"]') || {}).value || '').trim();
+  const out = form.parentElement.querySelector('[data-forgot-result]');
+  if (!validateForm(form, { email: [requireEmail] })) return;
+  try {
+    const r = await api.auth.forgotPassword({ email });
+    if (out) { out.hidden = false; out.textContent = (r && r.message) || t('forgotSent'); }
+    toast(t('forgotSent'));
+  } catch (e) {
+    if (out) { out.hidden = false; out.textContent = (e && e.message) || t('forgotFailed'); }
+    toast((e && e.message) || t('forgotFailed'));
+  }
+}
+async function submitResetPassword(form) {
+  const fd = new FormData(form);
+  const password = String(fd.get('newPassword') || '').trim();
+  const confirm = String(fd.get('confirmPassword') || '').trim();
+  const out = form.parentElement.querySelector('[data-reset-result]');
+  if (!validateForm(form, {
+    newPassword: [v => (v.length >= 8 && /[A-Za-z]/.test(v) && /[0-9]/.test(v)) ? '' : t('errPassword')],
+    confirmPassword: [v => v === password ? '' : t('pwdMismatch')]
+  })) return;
+  try {
+    await api.auth.resetPassword({ token: form.dataset.token, password });
+    if (out) { out.hidden = false; out.textContent = '✓ ' + t('resetDone'); }
+    toast(t('resetDone'));
+    setTimeout(() => go('/login'), 900);
+  } catch (e) {
+    if (out) { out.hidden = false; out.textContent = (e && e.message) || t('resetFailed'); }
+    toast((e && e.message) || t('resetFailed'));
+  }
 }
 
 /* ---------- 管理员登录（独立入口）----------

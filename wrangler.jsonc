@@ -25,6 +25,8 @@
   "vars": {
     // 非敏感配置；密钥类请用 `npx wrangler pages secret put <NAME> --project-name beanbean-mouse`
     "MAIL_TRANSPORT": "service",
+    // 邮件通道真正可用后再置 "1"：它会开启"忘记密码"自助入口（半开通时不显示，免得用户收不到信）
+    "MAIL_READY": "0",
     "MAIL_FROM": "no-reply@beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",
     // 试用期关闭"必须验证邮箱才能登录"（用户银行卡无法订阅外币增值服务，邮件通道暂不可用）。

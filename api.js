@@ -208,6 +208,19 @@ api.auth = {
     await apiDelay();
     return { ok: true };
   },
+  /* 邮件通道是否就绪（决定要不要显示"忘记密码"） */
+  async mailReady() {
+    if (api.config.mode === 'http') return apiRequest('/auth/mail-ready');
+    return { ready: false, transport: 'mock' };
+  },
+  async forgotPassword({ email } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/auth/forgot-password', { method: 'POST', body: { email } });
+    throw new Error('MAIL_NOT_READY');
+  },
+  async resetPassword({ token, password } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/auth/reset-password', { method: 'POST', body: { token, password } });
+    throw new Error('MAIL_NOT_READY');
+  },
   async logout() {
     if (api.config.mode === 'http') return apiRequest('/auth/logout', { method: 'POST' });
     const st = mockState();

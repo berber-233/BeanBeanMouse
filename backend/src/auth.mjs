@@ -46,7 +46,9 @@ export async function verifyPassword(pw, stored) {
 
 export async function signToken(payload, expiresSec = 3600) {
   const header = toBase64Url(utf8(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const body = toBase64Url(utf8(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + expiresSec })));
+  /* iat 用于"改密后旧令牌立即失效"的比对 */
+  const now = Math.floor(Date.now() / 1000);
+  const body = toBase64Url(utf8(JSON.stringify({ ...payload, iat: now, exp: now + expiresSec })));
   const sig = await hmacSha256Base64Url(SECRET, header + '.' + body);
   return header + '.' + body + '.' + sig;
 }

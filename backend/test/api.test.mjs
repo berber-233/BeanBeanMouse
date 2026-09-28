@@ -6,6 +6,11 @@ process.env.REGISTER_LIMIT = '100';
 process.env.LOGIN_LIMIT = '100';
 /* 测试需要反复用一次性地址注册（test.com / example.com），生产默认拦截 */
 process.env.BLOCK_DISPOSABLE_EMAIL = '0';
+/* 用非 mock 的通道名 => 视为"邮件通道已就绪"，这样"忘记密码"的正路也能测；
+ * 实际发送仍然只是写进 mail_outbox（本地不会真发信）。 */
+process.env.MAIL_TRANSPORT = 'noop';
+process.env.FORGOT_LIMIT = '100';
+process.env.MAIL_READY = '1';
 
 const { startServer } = await import('../src/server.mjs');
 const { get } = await import('../src/db.mjs');
@@ -643,6 +648,42 @@ let catReqId;
   check('verify-turnstile disabled without secret -> ok', r.status === 200 && r.data.ok === true && r.data.disabled === true);
   const reg = await req('/auth/register', { method: 'POST', body: { email: 'ts@test.com', password: 'Passw0rd', role: 'buyer', name: 'TS User', turnstileToken: 'x' } });
   check('register with turnstile token (secret off) -> 201', reg.status === 201);
+}
+
+/* ---- 忘记密码：邮件重置全流程（放最后，因为它会让该账号旧令牌失效） ---- */
+{
+  const ready = await req('/auth/mail-ready');
+  check('mail-ready 报告邮件通道就绪', ready.status === 200 && ready.data.ready === true);
+
+  /* 用先前已通过验证的 new@test.com，先拿一个"旧令牌" */
+  const before = await req('/auth/login', { method: 'POST', body: { email: 'new@test.com', password: 'Passw0rd' } });
+  check('重置前可登录', before.status === 200 && !!before.data.token);
+  const oldToken = before.data.token;
+
+  const forgot = await req('/auth/forgot-password', { method: 'POST', body: { email: 'new@test.com' } });
+  check('forgot-password -> 200（不暴露邮箱是否存在）', forgot.status === 200 && forgot.data.ok === true);
+  const unknown = await req('/auth/forgot-password', { method: 'POST', body: { email: 'nobody-here@test.com' } });
+  check('未注册邮箱同样返回 200', unknown.status === 200 && unknown.data.ok === true);
+
+  const mail = get("SELECT * FROM mail_outbox WHERE recipient = ? AND subject LIKE ? ORDER BY created_at DESC LIMIT 1", 'new@test.com', '%重置%');
+  const m = mail ? /token=([0-9a-f]+)/.exec(mail.body || '') : null;
+  check('重置邮件里带 token 链接', !!(mail && m));
+
+  const reset = await req('/auth/reset-password', { method: 'POST', body: { token: m[1], password: 'NewPass1234' } });
+  check('reset-password -> 200', reset.status === 200 && reset.data.ok === true);
+
+  const weak = await req('/auth/reset-password', { method: 'POST', body: { token: m[1], password: 'abc' } });
+  check('弱密码被拒', weak.status === 400);
+  const reuse = await req('/auth/reset-password', { method: 'POST', body: { token: m[1], password: 'Another1234' } });
+  check('同一重置链接不能重复使用', reuse.status === 400);
+
+  const loginNew = await req('/auth/login', { method: 'POST', body: { email: 'new@test.com', password: 'NewPass1234' } });
+  check('新密码可以登录', loginNew.status === 200 && !!loginNew.data.token);
+  const loginOld = await req('/auth/login', { method: 'POST', body: { email: 'new@test.com', password: 'Passw0rd' } });
+  check('旧密码已失效', loginOld.status === 401);
+
+  const meOld = await req('/auth/me', { token: oldToken });
+  check('改密前签发的旧令牌立即失效', meOld.status === 401, 'status=' + meOld.status);
 }
 
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));

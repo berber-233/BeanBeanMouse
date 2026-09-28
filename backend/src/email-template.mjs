@@ -49,3 +49,17 @@ export function verifyEmailContent({ link }) {
     })
   };
 }
+
+/* 忘记密码：重置链接（1 小时内有效，用一次即作废） */
+export function resetPasswordContent({ link }) {
+  return {
+    subject: '[豆豆鼠] 重置您的登录密码',
+    html: emailLayout({
+      title: '重置登录密码',
+      intro: '我们收到了重置豆豆鼠 BeanBeanMouse 账号密码的请求。点击下面的按钮设置新密码，链接 1 小时内有效且只能用一次。',
+      cta: { label: '设置新密码', url: link },
+      note: '设置新密码后，之前在其他设备上的登录会全部失效，需要重新登录。',
+      footer: '如果这不是您本人的操作，请忽略本邮件，您的密码不会被修改。'
+    })
+  };
+}

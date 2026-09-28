@@ -66,6 +66,15 @@ render();
  * 保证最坏情况只是"还看演示数据"，绝不会让页面变空。 */
 (function hydrateFromApi() {
   if (!window.api || !api.config || api.config.mode !== 'http') return;
+  /* 先问服务器：邮件通道开没开（决定是否显示"忘记密码"入口） */
+  api.auth.mailReady().then(r => {
+    const ready = !!(r && r.ready);
+    if (state.mailReady !== ready) {
+      state.mailReady = ready;
+      saveState();
+      renderPage();
+    }
+  }).catch(() => { /* 拿不到就按未开通处理 */ });
   const MIN_EXPECTED = 8;
   const txt = (p, lang, key) => {
     const t = (p.translations && p.translations[lang]) || {};

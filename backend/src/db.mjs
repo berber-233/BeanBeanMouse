@@ -37,7 +37,8 @@ ensureColumns('users', {
   review_state: 'TEXT',
   signup_ip: 'TEXT',
   signup_ua: 'TEXT',
-  email_flag: 'TEXT'
+  email_flag: 'TEXT',
+  token_version: 'INTEGER DEFAULT 0'
 });
 ensureColumns('inquiries', {
   contact_name: 'TEXT',

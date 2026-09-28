@@ -1450,7 +1450,7 @@ body {
   background: #FFF; border: 1px solid var(--border-2); color: var(--primary);
   font-size: 13px; font-weight: 600;
 }
-.store-title { margin: 0 0 10px; font-size: 30px; line-height: 1.26; color: var(--navy-900); letter-spacing: .2px; }
+.store-title { margin: 0 0 10px; font-size: 30px; line-height: 1.26; color: var(--navy-900); letter-spacing: .2px; text-wrap: balance; }
 .store-sub { margin: 0 0 16px; font-size: 14.5px; line-height: 1.8; color: var(--text-2); max-width: 46em; }
 .store-cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 12px; }
 .store-trust { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -1802,7 +1802,8 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .trans-toggle { border-radius: 6px; }
 .chat-read { color: var(--success); font-weight: 600; }
 @media (max-width: 900px) {
-  .store-inner, .about-hero, .about-teaser { grid-template-columns: 1fr; }
+  /* minmax(0,1fr)：单列时也要允许列收缩，否则一行长标题会把整页撑出横向滚动 */
+  .store-inner, .about-hero, .about-teaser { grid-template-columns: minmax(0, 1fr); }
   .store-title { font-size: 26px; }
   .store-art { order: -1; }
 }
@@ -1883,3 +1884,9 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   margin: 12px 0 0; padding: 10px 12px; font-size: 12.5px; line-height: 1.7; color: var(--muted);
   background: #F7F5F0; border: 1px dashed var(--border-2); border-radius: 9px;
 }
+.lm-forgot { margin: 10px 0 0; font-size: 13px; }
+.lm-forgot a { color: var(--primary); text-decoration: none; }
+.lm-forgot a:hover { text-decoration: underline; }
+.pwd-panel .panel-head { align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pwd-panel .field-error:empty { display: none; }
+.pwd-panel [data-pwd-result]:not([hidden]) { margin: 10px 0 0; color: var(--success, #0a7a3f); }

@@ -14,7 +14,7 @@ import { hashPassword, verifyPassword, signToken, verifyToken, configureAuth } f
 import { translateText, translateError } from './translate.mjs';
 import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE } from './storage.mjs';
 import { sendMail, notifyUser, mailerInfo } from './mailer.mjs';
-import { verifyEmailContent } from './email-template.mjs';
+import { verifyEmailContent, resetPasswordContent } from './email-template.mjs';
 
 export function createApp({ env = {}, deps = {} } = {}) {
   const ENV = env;
@@ -172,6 +172,14 @@ const DEFAULT_ADMIN_PASSWORD = String(ENV.DEFAULT_ADMIN_PASSWORD || 'admin123');
 /* 登录态有效期：默认 7 天（原先 1 小时，用着用着就被踢回登录页，像"请先登录"的错觉） */
 const TOKEN_TTL_SEC = Math.max(300, Number(ENV.TOKEN_TTL_SEC || 7 * 24 * 3600));
 
+/* 邮件通道"真的可用"才算就绪：光配了通道名不够——半开通状态下用户点了
+ * "忘记密码"却收不到信，比不显示这个入口更糟。凭据配好后把 MAIL_READY 置 1。 */
+function mailReady() {
+  const name = mailerInfo().transport;
+  if (!name || name === 'mock') return false;
+  return String(ENV.MAIL_READY === undefined ? '0' : ENV.MAIL_READY) === '1';
+}
+
 /* 注册限流：同 IP 每分钟最多 5 次（防批量机器人注册，可通过 REGISTER_LIMIT 调整） */
 const registerAttempts = new Map();
 const REGISTER_LIMIT = Number(ENV.REGISTER_LIMIT || 5);
@@ -187,6 +195,19 @@ async function registerRateLimit(ip) {
 
 /* 邮箱验证令牌：只存哈希、单次有效、24 小时过期 */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/* 找回密码限流：单独计数（不跟注册混在一起），默认 15 分钟 5 次 */
+const forgotAttempts = new Map();
+const FORGOT_LIMIT = Number(ENV.FORGOT_LIMIT || 5);
+function forgotRateLimit(ip) {
+  const now = Date.now();
+  const win = 15 * 60 * 1000;
+  const rec = forgotAttempts.get(ip) || { count: 0, resetAt: now + win };
+  if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + win; }
+  rec.count++;
+  forgotAttempts.set(ip, rec);
+  return rec.count;
+}
 
 /* 没有邮件服务时，注册这一关靠"邮箱初筛"兜底：
  * 一次性邮箱直接拒收；常见免费邮箱标 free，企业自有域名标 corporate，
@@ -224,11 +245,12 @@ function clientIp(req) {
   return String(raw).trim().slice(0, 64);
 }
 async function sha256(s) { return await sha256Hex(s); }
-async function newEmailToken(userId) {
+async function newEmailToken(userId, purpose, ttlMs) {
   const token = toHex(randomBytes(24));
   await run(
     'INSERT INTO email_tokens (id, user_id, token_hash, purpose, expires_at, created_at) VALUES (?,?,?,?,?,?)',
-    randomUUID(), userId, await sha256(token), 'verify_email', Date.now() + 24 * 3600 * 1000, Date.now()
+    randomUUID(), userId, await sha256(token), purpose || 'verify_email',
+    Date.now() + (ttlMs || 24 * 3600 * 1000), Date.now()
   );
   return token;
 }
@@ -343,7 +365,11 @@ async function currentUser(req) {
   const token = h.startsWith('Bearer ') ? h.slice(7) : '';
   const payload = await verifyToken(token);
   if (!payload || !payload.uid) return null;
-  return await get('SELECT * FROM users WHERE id = ?', payload.uid) || null;
+  const user = await get('SELECT * FROM users WHERE id = ?', payload.uid) || null;
+  if (!user) return null;
+  /* 令牌版本对不上 → 失效（找回密码/改密后，其他设备必须重新登录） */
+  if ((payload.ver || 0) !== (user.token_version || 0)) return null;
+  return user;
 }
 async function requireAuth(res, req, roles) {
   const u = await currentUser(req);
@@ -616,7 +642,7 @@ async function route(m, segs, q, req, res) {
       /* 还在用公开默认密码的管理员：登录放行，但明确提示去改 */
       const mustChangePassword = isAdminLogin && String(body.password) === DEFAULT_ADMIN_PASSWORD;
       return send(res, 200, {
-        token: await signToken({ uid: u.id, role: u.role }, TOKEN_TTL_SEC),
+        token: await signToken({ uid: u.id, role: u.role, ver: u.token_version || 0 }, TOKEN_TTL_SEC),
         user: publicUser(u),
         mustChangePassword
       });
@@ -655,7 +681,57 @@ async function route(m, segs, q, req, res) {
     if (m === 'POST' && b === 'refresh') {
       const u = await requireAuth(res, req);
       if (!u) return;
-      return send(res, 200, { token: await signToken({ uid: u.id, role: u.role }, TOKEN_TTL_SEC), user: publicUser(u) });
+      return send(res, 200, { token: await signToken({ uid: u.id, role: u.role, ver: u.token_version || 0 }, TOKEN_TTL_SEC), user: publicUser(u) });
+    }
+    /* 邮件通道是否就绪：前端据此决定要不要显示"忘记密码"入口。
+     * 没开通邮件时宁可不显示，也不给用户一个点了就报错的按钮。 */
+    if (m === 'GET' && b === 'mail-ready') {
+      return send(res, 200, { ready: mailReady(), transport: mailerInfo().transport });
+    }
+    /* 忘记密码：发重置链接。无论邮箱是否存在都返回成功，避免被人拿来枚举账号。 */
+    if (m === 'POST' && b === 'forgot-password') {
+      const ip = req.socket.remoteAddress || 'unknown';
+      if (forgotRateLimit(ip) > FORGOT_LIMIT) return fail(res, 429, 'TOO_MANY_ATTEMPTS', '请求过于频繁，请稍后再试');
+      if (!mailReady()) {
+        return fail(res, 503, 'MAIL_NOT_READY', '邮件通道尚未开通，暂时无法自助找回，请联系平台协助');
+      }
+      const body = await readBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) return fail(res, 400, 'VALIDATION', '邮箱格式不正确');
+      const u = await get('SELECT * FROM users WHERE lower(email) = ?', email);
+      if (u && u.status !== 'frozen') {
+        try {
+          const token = await newEmailToken(u.id, 'reset_password', 3600 * 1000);
+          const appUrl = ENV.APP_URL || 'https://beanbeanmouse.com';
+          const link = appUrl + '/#/reset-password?token=' + token;
+          const tpl = resetPasswordContent({ link });
+          await sendMail({
+            to: u.email, subject: tpl.subject, html: tpl.html,
+            body: '我们收到了重置 BeanBeanMouse 密码的请求。请在 1 小时内打开以下链接设置新密码（只能用一次）：\n\n' + link + '\n\n如非本人操作，请忽略本邮件。'
+          });
+          await audit(u.id, 'auth.forgot-password', 'user', u.id, '');
+        } catch (e) {
+          console.error('[auth.forgot] 重置邮件发送失败: ' + (e && e.message));
+        }
+      }
+      return send(res, 200, { ok: true, message: '如果该邮箱已注册，重置链接已发送，请查收（含垃圾邮件箱）' });
+    }
+    if (m === 'POST' && b === 'reset-password') {
+      if (!mailReady()) return fail(res, 503, 'MAIL_NOT_READY', '邮件通道尚未开通');
+      const body = await readBody(req);
+      const token = String(body.token || '').trim();
+      const password = String(body.password || '');
+      if (!token) return fail(res, 400, 'VALIDATION', '缺少重置令牌');
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+        return fail(res, 400, 'VALIDATION', '密码至少 8 位，且需同时包含字母和数字');
+      }
+      const row = await get('SELECT * FROM email_tokens WHERE token_hash = ? AND purpose = ?', await sha256(token), 'reset_password');
+      if (!row || row.used_at) return fail(res, 400, 'INVALID_TOKEN', '重置链接无效或已使用');
+      if (row.expires_at < Date.now()) return fail(res, 400, 'TOKEN_EXPIRED', '重置链接已过期，请重新申请');
+      await run('UPDATE email_tokens SET used_at = ? WHERE id = ?', Date.now(), row.id);
+      await run('UPDATE users SET password_hash = ?, token_version = COALESCE(token_version,0) + 1 WHERE id = ?', await hashPassword(password), row.user_id);
+      await audit(row.user_id, 'auth.reset-password', 'user', row.user_id, '');
+      return send(res, 200, { ok: true });
     }
     /* 修改密码：演示账号的密码是公开的，正式试用前必须先能改成自己的 */
     if (m === 'POST' && b === 'change-password') {
@@ -670,8 +746,13 @@ async function route(m, segs, q, req, res) {
       }
       if (next === current) return fail(res, 400, 'VALIDATION', '新密码不能与当前密码相同');
       await run('UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(next), u.id);
+      /* 版本 +1：其他设备上的登录立即失效 */
+      await run('UPDATE users SET token_version = COALESCE(token_version,0) + 1 WHERE id = ?', u.id);
       await audit(u.id, 'auth.change-password', 'user', u.id, '');
-      return send(res, 200, { ok: true });
+      /* 改密会让旧令牌失效（其他设备要重新登录），但当前这台设备要能继续用：
+       * 直接换发一个新令牌返回，前端替换掉本地那份。 */
+      const fresh = await get('SELECT * FROM users WHERE id = ?', u.id);
+      return send(res, 200, { ok: true, token: await signToken({ uid: u.id, role: u.role, ver: fresh.token_version || 0 }, TOKEN_TTL_SEC) });
     }
     if (m === 'GET' && b === 'me') {
       const u = await requireAuth(res, req);
