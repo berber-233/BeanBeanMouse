@@ -27,9 +27,8 @@
     // 邮件通道：service=Cloudflare Email（需外币订阅，暂不可用）/ aliyun=阿里云邮件推送（当前使用）
     "MAIL_TRANSPORT": "aliyun",
     // 邮件通道真正可用后才置 "1"：它会开启"忘记密码"自助入口（半开通时不显示，免得用户收不到信）
-    // 换钥匙期间先关掉"忘记密码"入口：新钥匙所属 RAM 用户还没挂邮件推送权限，
-    // 开着入口会让用户以为邮件发了（2026-09-28）。授权并实测通过后再置 1。
-    "MAIL_READY": "0",
+    // 新钥匙（RAM 用户 208671990606451044）已授权并实测发信成功（2026-09-28），开启"忘记密码"入口
+    "MAIL_READY": "1",
     // 阿里云邮件推送（DirectMail）：AccessKey 存在 Pages Secret 里，这里只放非敏感项
     "ALIYUN_DM_ACCOUNT": "no-reply@mail.beanbeanmouse.com",
     "ALIYUN_DM_FROM_ALIAS": "BeanBeanMouse",
