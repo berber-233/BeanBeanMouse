@@ -258,7 +258,7 @@ async function sendVerifyEmail(userId, email) {
   const token = await newEmailToken(userId);
   const appUrl = ENV.APP_URL || 'https://beanbeanmouse.com';
   const link = appUrl + '/#/verify-email?token=' + token;
-  const tpl = verifyEmailContent({ link });
+  const tpl = verifyEmailContent({ link, name: (await get('SELECT name FROM users WHERE id = ?', userId) || {}).name });
   await sendMail({
     to: email,
     subject: tpl.subject,
@@ -704,7 +704,7 @@ async function route(m, segs, q, req, res) {
           const token = await newEmailToken(u.id, 'reset_password', 3600 * 1000);
           const appUrl = ENV.APP_URL || 'https://beanbeanmouse.com';
           const link = appUrl + '/#/reset-password?token=' + token;
-          const tpl = resetPasswordContent({ link });
+          const tpl = resetPasswordContent({ link, name: u.name });
           await sendMail({
             to: u.email, subject: tpl.subject, html: tpl.html,
             body: '我们收到了重置 BeanBeanMouse 密码的请求。请在 1 小时内打开以下链接设置新密码（只能用一次）：\n\n' + link + '\n\n如非本人操作，请忽略本邮件。'

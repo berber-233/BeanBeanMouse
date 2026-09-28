@@ -79,11 +79,30 @@ export async function sendViaAliyun(env, { to, subject, body, html }) {
 
   params.Signature = await rpcSignature({ params, accessKeySecret: env.ALIYUN_DM_ACCESS_KEY_SECRET });
 
-  const res = await fetch('https://dm.' + region + '.aliyuncs.com/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: canonicalQuery(params)
-  });
+  /* 接入点：官方文档里既出现过 dm.aliyuncs.com，也有按区域的 dm.<region>.aliyuncs.com。
+   * 不赌哪一个，按顺序试，连不上就换下一个（只对网络层失败重试，服务端返回的错误照实抛出）。 */
+  const endpoints = env.ALIYUN_DM_ENDPOINT
+    ? [env.ALIYUN_DM_ENDPOINT]
+    : ['https://dm.aliyuncs.com/', 'https://dm.' + region + '.aliyuncs.com/'];
+  let res = null;
+  let lastErr = null;
+  for (const url of endpoints) {
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: canonicalQuery(params)
+      });
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      res = null;
+    }
+  }
+  if (!res) {
+    throw new Error('ALIYUN_DM_UNREACHABLE: 两个接入点都连不上（' + endpoints.join(' , ') + '）：' + (lastErr && lastErr.message));
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || (data.Code && data.Code !== 'OK')) {
     throw new Error('ALIYUN_DM_' + (data.Code || res.status) + ': ' + (data.Message || '发送失败'));

@@ -11,7 +11,10 @@ const BRAND = {
   bg: '#f6f3ec'
 };
 
-export function emailLayout({ title, intro, cta, note, footer }) {
+export function emailLayout({ title, hello, intro, cta, note, footer }) {
+  /* 阿里云合规要求：正文要有对用户的尊称（我们按收件人姓名生成） */
+  const helloHtml = '<tr><td style="padding:0 32px 10px;font-size:14px;line-height:1.9;color:' + BRAND.ink + '">'
+    + (hello || '您好：') + '</td></tr>';
   const ctaHtml = cta
     ? '<tr><td style="padding:8px 32px 28px">'
       + '<a href="' + cta.url + '" style="display:inline-block;background:' + BRAND.gold
@@ -29,6 +32,7 @@ export function emailLayout({ title, intro, cta, note, footer }) {
     + '<tr><td style="padding:26px 32px 6px;font-size:17px;font-weight:700;color:' + BRAND.ink + ';letter-spacing:.2px">'
     + BRAND.name + '</td></tr>'
     + '<tr><td style="padding:6px 32px 18px;font-size:19px;font-weight:700;color:' + BRAND.ink + '">' + title + '</td></tr>'
+    + helloHtml
     + '<tr><td style="padding:0 32px 20px;font-size:14px;line-height:1.9;color:' + BRAND.ink + '">' + intro + '</td></tr>'
     + ctaHtml + noteHtml
     + '<tr><td style="padding:16px 32px 24px;border-top:1px solid ' + BRAND.line + ';font-size:12px;line-height:1.7;color:' + BRAND.muted + '">'
@@ -37,29 +41,31 @@ export function emailLayout({ title, intro, cta, note, footer }) {
     + '</td></tr></table></body></html>';
 }
 
-export function verifyEmailContent({ link }) {
+export function verifyEmailContent({ link, name }) {
   return {
     subject: '[豆豆鼠] 请验证您的邮箱',
     html: emailLayout({
       title: '验证您的邮箱',
+      hello: '尊敬的' + (name || '客户') + '，您好：',
       intro: '感谢注册豆豆鼠 BeanBeanMouse。完成邮箱验证后即可登录、发布询盘与对接供应商。链接 24 小时内有效。',
       cta: { label: '完成邮箱验证', url: link },
       note: '为保障账号安全，未验证邮箱的账号无法登录。',
-      footer: '如果这不是您本人的操作，请忽略本邮件。'
+      footer: '本邮件由系统自动发送，用于账号注册验证，不属于推广邮件；无需退订。如非本人操作，请忽略本邮件。'
     })
   };
 }
 
 /* 忘记密码：重置链接（1 小时内有效，用一次即作废） */
-export function resetPasswordContent({ link }) {
+export function resetPasswordContent({ link, name }) {
   return {
     subject: '[豆豆鼠] 重置您的登录密码',
     html: emailLayout({
       title: '重置登录密码',
+      hello: '尊敬的' + (name || '客户') + '，您好：',
       intro: '我们收到了重置豆豆鼠 BeanBeanMouse 账号密码的请求。点击下面的按钮设置新密码，链接 1 小时内有效且只能用一次。',
       cta: { label: '设置新密码', url: link },
       note: '设置新密码后，之前在其他设备上的登录会全部失效，需要重新登录。',
-      footer: '如果这不是您本人的操作，请忽略本邮件，您的密码不会被修改。'
+      footer: '本邮件由系统自动发送，用于账号安全验证，不属于推广邮件；无需退订。如非本人操作，请忽略本邮件。'
     })
   };
 }

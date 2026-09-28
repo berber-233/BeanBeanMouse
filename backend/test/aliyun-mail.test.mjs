@@ -55,7 +55,7 @@ const okSend = await sendViaAliyun(
   { to: 'buyer@example.cn', subject: '主题', body: '正文' }
 );
 const bodyParams = new URLSearchParams(captured.init.body);
-check('请求发到阿里云 cn-hangzhou 端点', captured.url.indexOf('dm.cn-hangzhou.aliyuncs.com') >= 0, captured.url);
+check('默认用官方主接入点 dm.aliyuncs.com', captured.url.indexOf('dm.aliyuncs.com') >= 0, captured.url);
 check('参数含 ToAddress / Subject / Signature', bodyParams.get('ToAddress') === 'buyer@example.cn' && bodyParams.get('Subject') === '主题' && !!bodyParams.get('Signature'));
 check('返回 requestId', okSend.ok && okSend.requestId === 'req-1');
 
@@ -69,6 +69,26 @@ let threw = '';
 try { await sendViaAliyun({ ALIYUN_DM_ACCESS_KEY_ID: 'id', ALIYUN_DM_ACCESS_KEY_SECRET: 'sec', ALIYUN_DM_ACCOUNT: 'a@b.com' }, { to: 'x', subject: 's', body: 'b' }); }
 catch (e) { threw = e.message; }
 check('发送失败会抛出带错误码的异常', threw.indexOf('ALIYUN_DM_InvalidMailAddress') === 0, threw);
+
+/* 主接入点连不上时，自动回退到区域接入点 */
+let tried = [];
+globalThis.fetch = async (url) => {
+  tried.push(url);
+  if (tried.length === 1) throw new Error('getaddrinfo ENOTFOUND dm.aliyuncs.com');
+  return new Response(JSON.stringify({ RequestId: 'req-2' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+};
+const fallback = await sendViaAliyun(
+  { ALIYUN_DM_ACCESS_KEY_ID: 'id', ALIYUN_DM_ACCESS_KEY_SECRET: 'sec', ALIYUN_DM_ACCOUNT: 'a@b.com', ALIYUN_DM_REGION: 'ap-southeast-1' },
+  { to: 'x@y.com', subject: 's', body: 'b' }
+);
+check('主接入点连不上会回退到区域接入点', fallback.ok && tried.length === 2 && tried[1].indexOf('dm.ap-southeast-1.aliyuncs.com') >= 0, tried.join(' | '));
+
+/* 两个都连不上时给出可读错误 */
+globalThis.fetch = async () => { throw new Error('ENOTFOUND'); };
+let hardErr = '';
+try { await sendViaAliyun({ ALIYUN_DM_ACCESS_KEY_ID: 'id', ALIYUN_DM_ACCESS_KEY_SECRET: 'sec', ALIYUN_DM_ACCOUNT: 'a@b.com' }, { to: 'x@y.com', subject: 's', body: 'b' }); }
+catch (e) { hardErr = e.message; }
+check('两个接入点都失败时报错清楚', hardErr.indexOf('ALIYUN_DM_UNREACHABLE') === 0, hardErr);
 globalThis.fetch = realFetch;
 
 const failed = results.filter(r => !r[1]);
