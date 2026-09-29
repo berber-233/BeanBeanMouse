@@ -186,6 +186,9 @@ function mapServerInquiry(r) {
     payment: r.payment_term || '',
     message: r.message || '',
     attachments: [],
+    /* 询盘附带的买家名片（卖家在询盘里可直接查看） */
+    card: r.card || null,
+    cardName: r.card_name || '',
     createdAt: r.created_at,
     status: r.status,
     reply: '',
@@ -284,6 +287,19 @@ async function hydrateSessionData() {
   const isAdmin = state.user.role === 'admin';
   try {
     const jobs = [
+      /* 个人资料 + 名片：之前只写服务器、不回读，刷新后看不到自己填的内容 */
+      api.profile.get().then(p => {
+        if (!p || !p.userId) return;
+        state.profiles = state.profiles || {};
+        state.profiles[p.userId] = Object.assign({}, p.fields || {}, {
+          businessCard: p.card || null,
+          businessCardName: p.cardName || ''
+        });
+        if (state.user && state.user.id === p.userId && p.card) {
+          state.user.businessCard = p.card;
+          state.user.businessCardName = p.cardName || '';
+        }
+      }).catch(() => { /* 未登录等情况忽略 */ }),
       api.inquiries.list().then(rows => {
         state.inquiries = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerInquiry);
       }),
@@ -307,6 +323,32 @@ async function hydrateSessionData() {
     if (state.user.role === 'seller' || state.user.role === 'admin') {
       jobs.push(apiRequest('/promotions').then(rows => {
         state.promotions = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerPromotion);
+      }));
+    }
+    /* 企业认证 + 出口资质清单：只有卖家有这两块（买家调 /companies/mine 会 403） */
+    if (state.user.role === 'seller') {
+      const sid = state.user.sellerId || state.user.id;
+      jobs.push(api.companies.mine().then(c => {
+        state.companies = (state.companies || []).filter(x => x.sellerId !== sid);
+        if (c && c.id) {
+          state.companies.push({
+            id: c.id, sellerId: sid, userId: c.userId || c.user_id,
+            name: c.name, country: c.country, city: c.city || '',
+            registrationNo: c.registrationNo || c.registration_no || '',
+            licenseNo: c.licenseNo || c.license_no || '',
+            website: c.website || '', contact: c.contact || '',
+            businessScope: c.businessScope || c.business_scope || '',
+            status: c.status, rejectReason: c.rejectReason || c.reject_reason || '',
+            createdAt: c.createdAt || c.created_at
+          });
+        }
+        if (typeof syncVerification === 'function') { try { syncVerification(); } catch (e) { /* 忽略 */ } }
+      }));
+      jobs.push(api.exports.getReadiness(sid).then(r => {
+        const map = {};
+        ((r && r.items) || []).forEach(it => { if (it.done) map[it.id] = true; });
+        state.exportReadiness = state.exportReadiness || {};
+        state.exportReadiness[sid] = map;
       }));
     }
     if (isAdmin) {

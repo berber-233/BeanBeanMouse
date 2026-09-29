@@ -1013,10 +1013,14 @@ async function route(m, segs, q, req, res) {
       const contactEmail = String(body.email || (u ? u.email : '') || '').trim().slice(0, 120);
       const contactCompany = String(body.company || '').trim().slice(0, 120);
       const contactCountry = String(body.country || '').trim().slice(0, 60);
+      /* 名片：买家在询盘里附带时一起存下来，卖家点开询盘就能看到（原来是丢了） */
+      const card = body.card ? String(body.card).slice(0, 400000) : null;
+      const cardName = card ? String(body.cardName || 'business-card').slice(0, 120) : null;
       await run(
-        'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at, contact_name, contact_email, contact_company, contact_country) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at, contact_name, contact_email, contact_company, contact_country, card, card_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id, p.id, u ? u.id : null, qty, body.unit || 'pcs', body.payment || null, body.message, 'new', Date.now(),
-        contactName || null, contactEmail || null, contactCompany || null, contactCountry || null
+        contactName || null, contactEmail || null, contactCompany || null, contactCountry || null,
+        card, cardName
       );
       await audit(u ? u.id : null, 'inquiry.create', 'inquiry', id, body.message.slice(0, 80));
       const seller = await get('SELECT * FROM users WHERE id = ?', p.seller_id);
@@ -1831,6 +1835,13 @@ async function route(m, segs, q, req, res) {
       } else {
         await run('INSERT INTO profiles (user_id, account_type, job_title, company, country, contact, bio, biz_name, business_card, business_card_name, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
           u.id, vals.account_type, vals.job_title, vals.company, vals.country, vals.contact, vals.bio, vals.biz_name, vals.business_card, vals.business_card_name, Date.now());
+      }
+      /* 姓名是账号级字段（页头、询盘、名片都用它）：只写 profiles 不动 users，
+       * 用户改完名字刷新还是旧的——之前就是这个毛病。 */
+      const nextName = String(body.name != null ? body.name : (u.name || '')).trim().slice(0, 80);
+      if (nextName && nextName !== u.name) {
+        await run('UPDATE users SET name = ? WHERE id = ?', nextName, u.id);
+        await audit(u.id, 'profile.rename', 'user', u.id, nextName);
       }
       return send(res, 200, { ok: true });
     }

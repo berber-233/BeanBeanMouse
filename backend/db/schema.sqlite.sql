@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS inquiries (
   contact_email TEXT,
   contact_company TEXT,
   contact_country TEXT,
+  card TEXT,
+  card_name TEXT,
   status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','handled','quoted')),
   created_at INTEGER NOT NULL
 );

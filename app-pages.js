@@ -1423,7 +1423,7 @@ function openInquiryModal(pid) {
       + '</div></div>'
       + (hasBusinessCard() ? '<label class="checkbox-label send-card-label"><input type="checkbox" name="sendCard" value="1" checked>' + t('sendCard') + '</label>' : '')
       + '</div>' : '')
-    + '<div class="field attach-field"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
+    + '<div class="field attach-field needs-r2"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
     + '<input type="file" name="attachments" multiple accept="image/jpeg,image/png,image/gif,image/webp,.zip,.rar,.7z" data-attach-store="inquiry">'
     + '<div class="attach-preview"></div></div>'
     + '<div class="form-grid">'
@@ -1533,10 +1533,39 @@ function businessCardOf() {
   return state.user.businessCard || ((state.profiles || {})[state.user.id] || {}).businessCard || null;
 }
 function hasBusinessCard() { return !!businessCardOf(); }
+
+/* 名片图片先缩到合理尺寸再存：名片直接以图片数据存在个人资料里（不走对象存储），
+ * 原图动辄几 MB，压一下既省数据库也加载更快。 */
+function shrinkImageDataUrl(dataUrl, maxW, quality) {
+  return new Promise(resolve => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, (maxW || 900) / (img.width || 1));
+          const w = Math.max(1, Math.round((img.width || 1) * scale));
+          const h = Math.max(1, Math.round((img.height || 1) * scale));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          const ctx = cv.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const out = cv.toDataURL('image/jpeg', quality || 0.82);
+          /* 压缩后反而更大（例如本来就是小图）就用原图 */
+          resolve(out && out.length < dataUrl.length ? out : dataUrl);
+        } catch (e) { resolve(dataUrl); }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch (e) { resolve(dataUrl); }
+  });
+}
 async function saveBusinessCard(att) {
   if (!att || !att.dataUrl) return;
   try {
-    await api.profile.save({ businessCard: att.dataUrl, businessCardName: att.name });
+    const data = await shrinkImageDataUrl(att.dataUrl, 1000, 0.82);
+    await api.profile.save({ businessCard: data, businessCardName: att.name });
     toast('✓ ' + t('cardUploadBtn'));
     renderPage();
   } catch (e) { toast(e.message || String(e)); }
@@ -4626,7 +4655,7 @@ function inquiryItem(i) {
           + '</div>'
           + '<div class="field"><label>' + t('quoteNote') + '</label><textarea class="textarea" name="note" placeholder="' + t('replyPlaceholder') + '" style="min-height:54px"></textarea></div>'
           + '<div class="trans-preview"><span class="trans-label">' + icon('sparkle') + ' ' + t('translateLabel') + '</span><p data-trans-target="quoteNote' + i.id + '">—</p><div class="trans-note">' + t('translateNote') + '</div></div>'
-          + '<div class="field attach-field"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
+          + '<div class="field attach-field needs-r2"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
           + '<input type="file" name="attachments" multiple accept="image/jpeg,image/png,image/gif,image/webp,.zip,.rar,.7z" data-attach-store="quote:' + i.id + '">'
           + '<div class="attach-preview"></div></div>'
           + '<details class="doc-ref"><summary>' + icon('file') + ' ' + t('docReference') + '</summary>'
@@ -4803,7 +4832,7 @@ function renderPublishForm() {
     + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
     + '</select></div>'
     + '<div class="field"><label>' + t('chooseImage') + '</label><div class="palette">' + hueList.map(h => '<span class="swatch ' + (h === hue ? 'on' : '') + '" data-action="pick-hue" data-hue="' + h + '" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 48%),hsl(' + ((h + 45) % 360) + ' 55% 30%))"></span>').join('') + '</div></div>'
-    + '<div class="field full"><label>' + t('prodImgLabel') + ' <span class="hint">' + t('prodImgHint') + '</span></label>'
+    + '<div class="field full needs-r2"><label>' + t('prodImgLabel') + ' <span class="hint">' + t('prodImgHint') + '</span></label>'
     + '<input type="file" class="input" name="images" multiple accept="image/jpeg,image/png,image/webp" data-product-imgs>'
     + '<div id="productImgsWrap">' + productImgListHtml(p) + '</div></div>'
     + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'

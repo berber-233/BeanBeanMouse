@@ -44,7 +44,9 @@ ensureColumns('inquiries', {
   contact_name: 'TEXT',
   contact_email: 'TEXT',
   contact_company: 'TEXT',
-  contact_country: 'TEXT'
+  contact_country: 'TEXT',
+  card: 'TEXT',
+  card_name: 'TEXT'
 });
 ensureColumns('companies', {
   registration_no: 'TEXT',
