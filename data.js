@@ -60,6 +60,149 @@ function siteEntityDisplayName(lang) {
   return lang === 'zh' ? (SITE_ENTITY.name || SITE_ENTITY.nameEn) : (SITE_ENTITY.nameEn || SITE_ENTITY.name);
 }
 
+/* ============================================================================
+ * 法规/政策文本（用户协议、隐私政策、退换货、举报）
+ * 说明：内容按网站当前的真实做法编写（例如隐私政策里列的字段＝数据库里真实存的字段），
+ * 并统一标注"草案·待法务审定"——正式上线前请由专业人士复核后再去掉标注。
+ * 非中/英语言会按现有 i18n 兜底规则回退到英文。
+ * ========================================================================== */
+const LEGAL_UPDATED = '2026-09-30';
+const LEGAL_DOCS = {
+  terms: {
+    zh: {
+      title: '用户协议',
+      sections: [
+        { h: '1. 协议范围', ps: ['本协议是你与豆豆鼠 BeanBeanMouse（下称"本站"）之间就使用本站服务达成的约定。注册账号、提交询盘或使用任一功能，即表示你已阅读并同意本协议。'] },
+        { h: '2. 服务性质（重要）', ps: [
+          '本站是宠物用品的展示与询盘对接平台，我们自身也从事宠物用品出口业务。站内商品信息、图片、价格区间、MOQ 与交期均为要约邀请，不构成合同要约。',
+          '成交以双方另行确认的合同、形式发票或书面（含电子邮件）确认件为准，其中载明的品名、规格、数量、价格、贸易术语、付款方式与交期优先于本站页面信息。',
+          '在支付通道正式开通并另行公告条款前，本站不提供在线支付、担保交易或货款托管服务。'
+        ] },
+        { h: '3. 账号与注册', ps: [
+          '注册须使用真实有效的邮箱并完成邮箱验证；一个邮箱只能注册一个账号，不得转让、出借或买卖账号。',
+          '你有责任保管账号与密码。发现账号被盗用或存在安全风险，请立即联系我们。'
+        ] },
+        { h: '4. 行为规范', ps: ['你承诺不进行以下行为：批量或自动化注册、绕过人机验证与访问限制、发送垃圾询盘或虚假需求、上传违法或侵权内容、抓取或转载本站数据用于商业用途、干扰本站正常运行。'] },
+        { h: '5. 询盘、报价与订单', ps: [
+          '询盘仅表示采购意向，双方均无必须成交的义务。报价单上的有效期、贸易术语与付款方式为报价条件。',
+          '你提交的询盘内容与联系方式将由我们及对应供应商用于回复报价与履约沟通。'
+        ] },
+        { h: '6. 知识产权', ps: ['本站的页面设计、文案、吉祥物形象、名片模板等归本站或相应权利人所有。你上传的图片、名片与文字仍归你所有，但授权本站为展示与履约目的在站内使用。'] },
+        { h: '7. 免责与责任限制', ps: ['因不可抗力、网络故障、第三方服务（如域名解析、云托管、邮件发送、物流承运）中断造成的服务不可用或延误，本站不承担违约责任。在法律允许范围内，本站对间接损失、利润损失不承担责任。'] },
+        { h: '8. 服务变更与终止', ps: ['本站可基于运营与合规需要调整或暂停部分功能；对严重违规账号，我们可冻结或注销账号并保留追究责任的权利。'] },
+        { h: '9. 法律适用与争议解决', ps: ['本协议适用中华人民共和国法律。争议先友好协商；协商不成的解决方式（诉讼或仲裁、管辖地）以双方正式合同约定为准；无合同约定时依法处理。'] },
+        { h: '10. 联系我们', ps: ['对本协议有疑问，请通过页脚联系方式与我们联系。'] }
+      ]
+    },
+    en: {
+      title: 'Terms of Service',
+      sections: [
+        { h: '1. Scope', ps: ['These terms govern your use of the BeanBeanMouse website (the "Site"). By registering, sending an enquiry or using any feature, you accept them.'] },
+        { h: '2. Nature of the service (important)', ps: [
+          'The Site is a showcase and enquiry platform for pet products; we also export pet supplies ourselves. Listings, images, price ranges, MOQ and lead times are invitations to treat, not offers.',
+          'A sale is concluded only by a contract, proforma invoice or written (including email) confirmation agreed by both parties; the terms in that document prevail over page content.',
+          'Until payment channels are launched with separate terms, the Site does not provide online payment, escrow or fund custody.'
+        ] },
+        { h: '3. Accounts', ps: ['You must register with a valid email and complete email verification. One email, one account; accounts may not be transferred, lent or sold. You are responsible for keeping your password safe.'] },
+        { h: '4. Acceptable use', ps: ['You agree not to bulk-register, bypass bot protection or access limits, send spam or fake enquiries, upload unlawful or infringing content, scrape the Site for commercial use, or interfere with its operation.'] },
+        { h: '5. Enquiries, quotes and orders', ps: ['An enquiry expresses intent only and does not oblige either side to trade. Validity, Incoterms and payment terms stated in a quotation apply. Your enquiry content and contact details may be used by us and the relevant supplier to quote and fulfil.'] },
+        { h: '6. Intellectual property', ps: ['Site design, copy, mascot artwork and card templates belong to us or their owners. Content you upload remains yours, but you grant us a licence to display it on the Site for showcase and fulfilment purposes.'] },
+        { h: '7. Disclaimers and limits', ps: ['We are not liable for unavailability or delay caused by force majeure, network failures or third-party services (DNS, hosting, email delivery, carriers). To the extent permitted by law we exclude liability for indirect or consequential loss.'] },
+        { h: '8. Changes and termination', ps: ['We may change or suspend features for operational or compliance reasons, and may freeze or close accounts that seriously breach these terms.'] },
+        { h: '9. Governing law and disputes', ps: ["These terms are governed by the laws of the People's Republic of China. Disputes are first handled by friendly negotiation; failing that, the forum and mechanism stated in the signed contract apply."] },
+        { h: '10. Contact', ps: ['Questions about these terms: use the contact details in the footer.'] }
+      ]
+    }
+  },
+  privacy: {
+    zh: {
+      title: '隐私政策',
+      sections: [
+        { h: '1. 我们收集哪些信息', ps: [
+          '你主动提供：注册邮箱、姓名、密码（仅保存不可逆哈希，不保存明文）、身份类型（客户 / 商家）、公司名称与职务（选填）、国家、联系电话或社交账号、询盘内容与数量、上传的名片图片。',
+          '系统自动记录：注册时的来源 IP 与浏览器标识（User-Agent）、邮箱域名类型标记（免费邮箱 / 企业域名）、邮箱验证状态、最后登录时间、账号审核与冻结记录、关键操作审计日志。'
+        ] },
+        { h: '2. 用途', ps: ['用于创建与保护账号、回复询盘、完成报价与履约沟通、识别与拦截机器人/垃圾注册、安全审计与合规留痕，以及向你发送与账号相关的通知邮件。'] },
+        { h: '3. 存储与保存期限', ps: [
+          '数据存储在 Cloudflare（Pages Functions 与 D1 数据库），邮件通过阿里云邮件推送发送。',
+          '账号信息在账号存续期间保存；账号注销后 30 天内清理。审计日志与安全记录保存 12 个月。邮件发送记录保留 6 个月。'
+        ] },
+        { h: '4. 共享与第三方', ps: ['我们不会出售你的个人信息。为提供服务，必要的处理方包括：Cloudflare（网站托管、数据库、人机验证 Turnstile）、阿里云邮件推送（发送验证与通知邮件）。除此之外，仅在法律要求或你书面同意时提供。'] },
+        { h: '5. Cookie 与本地存储', ps: ['本站使用浏览器本地存储保存登录令牌、语言偏好与收藏列表；不使用广告追踪 Cookie。清除浏览器数据会退出登录并丢失收藏。'] },
+        { h: '6. 你的权利', ps: ['你可以随时在"个人信息"中查看与更正资料，或通过页脚联系方式请求查询、删除、注销账号与撤回同意；我们会在 15 个工作日内处理。'] },
+        { h: '7. 未成年人', ps: ['本站面向企业采购者与成年用户，不面向 16 岁以下未成年人；如发现相关数据，我们会尽快删除。'] },
+        { h: '8. 安全措施', ps: ['密码使用 PBKDF2 加盐哈希存储，登录采用签名令牌并支持修改密码后失效，注册与登录设有频率限制与人机验证，关键操作留有审计日志。'] },
+        { h: '9. 政策更新', ps: ['本政策如有更新会在本页公布并标注更新日期；重大变更会通过站内通知或邮件提示。'] }
+      ]
+    },
+    en: {
+      title: 'Privacy Policy',
+      sections: [
+        { h: '1. What we collect', ps: [
+          'Provided by you: registration email, name, password (stored only as an irreversible hash), account type (buyer/seller), company and job title (optional), country, phone or social contact, enquiry content and quantity, uploaded business card image.',
+          'Collected automatically: signup source IP and browser user agent, email domain category (free mailbox / corporate domain), email verification state, last login time, account review/freeze records and audit logs.'
+        ] },
+        { h: '2. Why we use it', ps: ['To create and protect accounts, answer enquiries, quote and fulfil orders, detect and block bot or spam registrations, keep security and compliance records, and send account-related notifications.'] },
+        { h: '3. Storage and retention', ps: ['Data is stored on Cloudflare (Pages Functions and D1); emails are sent via Alibaba Cloud DirectMail. Account data is kept while the account exists and removed within 30 days of deletion. Audit logs are kept 12 months; mail records 6 months.'] },
+        { h: '4. Sharing', ps: ['We do not sell personal data. Processors needed to run the service: Cloudflare (hosting, database, Turnstile verification) and Alibaba Cloud DirectMail (sending verification and notification email). Otherwise we share only when legally required or with your written consent.'] },
+        { h: '5. Cookies and local storage', ps: ['We use browser local storage for the session token, language preference and favourites. We do not use advertising cookies. Clearing browser data signs you out and clears favourites.'] },
+        { h: '6. Your rights', ps: ['You can view and correct your data in Profile, or request access, deletion, account closure or withdrawal of consent via the footer contacts. We respond within 15 working days.'] },
+        { h: '7. Minors', ps: ['The Site targets business buyers and adults, not children under 16. If such data is found it will be removed.'] },
+        { h: '8. Security', ps: ['Passwords use salted PBKDF2 hashing; sessions use signed tokens that are invalidated on password change; rate limits and bot verification protect registration and login; key actions are audited.'] },
+        { h: '9. Updates', ps: ['Changes to this policy are published here with a new date; significant changes are announced in-app or by email.'] }
+      ]
+    }
+  },
+  returns: {
+    zh: {
+      title: '退换货与售后政策',
+      sections: [
+        { h: '1. 适用范围', ps: ['本政策适用于跨境批发与定制（OEM/ODM）订单，不适用于面向终端消费者的零售订单；双方合同另有约定的，以合同为准。'] },
+        { h: '2. 质量标准与到货验收', ps: ['质量按合同、形式发票或双方确认样（凭样成交）执行。你应在收到货物后 7 个工作日内完成验收并提出书面异议，超期视为验收合格。'] },
+        { h: '3. 可受理的情形', ps: ['数量短少、错发型号、与确认样或规格书严重不符、运输导致的严重破损（承运人责任部分按保单与承运条款处理）。提出时请提供照片/视频、装箱单、提单与检验说明。'] },
+        { h: '4. 不予受理的情形', ps: ['定制/OEM 产品已按确认样生产；因你方原因（清关延误、市场滞销、存放不当、自行改装或二次加工）；已使用或超过异议期。'] },
+        { h: '5. 处理方式', ps: ['视情况采取补发、换货、折价或按比例退款；因我方责任产生的合理运费由我方承担，因你方原因产生的费用由你方承担。'] },
+        { h: '6. 处理流程与时限', ps: ['提交申请（含证据）→ 我们 3 个工作日内响应 → 双方确认方案与费用承担 → 执行并回执。跨境退运须遵守目的国与中国的海关规定。'] },
+        { h: '7. 争议解决', ps: ['优先协商解决；协商不成按双方合同约定的争议解决条款处理。'] },
+        { h: '8. 不可抗力', ps: ['因战争、自然灾害、疫情管制、港口罢工等不可抗力导致的延误或无法履行，双方互不承担违约责任，但应及时通知并提供证明。'] }
+      ]
+    },
+    en: {
+      title: 'Returns & After-sales Policy',
+      sections: [
+        { h: '1. Scope', ps: ['This policy covers cross-border wholesale and OEM/ODM orders, not consumer retail orders. Where a signed contract says otherwise, the contract prevails.'] },
+        { h: '2. Quality and inspection', ps: ['Quality follows the contract, proforma invoice or approved sample. You should inspect on arrival and raise written objections within 7 working days; later claims are treated as accepted.'] },
+        { h: '3. Accepted claims', ps: ['Short shipment, wrong item, material deviation from the approved sample/spec, or serious transit damage (carrier liability handled under the policy and carrier terms). Please attach photos/video, packing list, B/L and inspection notes.'] },
+        { h: '4. Not accepted', ps: ['OEM/custom goods produced to the approved sample; issues caused by you (customs delay, slow market, improper storage, modification); goods already used or claims beyond the objection window.'] },
+        { h: '5. Remedies', ps: ['Depending on the case: replacement, rework, price allowance or proportional refund. Reasonable freight caused by our fault is ours; costs caused by yours are yours.'] },
+        { h: '6. Process', ps: ['Submit a claim with evidence → we respond within 3 working days → both sides confirm remedy and cost sharing → execution and acknowledgement. Cross-border returns must follow destination and Chinese customs rules.'] },
+        { h: '7. Disputes', ps: ['Negotiation first; otherwise the dispute-resolution clause of the signed contract applies.'] },
+        { h: '8. Force majeure', ps: ['Neither party is liable for delay or non-performance caused by war, natural disaster, epidemic control, port strikes or similar force majeure, provided prompt notice and evidence are given.'] }
+      ]
+    }
+  },
+  report: {
+    zh: {
+      title: '违规举报',
+      sections: [
+        { h: '可以举报什么', ps: ['假冒或侵权商品信息、盗用他人图片/资料、诈骗或可疑收款要求、垃圾或骚扰信息、冒充本站或供应商身份的行为。'] },
+        { h: '请提供什么', ps: ['涉及的页面链接或账号邮箱、问题描述、截图或聊天记录、发生时间，以及你的联系方式（便于我们回复处理结果）。'] },
+        { h: '如何处理', ps: ['我们会在 3 个工作日内确认收到并开始核查；核实后视情况下架商品、冻结账号并保留审计记录；涉嫌违法的，转交相应主管机关。'] },
+        { h: '联系方式', ps: ['通过页脚的邮箱或微信联系我们；如涉及账号安全，请同时说明账号邮箱与最近登录时间。'] }
+      ]
+    },
+    en: {
+      title: 'Report Abuse',
+      sections: [
+        { h: 'What you can report', ps: ['Counterfeit or infringing listings, stolen images or data, fraud or suspicious payment requests, spam or harassment, and impersonation of the Site or a supplier.'] },
+        { h: 'What to include', ps: ['The page link or account email involved, a description, screenshots or chat logs, when it happened, and your contact details so we can reply.'] },
+        { h: 'How we handle it', ps: ['We acknowledge within 3 working days and start reviewing; verified cases may lead to listing removal, account freeze and audit records. Suspected crimes are referred to the competent authorities.'] },
+        { h: 'Contact', ps: ['Reach us via the email or WeChat in the footer. For account security issues, include the account email and last login time.'] }
+      ]
+    }
+  }
+};
+
 function pendingSeedProducts() {
   return [
     {
@@ -2203,6 +2346,11 @@ const I18N = {
   aboutContactPhone: '电话',
   aboutContactAddress: '地址',
   aboutContactNote: '微信 / 电话 / 地址待补充，当前可先通过邮箱联系，我们 1 个工作日内回复。',
+  legalUpdated: '最后更新',
+  legalDraftTitle: '草案 · 待法务审定',
+  legalDraftNote: '本文按网站当前的实际做法编写，正式上线前会交由专业人士复核并替换为正式版本；如与双方签署的合同冲突，以合同为准。',
+  legalEntityNote: '当前以个人身份提供展示与询盘服务；取得营业执照后，会在此公示主体名称、地址与统一社会信用代码。',
+  returnsPolicy: '退换货政策',
   askCtaTitle: '要采购宠物用品？',
   askCtaDesc: '告诉我们目标品类、采购量与目的国（或销售渠道），1 个工作日内给到批发报价与方案。',
   askCtaBtn: '开始询价',
@@ -2644,6 +2792,11 @@ const I18N = {
   aboutContactPhone: 'Phone',
   aboutContactAddress: 'Address',
   aboutContactNote: 'WeChat, phone and address will be added later. Email works today — we reply within one business day.',
+  legalUpdated: 'Last updated',
+  legalDraftTitle: 'Draft · pending legal review',
+  legalDraftNote: 'This document reflects how the site currently operates. It will be reviewed by a qualified professional and replaced with a final version before launch. Where it conflicts with a signed contract, the contract prevails.',
+  legalEntityNote: 'We currently provide the showcase and enquiry service as an individual; once a business licence is obtained, the registered name, address and credit code will be published here.',
+  returnsPolicy: 'Returns policy',
   askCtaTitle: 'Sourcing pet supplies?',
   askCtaDesc: 'Tell us the category, order quantity and destination country (or sales channel) — you get a wholesale quote and plan within one business day.',
   askCtaBtn: 'Request a quote',

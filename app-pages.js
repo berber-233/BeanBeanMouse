@@ -350,6 +350,7 @@ function render() {
   else if (path === '/admin-login') app.innerHTML = renderAdminLogin();
   else if (path === '/forgot-password') app.innerHTML = renderForgotPassword();
   else if (path === '/reset-password') app.innerHTML = renderResetPassword(params);
+  else if (path === '/terms' || path === '/privacy' || path === '/returns' || path === '/report') app.innerHTML = renderLegal(path.slice(1));
   else if (path.indexOf('/seller/') === 0) app.innerHTML = renderSellerPage(path.slice(8));
   else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) app.innerHTML = renderDashboard(path);
   else app.innerHTML = renderHome();
@@ -4075,6 +4076,36 @@ function renderLogin() {
 }
 
 /* ---------- 忘记密码 / 重置密码（邮件通道开通后自动生效）---------- */
+/* ---------- 法规/政策页（用户协议、隐私政策、退换货、举报）----------
+ * 内容集中在 data.js 的 LEGAL_DOCS；这里只负责渲染 + 统一标注"草案待法务审定"。 */
+function legalDoc(kind) {
+  const doc = (typeof LEGAL_DOCS !== 'undefined' ? LEGAL_DOCS : {})[kind];
+  if (!doc) return null;
+  return langObj(doc);
+}
+function renderLegal(kind) {
+  const doc = legalDoc(kind);
+  if (!doc) return renderHome();
+  document.title = doc.title + ' · BeanBeanMouse';
+  return '<div class="container page legal-page">'
+    + '<div class="legal-head"><h1>' + esc(doc.title) + '</h1>'
+    + '<p class="small muted">' + t('legalUpdated') + '：' + esc(typeof LEGAL_UPDATED !== 'undefined' ? LEGAL_UPDATED : '') + '</p></div>'
+    + '<div class="legal-draft">' + icon('shield') + '<div><b>' + t('legalDraftTitle') + '</b><p>' + t('legalDraftNote') + '</p></div></div>'
+    + '<div class="card panel legal-body">'
+    + (doc.sections || []).map(sec => '<section class="legal-sec"><h2>' + esc(sec.h) + '</h2>'
+        + (sec.ps || []).map(p => '<p>' + esc(p) + '</p>').join('') + '</section>').join('')
+    + '<div class="legal-foot"><b>' + t('aboutContactTitle') + '</b><p class="small muted">'
+    + esc(SITE_ENTITY.email) + ' · ' + esc(t('aboutContactWechat')) + ' ' + esc('beanbeanmouse') + ' · ' + esc(SITE_ENTITY.phone) + '</p>'
+    + '<p class="small muted">' + t('legalEntityNote') + '</p></div>'
+    + '</div>'
+    + '<p class="legal-back"><a href="#/login" data-nav="/" class="small">' + t('home') + '</a> · '
+    + ['terms', 'privacy', 'returns', 'report'].filter(k => k !== kind).map(k => {
+      const d = legalDoc(k);
+      return '<a href="#/' + k + '" data-nav="/' + k + '" class="small">' + esc(d ? d.title : k) + '</a>';
+    }).join(' · ') + '</p>'
+    + '</div>';
+}
+
 function authPageShell(title, desc, inner) {
   return '<div class="container login-page"><div class="login-card">'
     + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-icon.png" alt="BeanBeanMouse" width="58" height="58" decoding="async">'
