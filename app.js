@@ -63,6 +63,73 @@ window.addEventListener('hashchange', () => { try { closeModal(); } catch (e) { 
 window.addEventListener('resize', fitHeroTitle);
 render();
 
+/* ---------- 商品：服务器结构 → 前端结构（发布/编辑后复用，不必刷新页面） ---------- */
+const PET_ATTR_FALLBACK = (function () {
+  const base = {
+    'pet-hamster': { pets: ['hamster', 'small-pet'], petSize: 'small', material: '环保塑料' },
+    'pet-cat': { pets: ['cat'], petSize: 'medium', material: '实木 / 塑料' },
+    'pet-dog-small': { pets: ['dog-small'], petSize: 'small', material: '尼龙 / 网布' },
+    'pet-dog-large': { pets: ['dog-large'], petSize: 'large', material: '尼龙 / 橡胶' },
+    'pet-food': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: '食品级原料' },
+    'pet-grooming': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: 'ABS / 硅胶' },
+    'pet-toys': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: '食品级 TPR' },
+    'pet-travel': { pets: ['cat', 'dog-small'], petSize: 'medium', material: 'PC / ABS' }
+  };
+  const out = {};
+  for (const [k, v] of Object.entries(base)) { out[k] = v; out[k.replace('pet-', '')] = v; }
+  return out;
+})();
+function productToFrontend(p) {
+  const pick = (lang, key) => {
+    const tr = (p.translations && p.translations[lang]) || {};
+    const v = key === 'desc' ? (tr.desc || tr.description) : tr[key];
+    return v === undefined || v === null ? '' : v;
+  };
+  const sub = p.sub || '';
+  return {
+    id: p.id,
+    sellerId: p.sellerId || p.seller_id || 'bbm',
+    cat: p.cat || p.category || 'pet',
+    sub: sub,
+    country: p.country || 'CN',
+    priceMin: Number(p.priceMin) || 0,
+    priceMax: Number(p.priceMax) || 0,
+    moq: Number(p.moq) || 1,
+    unit: p.unit || 'pcs',
+    leadTime: Number(p.leadTime) || 15,
+    terms: Array.isArray(p.terms) ? p.terms : [],
+    certs: Array.isArray(p.certs) ? p.certs : [],
+    rating: typeof p.rating === 'number' ? p.rating : 4.6,
+    orders: typeof p.orders === 'number' ? p.orders : 0,
+    hue: typeof p.hue === 'number' ? p.hue : 32,
+    pets: (Array.isArray(p.pets) && p.pets.length) ? p.pets : ((PET_ATTR_FALLBACK[sub] || {}).pets || []),
+    petSize: p.petSize || (PET_ATTR_FALLBACK[sub] || {}).petSize || 'medium',
+    material: p.material || (PET_ATTR_FALLBACK[sub] || {}).material || '',
+    status: p.status || 'on',
+    hsCode: p.hsCode || p.hs_code || '',
+    addedAt: p.addedAt || p.created_at || 0,
+    en: { title: pick('en', 'title') || p.id, desc: pick('en', 'desc'), features: pick('en', 'features') || [] },
+    zh: { title: pick('zh', 'title') || pick('en', 'title') || p.id, desc: pick('zh', 'desc'), features: pick('zh', 'features') || [] }
+  };
+}
+/* 重新拉商品列表：发布/编辑/上下架/删除后调用，页面不用刷新就能看到结果 */
+async function hydrateProducts() {
+  if (typeof api === 'undefined' || !api.config || api.config.mode !== 'http') return false;
+  try {
+    const res = await api.products.list();
+    const items = Array.isArray(res) ? res : ((res && res.items) || []);
+    state.products = items.map(productToFrontend);
+    markServerReady('products');
+    renderPage();
+    return true;
+  } catch (e) {
+    console.warn('[hydrate] 商品刷新失败：' + (e && e.message));
+    markServerReady('products');
+    return false;
+  }
+}
+window.hydrateProducts = hydrateProducts;
+
 /* ---------- 后端驱动（pet0.2）----------
  * http 模式下用服务器商品替换本地演示种子，让目录真正来自 D1。
  * 安全兜底：只有拿到足够数量的商品才替换；任何异常/数量不足都保留本地种子，
@@ -78,52 +145,6 @@ render();
       renderPage();
     }
   }).catch(() => { /* 拿不到就按未开通处理 */ });
-  const MIN_EXPECTED = 8;
-  const txt = (p, lang, key) => {
-    const t = (p.translations && p.translations[lang]) || {};
-    const v = key === 'desc' ? (t.desc || t.description) : t[key];
-    return v === undefined || v === null ? '' : v;
-  };
-  const toFrontend = p => ({
-    id: p.id,
-    sellerId: p.sellerId || p.seller_id || 'bbm',
-    cat: p.cat || p.category || 'pet',
-    sub: p.sub || '',
-    country: p.country || 'CN',
-    priceMin: Number(p.priceMin) || 0,
-    priceMax: Number(p.priceMax) || 0,
-    moq: Number(p.moq) || 1,
-    unit: p.unit || 'pcs',
-    leadTime: Number(p.leadTime) || 15,
-    terms: Array.isArray(p.terms) ? p.terms : [],
-    certs: Array.isArray(p.certs) ? p.certs : [],
-    rating: typeof p.rating === 'number' ? p.rating : 4.6,
-    orders: typeof p.orders === 'number' ? p.orders : 0,
-    hue: typeof p.hue === 'number' ? p.hue : 32,
-    pets: (Array.isArray(p.pets) && p.pets.length) ? p.pets : ((PET_ATTR_FALLBACK[p.sub] || {}).pets || []),
-    petSize: p.petSize || (PET_ATTR_FALLBACK[p.sub] || {}).petSize || 'medium',
-    material: p.material || (PET_ATTR_FALLBACK[p.sub] || {}).material || '',
-    status: p.status || 'on',
-    en: { title: txt(p, 'en', 'title') || p.id, desc: txt(p, 'en', 'desc'), features: txt(p, 'en', 'features') || [] },
-    zh: { title: txt(p, 'zh', 'title') || txt(p, 'en', 'title') || p.id, desc: txt(p, 'zh', 'desc'), features: txt(p, 'zh', 'features') || [] }
-  });
-  /* 服务器表结构里没有 pets/petSize/material，按细分推导，避免线上所有商品都显示默认值 */
-  const PET_ATTR_FALLBACK = (function () {
-    const base = {
-      'pet-hamster': { pets: ['hamster', 'small-pet'], petSize: 'small', material: '环保塑料' },
-      'pet-cat': { pets: ['cat'], petSize: 'medium', material: '实木 / 塑料' },
-      'pet-dog-small': { pets: ['dog-small'], petSize: 'small', material: '尼龙 / 网布' },
-      'pet-dog-large': { pets: ['dog-large'], petSize: 'large', material: '尼龙 / 橡胶' },
-      'pet-food': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: '食品级原料' },
-      'pet-grooming': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: 'ABS / 硅胶' },
-      'pet-toys': { pets: ['cat', 'dog-small', 'dog-large'], petSize: 'medium', material: '食品级 TPR' },
-      'pet-travel': { pets: ['cat', 'dog-small'], petSize: 'medium', material: 'PC / ABS' }
-    };
-    /* 细分 id 在服务器上可能不带 pet- 前缀，两种都兜住 */
-    const out = {};
-    for (const [k, v] of Object.entries(base)) { out[k] = v; out[k.replace('pet-', '')] = v; }
-    return out;
-  })();
   /* 先用令牌确认"我是谁"：避免本地残留的账号信息与令牌不匹配 */
   if (state.token) {
     api.auth.me().then(u => {
@@ -148,19 +169,8 @@ render();
     render();
   }
 
-  api.products.list().then(res => {
-    /* api.products.list() 在 http 模式直接返回数组；兼容两种返回形态 */
-    const items = Array.isArray(res) ? res : ((res && res.items) || []);
-    /* 线上只信服务器：商品少（甚至为 0）也照实显示，不再退回本地演示目录 */
-    state.products = items.map(toFrontend);
-    if (items.length < MIN_EXPECTED) console.warn('[hydrate] 服务器商品仅 ' + items.length + ' 款');
-    markServerReady('products');
-    render();
-    console.log('[hydrate] 已切换到服务器商品：' + items.length + ' 款');
-  }).catch(e => {
-    console.warn('[hydrate] 商品拉取失败：' + (e && e.message));
-    markServerReady('products');
-  });
+  /* 线上只信服务器：商品少（甚至为 0）也照实显示，不再退回本地演示目录 */
+  hydrateProducts().then(ok => { if (ok) console.log('[hydrate] 已切换到服务器商品'); });
 })();
 
 /* ---------- 登录范围内的真实数据（pet0.2 接线）----------

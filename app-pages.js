@@ -4330,6 +4330,8 @@ function renderAdminDash(path) {
   const tabs = [
     { tab: 'overview', icon: 'chart', label: t('adminOverview') },
     { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: (state.inquiries || []).filter(i => i.status === 'new').length || null },
+    { tab: 'products', icon: 'box', label: t('productManage') },
+    { tab: 'publish', icon: 'plus', label: t('publish') },
     { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
     { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
     { tab: 'promo', icon: 'sparkle', label: t('promoAdmin'), count: (state.promotions || []).filter(r => r.status === 'pending').length || null },
@@ -4342,6 +4344,8 @@ function renderAdminDash(path) {
   ];
   let body = '';
   if (activeTab === 'inquiries') body = adminInquiriesBody();
+  else if (activeTab === 'products') body = adminProductsBody();
+  else if (activeTab === 'publish') body = renderPublishForm();
   else if (activeTab === 'review') body = adminReviewBody();
   else if (activeTab === 'verify') body = adminVerifyBody();
   else if (activeTab === 'promo') body = adminPromoBody();
@@ -4551,6 +4555,32 @@ function adminUsersBody() {
 }
 /* 客户询盘：管理员视角能看到全部询盘并直接报价回复（此前管理端根本没有这个入口，
  * 客户在首页"直接问我"发来的需求就无处可看）。 */
+/* 商品管理（管理员视角）：自营模式下由管理员直接发布/编辑/上下架商品 */
+function adminProductsBody() {
+  const rows = (state.products || []).slice().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  const pill = st => st === 'on' ? ['live', t('onShelfLabel')] : st === 'pending' ? ['pend', t('pendingLabel')] : st === 'rejected' ? ['rej', t('rejectedLabel')] : ['off', t('offShelfLabel')];
+  return '<div class="card panel"><div class="panel-head"><h2>' + t('productManage') + '</h2>'
+    + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('totalProducts') + '</span>'
+    + '<a class="btn btn-sm btn-primary" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + ' ' + t('publish') + '</a></span></div>'
+    + (rows.length
+      ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('regName') + '</th><th>' + t('quotePrice') + '</th><th>MOQ</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
+        + rows.map(p => {
+          const st = pill(p.status);
+          return '<tr>'
+            + '<td><div class="prod-cell"><img src="' + productImg(p, 60, 45) + '" alt=""><span class="t">' + esc(langObj(p).title || p.id) + '</span></div></td>'
+            + '<td>$' + fmtPrice(p.priceMin) + (p.priceMax > p.priceMin ? '–' + fmtPrice(p.priceMax) : '') + '</td>'
+            + '<td>' + p.moq + ' ' + esc(p.unit) + '</td>'
+            + '<td><span class="status-pill ' + st[0] + '">' + st[1] + '</span></td>'
+            + '<td class="nowrap">'
+            + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + t('edit') + '</button> '
+            + '<button type="button" class="btn btn-sm" data-action="toggle-status" data-id="' + p.id + '">' + (p.status === 'off' ? t('onShelfLabel') : t('offShelfLabel')) + '</button> '
+            + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="delete-product" data-id="' + p.id + '">' + t('delete') + '</button>'
+            + '</td></tr>';
+        }).join('')
+        + '</tbody></table></div>'
+      : '<div class="empty-state" style="padding:36px"><p>' + t('noProducts') + '</p></div>')
+    + '</div>';
+}
 function adminInquiriesBody() {
   const rows = (state.inquiries || []).slice().sort((a, b) => b.createdAt - a.createdAt);
   const fresh = rows.filter(i => i.status === 'new').length;
@@ -4914,6 +4944,21 @@ function submitProduct(f) {
     zh: { title: titleZh, desc: descZh, features: [] },
     rating: 0, orders: 0
   };
+  /* 线上：真正提交到服务器（以前只改浏览器本地，刷新就没了） */
+  if (api.config.mode === 'http') {
+    return (async () => {
+      try {
+        if (id) await api.products.update(id, data);
+        else await api.products.create(data);
+        toast(t('productSubmitted'));
+        if (typeof hydrateProducts === 'function') await hydrateProducts();
+        if (typeof hydrateSessionData === 'function') await hydrateSessionData();
+        go('/dashboard/products');
+      } catch (e) {
+        toast(e.message || String(e));
+      }
+    })();
+  }
   if (id) {
     const p = productById(id);
     Object.assign(p, data);
@@ -4934,6 +4979,12 @@ function submitProduct(f) {
 
 function deleteProduct(id) {
   if (!confirm(t('deleteConfirm'))) return;
+  if (api.config.mode === 'http') {
+    api.products.remove(id)
+      .then(() => { toast(t('productDeleted')); return (typeof hydrateProducts === 'function') ? hydrateProducts() : null; })
+      .catch(e => toast(e.message || String(e)));
+    return;
+  }
   state.products = state.products.filter(p => p.id !== id);
   saveState();
   toast(t('productDeleted'));
@@ -4943,9 +4994,16 @@ function deleteProduct(id) {
 function toggleStatus(id) {
   const p = productById(id);
   if (!p) return;
-  p.status = p.status === 'off' ? 'on' : 'off';
+  const next = p.status === 'off' ? 'on' : 'off';
+  if (api.config.mode === 'http') {
+    api.products.setStatus(id, next)
+      .then(() => { toast(next === 'off' ? t('productOff') : t('productOn')); return (typeof hydrateProducts === 'function') ? hydrateProducts() : null; })
+      .catch(e => toast(e.message || String(e)));
+    return;
+  }
+  p.status = next;
   saveState();
-  toast(p.status === 'off' ? t('productOff') : t('productOn'));
+  toast(next === 'off' ? t('productOff') : t('productOn'));
   renderPage();
 }
 

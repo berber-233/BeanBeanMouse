@@ -904,12 +904,87 @@ async function route(m, segs, q, req, res) {
         randomUUID(), id, antiFakeCode(id, u.id, enTitle), 'B' + new Date().getFullYear(), 'active', now, 0
       );
       await audit(u.id, 'product.create', 'product', id, enTitle);
+      /* 管理员发布＝平台自营：直接上架（自己审自己没意义）；卖家发布仍需审核 */
+      if (u.role === 'admin') await run('UPDATE products SET status = ? WHERE id = ?', 'on', id);
       return send(res, 201, await productView(await get('SELECT * FROM products WHERE id = ?', id)));
     }
     if (b && m === 'GET') {
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
       return send(res, 200, await productView(p));
+    }
+    /* 编辑商品：卖家改完重新走审核；管理员直接生效（自营） */
+    if (b && m === 'PUT') {
+      const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const p = await get('SELECT * FROM products WHERE id = ?', b);
+      if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能修改自己的产品');
+      const body = await readBody(req);
+      const trs = body.translations || {};
+      if (!body.category || !body.country || !trs.en || !trs.zh) {
+        return fail(res, 400, 'VALIDATION', 'category/country/translations(en,zh) 为必填');
+      }
+      const priceMin = toNum(body.priceMin, 0);
+      const priceMax = toNum(body.priceMax, 0);
+      if (!(priceMin >= 0) || !(priceMax >= priceMin)) return fail(res, 400, 'VALIDATION', '价格区间不合法');
+      const moq = Math.max(1, Math.round(toNum(body.moq, 1)));
+      const leadTime = Math.max(1, Math.round(toNum(body.leadTime, 15)));
+      const now = Date.now();
+      const nextStatus = u.role === 'admin'
+        ? (body.status && ['on', 'off', 'pending', 'draft'].includes(body.status) ? body.status : p.status)
+        : 'pending';
+      await run(
+        'UPDATE products SET category=?, sub=?, hs_code=?, country=?, price_min=?, price_max=?, moq=?, unit=?, lead_time=?, terms=?, certs=?, src_lang=?, status=?, reject_reason=NULL, updated_at=? WHERE id=?',
+        body.category, String(body.sub || '').slice(0, 40), String(body.hsCode || '').slice(0, 40), body.country,
+        priceMin, priceMax, moq, String(body.unit || 'pcs').slice(0, 20), leadTime,
+        JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
+        nextStatus, now, p.id
+      );
+      for (const lang of Object.keys(trs)) {
+        const exist = await get('SELECT id FROM product_translations WHERE product_id = ? AND lang = ?', p.id, lang);
+        if (exist) {
+          await run('UPDATE product_translations SET title=?, description=?, features=?, updated_at=? WHERE id=?',
+            trs[lang].title || '', trs[lang].description || '', JSON.stringify(trs[lang].features || []), now, exist.id);
+        } else {
+          await run('INSERT INTO product_translations (id, product_id, lang, title, description, features, updated_at) VALUES (?,?,?,?,?,?,?)',
+            randomUUID(), p.id, lang, trs[lang].title || '', trs[lang].description || '', JSON.stringify(trs[lang].features || []), now);
+        }
+      }
+      await audit(u.id, 'product.update', 'product', p.id, 'status=' + nextStatus);
+      return send(res, 200, await productView(await get('SELECT * FROM products WHERE id = ?', p.id)));
+    }
+    /* 上架 / 下架 */
+    if (b && c === 'status' && m === 'POST') {
+      const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const p = await get('SELECT * FROM products WHERE id = ?', b);
+      if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能操作自己的产品');
+      const body = await readBody(req);
+      const next = body.status === 'on' ? 'on' : 'off';
+      /* 待审核/被驳回的商品只有管理员能直接上架 */
+      if (next === 'on' && u.role !== 'admin' && !['on', 'off'].includes(p.status)) {
+        return fail(res, 400, 'INVALID_STATUS', '商品还没通过审核，不能自己上架');
+      }
+      await run('UPDATE products SET status = ?, updated_at = ? WHERE id = ?', next, Date.now(), p.id);
+      await audit(u.id, next === 'on' ? 'product.on' : 'product.off', 'product', p.id, '');
+      return send(res, 200, { ok: true, id: p.id, status: next });
+    }
+    /* 删除商品：已经被询盘引用的不能删（会让历史询盘对不上），提示改下架 */
+    if (b && m === 'DELETE') {
+      const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const p = await get('SELECT * FROM products WHERE id = ?', b);
+      if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能删除自己的产品');
+      const used = (await get('SELECT COUNT(*) AS c FROM inquiries WHERE product_id = ?', p.id)).c;
+      if (used > 0) return fail(res, 409, 'PRODUCT_IN_USE', '该商品已有 ' + used + ' 条询盘记录，不能删除；请改为"下架"');
+      await run('DELETE FROM product_translations WHERE product_id = ?', p.id);
+      await run('DELETE FROM anti_fake_codes WHERE product_id = ?', p.id);
+      await run('DELETE FROM products WHERE id = ?', p.id);
+      await audit(u.id, 'product.delete', 'product', p.id, '');
+      return send(res, 200, { ok: true, id: p.id });
     }
     if (b && c === 'review' && m === 'POST') {
       const u = await requireAuth(res, req, ['admin']);

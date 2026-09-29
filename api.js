@@ -233,6 +233,31 @@ api.auth = {
 /* ============================================================
  * 服务：产品
  * ============================================================ */
+/* 前端商品对象（cat / en / zh）→ 服务端结构（category / translations）：
+ * 两边字段名历史上不一致，统一在这里转换，避免每个调用点各写一遍。 */
+function toServerProduct(p = {}) {
+  const en = p.en || {};
+  const zh = p.zh || {};
+  return {
+    category: p.category || p.cat || 'pet',
+    sub: p.sub || '',
+    hsCode: p.hsCode || '',
+    country: p.country || 'CN',
+    priceMin: Number(p.priceMin) || 0,
+    priceMax: Number(p.priceMax) || 0,
+    moq: Number(p.moq) || 1,
+    unit: p.unit || 'pcs',
+    leadTime: Number(p.leadTime) || 15,
+    terms: Array.isArray(p.terms) ? p.terms : [],
+    certs: Array.isArray(p.certs) ? p.certs : [],
+    srcLang: p.srcLang || 'en',
+    status: p.status,
+    translations: {
+      en: { title: en.title || '', description: en.desc || en.description || '', features: en.features || [] },
+      zh: { title: zh.title || '', description: zh.desc || zh.description || '', features: zh.features || [] }
+    }
+  };
+}
 api.products = {
   async list({ kw, cat, min, max, origin, includeOffline = false } = {}) {
     if (api.config.mode === 'http') {
@@ -265,7 +290,7 @@ api.products = {
     return apiClone(p);
   },
   async create(payload) {
-    if (api.config.mode === 'http') return apiRequest('/products', { method: 'POST', body: payload });
+    if (api.config.mode === 'http') return apiRequest('/products', { method: 'POST', body: toServerProduct(payload) });
     await apiDelay();
     const st = mockState();
     const sellerId = st.user && st.user.sellerId ? st.user.sellerId : 's1';
@@ -280,6 +305,36 @@ api.products = {
     st.products.unshift(prod);
     mockSave(st);
     return apiClone(prod);
+  },
+  async update(id, payload) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id), { method: 'PUT', body: toServerProduct(payload) });
+    await apiDelay();
+    const st = mockState();
+    const p = st.products.find(x => x.id === id);
+    if (!p) throw new Error('NOT_FOUND');
+    Object.assign(p, apiClone(payload));
+    p.status = 'pending';
+    mockSave(st);
+    return apiClone(p);
+  },
+  /* 上架 / 下架 */
+  async setStatus(id, status) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } });
+    await apiDelay();
+    const st = mockState();
+    const p = st.products.find(x => x.id === id);
+    if (!p) throw new Error('NOT_FOUND');
+    p.status = status === 'on' ? 'on' : 'off';
+    mockSave(st);
+    return apiClone(p);
+  },
+  async remove(id) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.products = (st.products || []).filter(p => p.id !== id);
+    mockSave(st);
+    return { ok: true };
   },
   async review(id, { action, reason } = {}) {
     if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id) + '/review', { method: 'POST', body: { action, reason } });
