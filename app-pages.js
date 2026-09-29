@@ -638,6 +638,15 @@ function renderAbout() {
         return '<li><span class="contact-k">' + t(x.k) + '</span>' + val + '</li>';
       }).join('') + '</ul>'
     + '<p class="small muted">' + t('aboutContactNote') + '</p>'
+    /* 运营主体：没注册就如实说明，不编公司名（这也是买家/平台会核对的信息） */
+    + '<h2 class="about-sub">' + t('aboutEntityTitle') + '</h2>'
+    + (siteEntityFilled()
+      ? '<ul class="contact-list">'
+        + '<li><span class="contact-k">' + t('aboutEntityName') + '</span><span>' + esc(siteEntityDisplayName(state.lang)) + '</span></li>'
+        + (SITE_ENTITY.city ? '<li><span class="contact-k">' + t('aboutContactAddress') + '</span><span>' + esc([SITE_ENTITY.city, SITE_ENTITY.address].filter(Boolean).join(' ')) + '</span></li>' : '')
+        + (SITE_ENTITY.taxId ? '<li><span class="contact-k">' + t('aboutEntityTaxId') + '</span><span>' + esc(SITE_ENTITY.taxId) + '</span></li>' : '')
+        + '</ul>'
+      : '<p class="small muted">' + t('aboutEntityPending') + '</p>')
     + '</div></section>'
     + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
     + '<div class="promise-grid">' + [
@@ -4722,6 +4731,12 @@ function buildDoc(i, type) {
   const p = productById(i.productId);
   if (!p || !i.quote) return '';
   const seller = sellerOf(p);
+  /* 开单据的一方：有营业执照就用执照名称，没有就写品牌名 + "主体信息待补充"，
+   * 绝不套用演示数据里的"某公司 / 杭州"这种编造信息。 */
+  const issuerName = siteEntityDisplayName(state.lang);
+  const issuerSub = siteEntityFilled()
+    ? [SITE_ENTITY.city, countryName(SITE_ENTITY.country)].filter(Boolean).join(', ')
+    : t('docIssuerPending');
   const q = i.quote;
   const lang = state.lang;
   const title = type === 'proforma' ? t('docProforma') : t('docQuotation');
@@ -4729,7 +4744,7 @@ function buildDoc(i, type) {
   const dateFmt = ts => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
   return '<div class="doc" id="docSheet">'
     + '<div class="doc-head">'
-    + '<div class="doc-brand"><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div><div class="doc-web">BeanBeanMouse</div></div>'
+    + '<div class="doc-brand"><b>' + esc(issuerName) + '</b><div>' + esc(issuerSub) + '</div><div class="doc-web">BeanBeanMouse</div></div>'
     + '<div class="doc-title"><h2>' + esc(title) + '</h2><div>DOCUMENT · ' + t('quoteBlock') + '</div></div>'
     + '</div>'
     + '<div class="doc-meta">'
@@ -4739,7 +4754,7 @@ function buildDoc(i, type) {
     + '<span><b>' + t('docCurrency') + '</b></span>'
     + '</div>'
     + '<div class="doc-parties">'
-    + '<div><div class="doc-party-label">' + t('docSeller') + '</div><b>' + esc(seller[lang].company) + '</b><div>' + esc(seller[lang].city) + ', ' + countryName(seller.country) + '</div></div>'
+    + '<div><div class="doc-party-label">' + t('docSeller') + '</div><b>' + esc(issuerName) + '</b><div>' + esc(issuerSub) + '</div></div>'
     + '<div><div class="doc-party-label">' + t('docBuyer') + '</div><b>' + esc(i.name) + '</b><div>' + esc(i.company || '—') + '</div><div>' + esc(i.email) + '</div></div>'
     + '</div>'
     + '<table class="doc-table">'

@@ -75,8 +75,8 @@ function l10nAttrs(id, key, srcLang, srcText) {
   return ' data-l10n="' + id + ':' + key + ':' + srcLang + '" data-l10n-text="' + esc(srcText) + '"';
 }
 
-/* 商务合作邮箱（试验阶段联系方式；正式运营前替换为运营邮箱） */
-const SITE_PARTNER_EMAIL = '694113406@qq.com';
+/* 商务合作邮箱：对外统一用这个（不再暴露个人 QQ 邮箱） */
+const SITE_PARTNER_EMAIL = 'beanbeanmouse.trade@outlook.com';
 const TRIAL_DISMISS_KEY = 'bbm_trial_dismissed_v1';
 function initTrialBanner() {
   const el = document.getElementById('trialBanner');

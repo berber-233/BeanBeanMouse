@@ -38,6 +38,28 @@ const SELLERS = [
   }
 ];
 
+/* 运营主体信息（唯一配置点）
+ * 为什么留空：没注册公司/个体户也能先把网站跑起来——但页面与单据上
+ * 绝不能编一个公司名和地址（编了才是真正的风险）。留空时前台会显示
+ * "主体信息待补充"，办好营业执照后只改这一处即可全站生效。 */
+const SITE_ENTITY = {
+  type: '',                       // 'company'（有限公司）/ 'sole'（个体户）/ ''（尚未注册）
+  name: '',                       // 营业执照名称（中文）
+  nameEn: '',                     // 英文名（单据用，如 NOT REGISTERED YET 则留空）
+  city: '',                       // 城市（英文单据说拼音，如 Ningbo）
+  address: '',                    // 详细地址
+  taxId: '',                      // 统一社会信用代码
+  country: 'CN',
+  contact: '',                    // 对外联系人姓名
+  phone: '13725078850',
+  email: 'beanbeanmouse.trade@outlook.com'
+};
+function siteEntityFilled() { return !!(SITE_ENTITY.name || SITE_ENTITY.nameEn); }
+function siteEntityDisplayName(lang) {
+  if (!siteEntityFilled()) return lang === 'zh' ? '豆豆鼠 BeanBeanMouse' : 'BeanBeanMouse';
+  return lang === 'zh' ? (SITE_ENTITY.name || SITE_ENTITY.nameEn) : (SITE_ENTITY.nameEn || SITE_ENTITY.name);
+}
+
 function pendingSeedProducts() {
   return [
     {
@@ -2171,6 +2193,11 @@ const I18N = {
   aboutMore: '了解我们',
   aboutContactTitle: '联系方式',
   aboutPending: '待补充',
+  aboutEntityTitle: '运营主体',
+  aboutEntityName: '主体名称',
+  aboutEntityTaxId: '统一社会信用代码',
+  aboutEntityPending: '主体信息待补充：目前以个人身份提供展示与询盘服务，营业执照（公司或个体户）办下来后我们会在这里公示名称、地址与统一社会信用代码。在此之前，正式合同、发票与收款均以双方另行确认的主体为准。',
+  docIssuerPending: '主体信息待补充（正式合同/发票以最终主体为准）',
   aboutContactEmail: '邮箱',
   aboutContactWechat: '微信',
   aboutContactPhone: '电话',
@@ -2607,6 +2634,11 @@ const I18N = {
   aboutMore: 'More about us',
   aboutContactTitle: 'Contact',
   aboutPending: 'To be added',
+  aboutEntityTitle: 'Legal entity',
+  aboutEntityName: 'Registered name',
+  aboutEntityTaxId: 'Unified social credit code',
+  aboutEntityPending: 'Entity details to be added: we currently provide the showcase and enquiry service as an individual. Once a business licence (company or sole proprietorship) is in place, the registered name, address and credit code will be published here. Until then, formal contracts, invoices and payments are subject to the entity confirmed by both parties.',
+  docIssuerPending: 'Issuer details to be added (final contract / invoice issued by the registered entity)',
   aboutContactEmail: 'Email',
   aboutContactWechat: 'WeChat',
   aboutContactPhone: 'Phone',
