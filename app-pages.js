@@ -4979,8 +4979,18 @@ function submitProduct(f) {
   if (api.config.mode === 'http') {
     return (async () => {
       try {
-        if (id) await api.products.update(id, data);
-        else await api.products.create(data);
+        /* 先上传选中的商品图片（走对象存储），再把 fileId 挂到商品上 */
+        let uploadedIds = [];
+        if (productImgFiles.length && typeof api.files.upload === 'function') {
+          for (const f of productImgFiles.slice(0, 8)) {
+            try { const r = await api.files.upload(f); if (r && r.id) uploadedIds.push(r.id); }
+            catch (e) { toast((e && e.message) || String(e)); }
+          }
+        }
+        const saved = id ? await api.products.update(id, data) : await api.products.create(data);
+        const pid = (saved && (saved.id || (saved.product && saved.product.id))) || id;
+        if (pid && uploadedIds.length) await api.products.addImages(pid, uploadedIds);
+        productImgFiles.length = 0;
         toast(t('productSubmitted'));
         if (typeof hydrateProducts === 'function') await hydrateProducts();
         if (typeof hydrateSessionData === 'function') await hydrateSessionData();

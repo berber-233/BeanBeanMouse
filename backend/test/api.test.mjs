@@ -651,6 +651,28 @@ let catReqId;
 }
 
 /* ---- 忘记密码：邮件重置全流程（放最后，因为它会让该账号旧令牌失效） ---- */
+/* ---- 商品图片：上传文件 → 挂到商品 → 公开可读 → 摘除 ---- */
+{
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const up = await req('/files', { method: 'POST', token: adminToken, body: { data: png, mime: 'image/png', filename: 'probe.png' } });
+  check('上传商品图片 -> 201', up.status === 201 && !!up.data.id);
+  const fileId = up.data && up.data.id;
+  if (fileId) {
+    const attach = await req('/products/p1/images', { method: 'POST', token: adminToken, body: { fileIds: [fileId] } });
+    check('把图片挂到商品 -> 200 且 images 有记录', attach.status === 200 && Array.isArray(attach.data.images) && attach.data.images.length >= 1);
+    const imgUrl = attach.data.images[0].url;
+    const served = await fetch(base + imgUrl);
+    check('商品图可公开访问（无需登录）', served.status === 200 && /image\/png/.test(served.headers.get('content-type') || ''));
+    const detail = await req('/products/p1');
+    check('商品详情带 images 字段', Array.isArray(detail.data.images) && detail.data.images.length >= 1);
+    const imgId = attach.data.images[0].id;
+    const rm = await req('/products/p1/images/' + imgId, { method: 'DELETE', token: adminToken });
+    check('摘除商品图 -> 200', rm.status === 200);
+  }
+  const bad = await req('/products/p1/images', { method: 'POST', token: adminToken, body: { fileIds: ['not-exist'] } });
+  check('挂不存在的文件被拒', bad.status === 400);
+}
+
 {
   const ready = await req('/auth/mail-ready');
   check('mail-ready 报告邮件通道就绪', ready.status === 200 && ready.data.ready === true);

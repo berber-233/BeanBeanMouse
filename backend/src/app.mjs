@@ -415,6 +415,8 @@ async function productView(row) {
   }
   const code = await get('SELECT code FROM anti_fake_codes WHERE product_id = ?', row.id);
   const promo = await get('SELECT id FROM promotion_requests WHERE product_id = ? AND status = ?', row.id, 'approved');
+  /* 商品图片：关系在 product_images，文件本体在对象存储；这里只回可访问的 URL */
+  const imgRows = await all('SELECT id, file_id FROM product_images WHERE product_id = ? ORDER BY sort ASC, created_at ASC', row.id);
   return {
     ...row,
     /* 前端按 sellerId 归属商品（卖家工作台靠它筛选"我的产品"）；
@@ -424,7 +426,8 @@ async function productView(row) {
     certs: safeJson(row.certs, []),
     translations,
     antiFakeCode: code ? code.code : null,
-    promoted: !!promo
+    promoted: !!promo,
+    images: imgRows.map(x => ({ id: x.id, fileId: x.file_id, url: '/files/' + x.file_id }))
   };
 }
 
@@ -971,6 +974,38 @@ async function route(m, segs, q, req, res) {
       await audit(u.id, next === 'on' ? 'product.on' : 'product.off', 'product', p.id, '');
       return send(res, 200, { ok: true, id: p.id, status: next });
     }
+    /* 商品图片：把已上传的文件挂到商品上（文件先走 /files 上传） */
+    if (b && c === 'images' && m === 'POST') {
+      const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const p = await get('SELECT * FROM products WHERE id = ?', b);
+      if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能改自己的产品');
+      const body = await readBody(req);
+      const ids = Array.isArray(body.fileIds) ? body.fileIds.slice(0, 12) : (body.fileId ? [body.fileId] : []);
+      if (!ids.length) return fail(res, 400, 'VALIDATION', 'fileId 或 fileIds 必填');
+      let sort = (await get('SELECT COUNT(*) AS c FROM product_images WHERE product_id = ?', p.id)).c;
+      for (const fid of ids) {
+        const f = await get('SELECT id, mime, status FROM files WHERE id = ?', fid);
+        if (!f || f.status !== 'active') return fail(res, 400, 'VALIDATION', '文件不存在或已失效');
+        if (!/^image\//.test(String(f.mime || ''))) return fail(res, 400, 'VALIDATION', '商品图片必须是图片类型');
+        await run('INSERT INTO product_images (id, product_id, file_id, sort, created_at) VALUES (?,?,?,?,?)',
+          randomUUID(), p.id, f.id, sort++, Date.now());
+      }
+      await run('UPDATE products SET updated_at = ? WHERE id = ?', Date.now(), p.id);
+      await audit(u.id, 'product.image.add', 'product', p.id, ids.length + ' image(s)');
+      return send(res, 200, await productView(await get('SELECT * FROM products WHERE id = ?', p.id)));
+    }
+    if (b && c === 'images' && d && m === 'DELETE') {
+      const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (!u) return;
+      const p = await get('SELECT * FROM products WHERE id = ?', b);
+      if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能改自己的产品');
+      await run('DELETE FROM product_images WHERE id = ? AND product_id = ?', d, p.id);
+      await audit(u.id, 'product.image.remove', 'product', p.id, d);
+      return send(res, 200, { ok: true });
+    }
     /* 删除商品：已经被询盘引用的不能删（会让历史询盘对不上），提示改下架 */
     if (b && m === 'DELETE') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
@@ -981,6 +1016,7 @@ async function route(m, segs, q, req, res) {
       const used = (await get('SELECT COUNT(*) AS c FROM inquiries WHERE product_id = ?', p.id)).c;
       if (used > 0) return fail(res, 409, 'PRODUCT_IN_USE', '该商品已有 ' + used + ' 条询盘记录，不能删除；请改为"下架"');
       await run('DELETE FROM product_translations WHERE product_id = ?', p.id);
+      await run('DELETE FROM product_images WHERE product_id = ?', p.id);
       await run('DELETE FROM anti_fake_codes WHERE product_id = ?', p.id);
       await run('DELETE FROM products WHERE id = ?', p.id);
       await audit(u.id, 'product.delete', 'product', p.id, '');

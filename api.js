@@ -328,6 +328,22 @@ api.products = {
     mockSave(st);
     return apiClone(p);
   },
+  /* 商品图片：先上传文件，再把 fileId 挂到商品上 */
+  async addImages(id, fileIds) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id) + '/images', { method: 'POST', body: { fileIds } });
+    await apiDelay();
+    const st = mockState();
+    const p = st.products.find(x => x.id === id);
+    if (!p) throw new Error('NOT_FOUND');
+    p.images = (p.images || []).concat(fileIds.map(fid => (st.files[fid] || {}).dataUrl).filter(Boolean));
+    mockSave(st);
+    return apiClone(p);
+  },
+  async removeImage(id, imageId) {
+    if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id) + '/images/' + encodeURIComponent(imageId), { method: 'DELETE' });
+    await apiDelay();
+    return { ok: true };
+  },
   async remove(id) {
     if (api.config.mode === 'http') return apiRequest('/products/' + encodeURIComponent(id), { method: 'DELETE' });
     await apiDelay();

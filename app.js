@@ -106,6 +106,7 @@ function productToFrontend(p) {
     petSize: p.petSize || (PET_ATTR_FALLBACK[sub] || {}).petSize || 'medium',
     material: p.material || (PET_ATTR_FALLBACK[sub] || {}).material || '',
     status: p.status || 'on',
+    images: (Array.isArray(p.images) ? p.images : []).map(x => (typeof x === 'string' ? x : ('/api' + (x.url || ('/files/' + (x.fileId || x.file_id)))))).filter(Boolean),
     hsCode: p.hsCode || p.hs_code || '',
     addedAt: p.addedAt || p.created_at || 0,
     en: { title: pick('en', 'title') || p.id, desc: pick('en', 'desc'), features: pick('en', 'features') || [] },

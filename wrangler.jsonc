@@ -15,8 +15,9 @@
     }
   ],
 
-  // 附件/名片对象存储：需要在 Cloudflare 控制台开通 R2 后取消注释并创建同名桶
-  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "beanbeanmouse-files" }],
+  // 附件/商品图对象存储：R2 已开通、桶 beanbeanmouse-files 已创建（2026-09-30）。
+  // 注意：本项目由 wrangler 配置管理，控制台的绑定界面是只读的，绑定必须写在这里。
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "beanbeanmouse-files" }],
 
   // 邮件发送：Pages 配置不支持 send_email 绑定，改由 workers/mailer 这个 Worker 持有绑定，
   // Pages Functions 通过 service binding 调用它（见 workers/mailer/README）。

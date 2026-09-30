@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS product_translations (
   UNIQUE (product_id, lang)
 );
 
+-- 商品图片（文件存对象存储，这里存商品与文件的关系）
+CREATE TABLE IF NOT EXISTS product_images (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  file_id TEXT NOT NULL REFERENCES files(id),
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS inquiries (
   id TEXT PRIMARY KEY,
   product_id TEXT NOT NULL REFERENCES products(id),

@@ -69,6 +69,15 @@ CREATE TABLE IF NOT EXISTS product_translations (
   UNIQUE (product_id, lang)
 );
 
+-- 商品图片：文件存对象存储（R2），这里存"商品 ↔ 文件"的关系
+CREATE TABLE IF NOT EXISTS product_images (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  file_id TEXT NOT NULL REFERENCES files(id),
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS inquiries (
   id TEXT PRIMARY KEY,
   product_id TEXT NOT NULL REFERENCES products(id),
@@ -435,6 +444,7 @@ CREATE TABLE IF NOT EXISTS conversation_reads (
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id, sort);
 CREATE INDEX IF NOT EXISTS idx_translations_product ON product_translations(product_id);
 CREATE INDEX IF NOT EXISTS idx_inquiries_buyer ON inquiries(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_antifake_code ON anti_fake_codes(code);
