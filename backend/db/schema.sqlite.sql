@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS inquiries (
   contact_country TEXT,
   card TEXT,
   card_name TEXT,
+  attachments TEXT,
+  reply_attachments TEXT,
   status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','handled','quoted')),
   created_at INTEGER NOT NULL
 );

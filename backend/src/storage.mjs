@@ -36,6 +36,11 @@ export function setStorageImpl(custom) {
   impl = custom;
 }
 
+/* 存储是否就绪：管理端"系统自检"用它显示"对象存储已就绪 / 未配置" */
+export function storageInfo() {
+  return { kind: (impl && impl.kind) || (impl ? 'custom' : 'none'), ready: !!(impl && impl.kind !== 'disabled') };
+}
+
 function current() {
   if (!impl) throw new Error('文件存储未初始化（请在平台入口注入实现）');
   return impl;

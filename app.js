@@ -183,6 +183,11 @@ window.hydrateProducts = hydrateProducts;
 let sessionHydrating = false;
 function mapServerInquiry(r) {
   const q = r.quote || null;
+  /* 附件清单存的是 JSON（[{fileId,name,size,type}]），这里解回来给前端渲染 */
+  const parseAtts = v => {
+    if (!v) return [];
+    try { const arr = JSON.parse(v); return Array.isArray(arr) ? arr : []; } catch (e) { return []; }
+  };
   return {
     id: r.id,
     productId: r.product_id,
@@ -196,7 +201,8 @@ function mapServerInquiry(r) {
     unit: r.unit || 'pcs',
     payment: r.payment_term || '',
     message: r.message || '',
-    attachments: [],
+    attachments: parseAtts(r.attachments),
+    replyAttachments: parseAtts(r.reply_attachments),
     /* 询盘附带的买家名片（卖家在询盘里可直接查看） */
     card: r.card || null,
     cardName: r.card_name || '',

@@ -651,6 +651,24 @@ let catReqId;
 }
 
 /* ---- 忘记密码：邮件重置全流程（放最后，因为它会让该账号旧令牌失效） ---- */
+/* ---- 询盘附件：文件存对象存储，清单入库（之前附件提交即丢） ---- */
+{
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const up = await req('/files', { method: 'POST', token: buyerToken, body: { data: png, mime: 'image/png', filename: 'spec.png' } });
+  check('买方上传询盘附件 -> 201', up.status === 201 && !!up.data.id);
+  const inq = await req('/inquiries', {
+    method: 'POST', token: buyerToken,
+    body: { productId: 'p1', qty: 10, unit: 'pcs', message: '带附件的询盘（测试）', attachments: [{ fileId: up.data.id, name: 'spec.png', size: 120, type: 'image/png' }] }
+  });
+  check('带附件的询盘 -> 201', inq.status === 201 && !!inq.data.id);
+  const row = get('SELECT attachments FROM inquiries WHERE id = ?', inq.data.id);
+  const list = row && row.attachments ? JSON.parse(row.attachments) : [];
+  check('附件清单已入库', list.length === 1 && list[0].fileId === up.data.id, JSON.stringify(list).slice(0, 80));
+  const detail = await req('/inquiries', { token: buyerToken });
+  const mine = (detail.data || []).find(x => x.id === inq.data.id);
+  check('接口回读时带 attachments 字段', !!mine && !!mine.attachments, mine ? String(mine.attachments).slice(0, 60) : 'missing');
+}
+
 /* ---- 商品图片：上传文件 → 挂到商品 → 公开可读 → 摘除 ---- */
 {
   const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';

@@ -1165,6 +1165,8 @@ function readAttachFile(file) {
         id: 'at' + Date.now() + Math.random().toString(36).slice(2, 6),
         fileId: null,
         storage: 'local',
+        /* 保留原始 File：提交时用它上传到对象存储（R2），本地只用于预览 */
+        file: file,
         name: String(file.name || 'file'),
         type: opt && opt.type ? opt.type : (file.type || ''),
         size: opt && opt.dataUrl && opt.dataUrl !== dataUrl ? Math.max(1, Math.round(opt.dataUrl.length * 0.75)) : (file.size || 0),
@@ -1293,6 +1295,8 @@ document.addEventListener('change', e => {
 function attachUrl(a) {
   if (!a) return '';
   if (a.dataUrl) return a.dataUrl;
+  /* 线上：文件存在对象存储，直接用后端文件接口（无需鉴权，id 不可猜） */
+  if (a.fileId && typeof api !== 'undefined' && api.config && api.config.mode === 'http') return '/api/files/' + encodeURIComponent(a.fileId);
   if (a.fileId && state.files && state.files[a.fileId]) return state.files[a.fileId].dataUrl || '';
   return '';
 }
@@ -1482,12 +1486,25 @@ function submitInquiry(f) {
   };
   /* 线上同步到服务器：只写本地的话，运营端和管理端永远看不到这条询盘 */
   if (api.config && api.config.mode === 'http') {
-    api.inquiries.create({
-      productId: pid, qty: qty, unit: inquiry.unit, message: message,
-      name: name, email: email, company: inquiry.company, country: inquiry.country,
-      payment: langObj(inquiry.payment), buyerType: inquiry.buyerType, jobTitle: inquiry.jobTitle
-    }).then(() => { if (typeof hydrateSessionData === 'function') hydrateSessionData(); })
-      .catch(e => toast((e && e.message) || ''));
+    const pending = pendingFiles.inquiry.slice();
+    (async () => {
+      /* 先把附件传到对象存储（R2），再把 fileId 清单随询盘提交 */
+      const atts = [];
+      for (const f of pending.slice(0, 8)) {
+        try {
+          const r = f.file ? await api.files.upload(f.file) : null;
+          if (r && r.id) atts.push({ fileId: r.id, name: f.name, size: f.size, type: f.type });
+          else if (f.fileId) atts.push({ fileId: f.fileId, name: f.name, size: f.size, type: f.type });
+        } catch (e) { toast((e && e.message) || String(e)); }
+      }
+      await api.inquiries.create({
+        productId: pid, qty: qty, unit: inquiry.unit, message: message,
+        name: name, email: email, company: inquiry.company, country: inquiry.country,
+        payment: langObj(inquiry.payment), buyerType: inquiry.buyerType, jobTitle: inquiry.jobTitle,
+        attachments: atts
+      });
+      if (typeof hydrateSessionData === 'function') hydrateSessionData();
+    })().catch(e => toast((e && e.message) || ''));
   }
   pendingFiles.inquiry = [];
   state.inquiries.unshift(inquiry);
@@ -4439,7 +4456,8 @@ function adminOverviewBody() {
     ? rows.map(r => '<div class="bar-row"><span class="bar-label">' + esc(labelFn(r[0])) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + Math.max(8, Math.round(r[1] / max * 100)) + '%"></div></div><span class="bar-val">' + r[1] + '</span></div>').join('')
     : '<div class="empty-state" style="padding:20px"><p>' + t('noInquiries') + '</p></div>';
   const logs = ((state.adminLogs && state.adminLogs.length) ? state.adminLogs : (state.logs || [])).slice(0, 5);
-  return '<div class="stat-grid">'
+  return systemCheckHtml()
+    + '<div class="stat-grid">'
     + adminStatCard('ico-blue', 'users', (state.adminUsers && state.adminUsers.length) || state.users.length, t('statUsers'))
     + adminStatCard('ico-green', 'box', live, t('statLive'))
     + adminStatCard('ico-amber', 'clock', pending, t('statPendingProducts'))
@@ -4587,6 +4605,48 @@ function adminUsersBody() {
 /* 客户询盘：管理员视角能看到全部询盘并直接报价回复（此前管理端根本没有这个入口，
  * 客户在首页"直接问我"发来的需求就无处可看）。 */
 /* 商品管理（管理员视角）：自营模式下由管理员直接发布/编辑/上下架商品 */
+/* 系统自检卡片：邮件通道 / 注册策略 / 对象存储 / 待处理事项，一眼看清今天能不能测 */
+let sysCheckData = null;
+function systemCheckHtml() {
+  if (!sysCheckData) {
+    /* 只在管理端首页拉一次 */
+    setTimeout(loadSystemCheck, 0);
+    return '<div class="card panel sys-check" id="sysCheck"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('sysCheckTitle') + '</h2>'
+      + '<span class="small muted">' + t('loading') + '</span></div></div>';
+  }
+  const d = sysCheckData;
+  const row = (label, ok, detail) => '<div class="sys-row"><span class="sys-dot ' + (ok ? 'ok' : 'warn') + '"></span>'
+    + '<b>' + esc(label) + '</b><span class="small muted">' + esc(detail) + '</span></div>';
+  return '<div class="card panel sys-check" id="sysCheck"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('sysCheckTitle') + '</h2>'
+    + '<button type="button" class="btn btn-sm" data-action="reload-session-data">' + t('refresh') + '</button></div>'
+    + '<div class="sys-grid">'
+    + row(t('sysMail'), d.mail.ready, d.mail.transport + (d.mail.ready ? ' · ' + t('sysOk') : ' · ' + t('sysNotReady')))
+    + row(t('sysStorage'), !!(d.storage && d.storage.ready), (d.storage ? d.storage.kind : '-') + ' · ' + t('sysMaxFile') + ' ' + Math.round((d.storage ? d.storage.maxFileSize : 0) / 1048576) + 'MB')
+    + row(t('sysEmailVerify'), !!d.policy.requireEmailVerify, d.policy.requireEmailVerify ? t('sysOn') : t('sysOff'))
+    + row(t('sysAccountReview'), !!d.policy.requireAccountReview, d.policy.requireAccountReview ? t('sysOn') : t('sysOff'))
+    + '</div>'
+    + '<div class="sys-counts">'
+    + [[t('statUsers'), d.counts.users], [t('productManage'), d.counts.products + '（' + t('onShelfLabel') + ' ' + d.counts.productsOn + '）'],
+        [t('sysNoImage'), d.counts.productsNoImage], [t('inquiryManage'), d.counts.inquiries + '（' + t('statusNew') + ' ' + d.counts.inquiriesNew + '）'],
+        [t('adminFeedback'), d.counts.suggestionsNew], [t('reviewAccounts'), d.counts.pendingReview]]
+      .map(x => '<span class="sys-chip"><b>' + x[1] + '</b> ' + esc(x[0]) + '</span>').join('')
+    + '</div></div>';
+}
+async function loadSystemCheck() {
+  if (!api.config || api.config.mode !== 'http') {
+    const el = document.getElementById('sysCheck');
+    if (el) el.remove();
+    return;
+  }
+  try {
+    sysCheckData = await apiRequest('/admin/system-check', {});
+    renderPage();
+  } catch (e) {
+    const el = document.getElementById('sysCheck');
+    if (el) el.querySelector('.panel-head .small').textContent = (e && e.message) || '';
+  }
+}
+
 function adminProductsBody() {
   const rows = (state.products || []).slice().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   const pill = st => st === 'on' ? ['live', t('onShelfLabel')] : st === 'pending' ? ['pend', t('pendingLabel')] : st === 'rejected' ? ['rej', t('rejectedLabel')] : ['off', t('offShelfLabel')];
@@ -4769,11 +4829,21 @@ function submitQuote(f) {
   /* 线上必须把报价真正发给后端：只写本地的话，客户在"我的询盘"里看不到报价，
    * 运营端也查不到这条记录（"看不到"的另一半原因）。 */
   if (api.config && api.config.mode === 'http') {
-    api.inquiries.addQuote(i.id, {
-      price: price, incoterm: incoterm, payment: langObj(i.quote.payment),
-      validity: validity, leadTime: leadTime, note: i.quote.note
-    }).then(() => { if (typeof hydrateSessionData === 'function') hydrateSessionData(); })
-      .catch(e => toast(t('quoteSyncFailed') + (e && e.message ? '：' + e.message : '')));
+    const pendingReply = (i.replyAttachments || []).slice();
+    (async () => {
+      const atts = [];
+      for (const f of pendingReply.slice(0, 8)) {
+        try {
+          const r = f.file ? await api.files.upload(f.file) : null;
+          if (r && r.id) atts.push({ fileId: r.id, name: f.name, size: f.size, type: f.type });
+        } catch (e) { /* 单个失败不影响报价 */ }
+      }
+      await api.inquiries.addQuote(i.id, {
+        price: price, incoterm: incoterm, payment: langObj(i.quote.payment),
+        validity: validity, leadTime: leadTime, note: i.quote.note, attachments: atts
+      });
+      if (typeof hydrateSessionData === 'function') hydrateSessionData();
+    })().catch(e => toast(t('quoteSyncFailed') + (e && e.message ? '：' + e.message : '')));
   }
   if (i.buyerId && i.buyerId !== 'guest') {
     pushNotification({ toUserId: i.buyerId, title: t('notifNewQuote'), body: langObj(p).title + ' · ' + incoterm + ' ' + price, link: '/dashboard/inquiries' });

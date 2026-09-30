@@ -985,8 +985,17 @@ api.files = {
     if (api.config.mode === 'http') {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(api.config.baseUrl + '/files', { method: 'POST', body: fd });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      /* 必须带登录令牌：这里走的是裸 fetch（FormData 上传），
+       * 之前漏了 Authorization，线上所有上传都会 401（探针抓到的真 bug）。 */
+      const tk = storedToken();
+      const headers = {};
+      if (tk) headers.Authorization = 'Bearer ' + tk;
+      const res = await fetch(api.config.baseUrl + '/files', { method: 'POST', headers, body: fd });
+      if (!res.ok) {
+        let msg = 'HTTP ' + res.status;
+        try { const j = await res.json(); msg = j.message || msg; } catch (e) { /* 忽略 */ }
+        throw new Error(msg);
+      }
       return res.json();
     }
     await apiDelay();

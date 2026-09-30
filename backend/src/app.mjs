@@ -12,7 +12,7 @@ import { get, run, all } from './store.mjs';
 import { seedIfEmpty, antiFakeCode } from './seed.mjs';
 import { hashPassword, verifyPassword, signToken, verifyToken, configureAuth } from './auth.mjs';
 import { translateText, translateError } from './translate.mjs';
-import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE } from './storage.mjs';
+import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE, storageInfo } from './storage.mjs';
 import { sendMail, notifyUser, mailerInfo } from './mailer.mjs';
 import { verifyEmailContent, resetPasswordContent } from './email-template.mjs';
 
@@ -1127,11 +1127,22 @@ async function route(m, segs, q, req, res) {
       /* 名片：买家在询盘里附带时一起存下来，卖家点开询盘就能看到（原来是丢了） */
       const card = body.card ? String(body.card).slice(0, 400000) : null;
       const cardName = card ? String(body.cardName || 'business-card').slice(0, 120) : null;
+      /* 附件清单：[{fileId,name,size,type}]，最多 8 个；文件本体已在 /files 上传到对象存储 */
+      const atts = [];
+      if (Array.isArray(body.attachments)) {
+        for (const a of body.attachments.slice(0, 8)) {
+          const fid = a && (a.fileId || a.id);
+          if (!fid) continue;
+          const f = await get('SELECT id, mime, size, status FROM files WHERE id = ?', fid);
+          if (!f || f.status !== 'active') continue;
+          atts.push({ fileId: f.id, name: String(a.name || 'attachment').slice(0, 160), size: Number(f.size) || 0, type: f.mime || '' });
+        }
+      }
       await run(
-        'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at, contact_name, contact_email, contact_company, contact_country, card, card_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO inquiries (id, product_id, buyer_id, qty, unit, payment_term, message, status, created_at, contact_name, contact_email, contact_company, contact_country, card, card_name, attachments) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id, p.id, u ? u.id : null, qty, body.unit || 'pcs', body.payment || null, body.message, 'new', Date.now(),
         contactName || null, contactEmail || null, contactCompany || null, contactCountry || null,
-        card, cardName
+        card, cardName, JSON.stringify(atts)
       );
       await audit(u ? u.id : null, 'inquiry.create', 'inquiry', id, body.message.slice(0, 80));
       const seller = await get('SELECT * FROM users WHERE id = ?', p.seller_id);
@@ -1167,6 +1178,18 @@ async function route(m, segs, q, req, res) {
         randomUUID(), b, price, body.incoterm, body.payment || 'T/T', validity, leadTime, body.note || null, Date.now()
       );
       await run('UPDATE inquiries SET status = ? WHERE id = ?', 'quoted', b);
+      /* 报价附件（规格书/装箱图等）同样存清单，文件已上传到对象存储 */
+      const replyAtts = [];
+      if (Array.isArray(body.attachments)) {
+        for (const a of body.attachments.slice(0, 8)) {
+          const fid = a && (a.fileId || a.id);
+          if (!fid) continue;
+          const f = await get('SELECT id, mime, size, status FROM files WHERE id = ?', fid);
+          if (!f || f.status !== 'active') continue;
+          replyAtts.push({ fileId: f.id, name: String(a.name || 'attachment').slice(0, 160), size: Number(f.size) || 0, type: f.mime || '' });
+        }
+      }
+      await run('UPDATE inquiries SET reply_attachments = ? WHERE id = ?', JSON.stringify(replyAtts), b);
       await audit(u.id, 'inquiry.quote', 'inquiry', b, String(body.price));
       const buyer = i.buyer_id ? await get('SELECT * FROM users WHERE id = ?', i.buyer_id) : null;
       if (buyer) {
@@ -1862,6 +1885,30 @@ async function route(m, segs, q, req, res) {
     }
     /* 邮件通道自检：确认"配好了没 / 最近发出去的成没成"，省得靠猜 */
     /* 注册/登录策略自检：一眼看到当前是"邮箱验证"还是"人工审核"在把关 */
+    /* 系统自检：把"邮件通道 / 注册策略 / 对象存储 / 待处理事项"汇总给管理端 */
+    if (b === 'system-check' && m === 'GET') {
+      const u = await requireAuth(res, req, ['admin']);
+      if (!u) return;
+      const st = storageInfo();
+      return send(res, 200, {
+        mail: { transport: mailerInfo().transport, ready: mailReady() },
+        policy: { requireEmailVerify: REQUIRE_EMAIL_VERIFY, requireAccountReview: REQUIRE_ACCOUNT_REVIEW },
+        storage: { kind: st.kind, ready: st.ready, maxFileSize: MAX_FILE_SIZE },
+        counts: {
+          users: (await get('SELECT COUNT(*) AS c FROM users')).c,
+          unverified: (await get("SELECT COUNT(*) AS c FROM users WHERE COALESCE(email_verified,0) = 0")).c,
+          pendingReview: (await get("SELECT COUNT(*) AS c FROM users WHERE review_state = 'pending'")).c,
+          products: (await get('SELECT COUNT(*) AS c FROM products')).c,
+          productsPending: (await get("SELECT COUNT(*) AS c FROM products WHERE status = 'pending'")).c,
+          productsOn: (await get("SELECT COUNT(*) AS c FROM products WHERE status = 'on'")).c,
+          productsNoImage: (await get('SELECT COUNT(*) AS c FROM products WHERE id NOT IN (SELECT product_id FROM product_images)')).c,
+          inquiries: (await get('SELECT COUNT(*) AS c FROM inquiries')).c,
+          inquiriesNew: (await get("SELECT COUNT(*) AS c FROM inquiries WHERE status = 'new'")).c,
+          suggestionsNew: (await get("SELECT COUNT(*) AS c FROM suggestions WHERE status = 'new'")).c,
+          companiesPending: (await get("SELECT COUNT(*) AS c FROM companies WHERE status = 'pending'")).c
+        }
+      });
+    }
     if (b === 'auth-policy' && m === 'GET') {
       const u = await requireAuth(res, req, ['admin']);
       if (!u) return;
