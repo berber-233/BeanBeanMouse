@@ -234,7 +234,6 @@ function loginModalHtml() {
     + '</form>'
     + '<div class="lm-links">'
     + '<button type="button" class="btn btn-sm" data-action="show-register">📝 ' + t('registerTab') + '</button>'
-    + '<button type="button" class="btn btn-sm guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
     + '<a class="btn btn-sm" href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + '</a>'
     + '</div>'
     + (state.mailReady ? '<p class="lm-forgot"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
@@ -695,7 +694,8 @@ function renderProducts(params) {
   const kw = (params.get('kw') || '').trim();
   const cat = params.get('cat') || '';
   const sub = params.get('sub') || '';
-  const sort = params.get('sort') || 'recommended';
+  /* 默认按英文名称 A–Z 排（用户建议：原来按"推荐/评分"排，看起来是乱的） */
+  const sort = params.get('sort') || 'az';
   const min = params.get('min') ? +params.get('min') : null;
   const max = params.get('max') ? +params.get('max') : null;
   const moqMin = params.get('moq') ? +params.get('moq') : null;
@@ -718,7 +718,8 @@ function renderProducts(params) {
   if (origin) list = list.filter(p => p.country === origin);
   if (certs.length) list = list.filter(p => (p.certs || []).some(c => certs.includes(c)));
 
-  if (sort === 'newest') list = [...list].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  if (sort === 'az') list = [...list].sort((a, b) => String(a.en.title || '').localeCompare(String(b.en.title || ''), 'en'));
+  else if (sort === 'newest') list = [...list].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   else if (sort === 'priceAsc') list = [...list].sort((a, b) => a.priceMin - b.priceMin);
   else if (sort === 'priceDesc') list = [...list].sort((a, b) => b.priceMax - a.priceMax);
   else list = [...list].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.rating - a.rating);
@@ -782,6 +783,7 @@ function renderProducts(params) {
     + '<span class="results-count"><b>' + list.length + '</b> ' + t('resultsCount') + '</span>'
     + (chips.length ? '<div class="flex items-center gap-10">' + chips.join('') + '</div>' : '')
     + '<select class="select sort-select" id="sortSel" style="margin-left:auto">'
+    + '<option value="az" ' + (sort === 'az' ? 'selected' : '') + '>' + t('sortAz') + '</option>'
     + '<option value="recommended" ' + (sort === 'recommended' ? 'selected' : '') + '>' + t('sortRecommended') + '</option>'
     + '<option value="newest" ' + (sort === 'newest' ? 'selected' : '') + '>' + t('sortNewest') + '</option>'
     + '<option value="priceAsc" ' + (sort === 'priceAsc' ? 'selected' : '') + '>' + t('sortPriceAsc') + '</option>'
@@ -1446,9 +1448,32 @@ function openAttachModal(a) {
 function findInquiryAttachment(i, name) {
   return (i.attachments || []).concat(i.replyAttachments || []).find(a => a.name === name);
 }
+/* 未登录时的统一拦截：弹登录/注册框并说明原因（不再提供"游客"浏览） */
+function requireLoginFor(kind) {
+  const isAsk = kind === 'ask';
+  showModal(
+    '<div class="modal-head login-modal-head">'
+    + '<div class="lm-brand"><img src="assets/mascot-icon.png" alt="" width="38" height="38" decoding="async">'
+    + '<div class="lm-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<div class="modal-body">'
+    + '<h3 class="lm-title">' + t('needAccountTitle') + '</h3>'
+    + '<p class="lm-sub">' + (isAsk ? t('needAccountAsk') : t('needAccountInquiry')) + '</p>'
+    + '<div class="lm-links">'
+    + '<button type="button" class="btn btn-primary" data-action="show-register">📝 ' + t('registerTab') + '</button>'
+    + '<button type="button" class="btn" data-action="open-login">' + t('login') + '</button>'
+    + '</div>'
+    + '<p class="small muted" style="margin:12px 0 0">' + t('needAccountNote') + '</p>'
+    + '</div>'
+  );
+  return false;
+}
+
 function openInquiryModal(pid) {
   const p = productById(pid);
   if (!p) return;
+  /* 询盘要求先登录/注册（2026-10-01 起不再有"游客"这一类） */
+  if (!state.user && !requireLoginFor('inquiry')) return;
   const u = state.user;
   const buyerCountries = [
     ['DE', '德国 / Germany'], ['US', '美国 / USA'], ['GB', '英国 / UK'], ['FR', '法国 / France'],
@@ -4118,7 +4143,6 @@ function renderLogin() {
     + '</div>'
     + '</div>'
       : '')
-    + '<button type="button" class="btn btn-lg guest-btn" data-action="login-guest">' + t('asGuest') + '</button>'
     + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
     + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<div class="login-note"> ' + t('loginNote') + '</div>'
@@ -4555,9 +4579,13 @@ function adminReviewCard(p, st) {
       ? '<div class="actions">'
         + '<button type="button" class="btn btn-sm btn-primary" data-action="approve-product" data-id="' + p.id + '">' + icon('check') + t('approve') + '</button>'
         + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="reject-product" data-id="' + p.id + '">' + t('reject') + '</button>'
+        + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button>'
+        + '<a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
         + '</div>'
       : st === 'live'
-        ? '<div class="actions"><a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a></div>'
+        ? '<div class="actions"><a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
+          + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button>'
+          + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="toggle-status" data-id="' + p.id + '">' + t('offShelf') + '</button></div>'
         : '<div class="actions"></div>')
     + '</div>';
 }
@@ -5001,6 +5029,7 @@ function renderPublishForm() {
     + '<form data-form="product-form" data-id="' + (p ? p.id : '') + '" class="full" novalidate>'
     + '<input type="hidden" name="hue" value="' + hue + '">'
     + '<div class="form-grid">'
+    + '<div class="form-section-title full">' + t('formSecBasic') + '</div>'
     + '<div class="field"><label>' + t('titleEn') + ' *</label><input class="input" name="titleEn" value="' + esc(p ? p.en.title : '') + '" required></div>'
     + '<div class="field"><label>' + t('titleZh') + ' *</label><input class="input" name="titleZh" value="' + esc(p ? p.zh.title : '') + '" required></div>'
     + '<div class="field"><label>' + t('srcLangField') + ' <span class="hint">' + t('srcLangAuto') + '</span></label><select class="select" name="srcLang">'
@@ -5014,9 +5043,11 @@ function renderPublishForm() {
     + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
     + '</select></div>'
     + '<div class="field"><label>' + t('chooseImage') + '</label><div class="palette">' + hueList.map(h => '<span class="swatch ' + (h === hue ? 'on' : '') + '" data-action="pick-hue" data-hue="' + h + '" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 48%),hsl(' + ((h + 45) % 360) + ' 55% 30%))"></span>').join('') + '</div></div>'
+    + '<div class="form-section-title full">' + t('formSecImages') + '</div>'
     + '<div class="field full needs-r2"><label>' + t('prodImgLabel') + ' <span class="hint">' + t('prodImgHint') + '</span></label>'
     + '<input type="file" class="input" name="images" multiple accept="image/jpeg,image/png,image/webp" data-product-imgs>'
     + '<div id="productImgsWrap">' + productImgListHtml(p) + '</div></div>'
+    + '<div class="form-section-title full">' + t('formSecPrice') + '</div>'
     + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'
     + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
     + '<div class="field"><label>' + t('moqField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="moq" value="' + (p ? p.moq : '') + '" required><select class="select" name="unit" style="width:100px">' + UNITS.map(u => '<option value="' + u + '" ' + (p && p.unit === u ? 'selected' : '') + '>' + u + '</option>').join('') + '</select></div></div>'
@@ -5024,9 +5055,11 @@ function renderPublishForm() {
     + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('') + '</select></div>'
     + '<div class="field"><label>' + t('hsCode') + ' <span class="hint">' + t('hsHint') + '</span></label><input class="input" name="hsCode" value="' + esc(p ? (p.hsCode || '') : '') + '" placeholder="8456.11"></div>'
     + '<div class="field full"><label>' + t('paypalField') + ' <span class="hint">' + t('paypalHint') + '</span></label><input class="input" name="paypalUrl" value="' + esc(p ? (p.paypalUrl || '') : '') + '" placeholder="https://www.paypal.com/invoice/p/#XXXX 或 https://paypal.me/xxx/123"></div>'
+    + '<div class="form-section-title full">' + t('formSecTerms') + '</div>'
     + '<div class="field full"><label>' + t('termsField') + '</label><div class="check-group">' + TERM_LIST.map(tr => '<label class="check-pill"><input type="checkbox" name="terms" value="' + tr + '" ' + (p && p.terms.includes(tr) ? 'checked' : '') + '>' + tr + '</label>').join('') + '</div></div>'
     + '<div class="field full"><label>' + t('certsField') + '</label><div class="check-group">' + CERT_LIST.map(c => '<label class="check-pill"><input type="checkbox" name="certs" value="' + c + '" ' + (p && p.certs.includes(c) ? 'checked' : '') + '>' + c + '</label>').join('') + '</div></div>'
     + '<div class="field full"><label>' + t('marketsField') + ' <span class="hint">' + t('complianceHint') + '</span></label><div class="check-group">' + Object.keys(MARKET_COMPLIANCE).map(m => '<label class="check-pill"><input type="checkbox" name="markets" value="' + m + '" ' + (p && (p.markets || []).includes(m) ? 'checked' : '') + '>' + langObj(MARKET_COMPLIANCE[m]) + '</label>').join('') + '</div></div>'
+    + '<div class="form-section-title full">' + t('formSecDesc') + '</div>'
     + '<div class="field full"><label>' + t('descEn') + ' *</label><textarea class="textarea" name="descEn" required>' + esc(p ? p.en.desc : '') + '</textarea></div>'
     + '<div class="field full"><label>' + t('descZh') + ' *</label><textarea class="textarea" name="descZh" required>' + esc(p ? p.zh.desc : '') + '</textarea></div>'
     + '</div>'
@@ -5264,6 +5297,7 @@ function askQtyLabel(id) { const o = ASK_QTY.find(x => x.id === id); return o ? 
 function askSubLabel(id) { const s = (CATEGORIES[0].subs || []).find(x => x.id === id); return s ? langObj(s) : id; }
 
 function openAskFlow(productId) {
+  if (!state.user && !requireLoginFor('ask')) return;
   askFlow = { step: 1, pet: '', sub: '', qty: '', country: '', note: '', productId: productId || '', name: '', email: '' };
   if (state.user) { askFlow.name = state.user.name || ''; askFlow.email = state.user.email || ''; }
   renderAskStep();

@@ -324,7 +324,15 @@ async function readBody(req) {
 async function readRawBody(req) {
   return await rawBuffer(req);
 }
-function parseMultipart(body, boundary) {
+function parseMultipart(rawBody, boundary) {
+  /* 必须转成 Buffer：Cloudflare Workers 里取到的是 Uint8Array，
+   * 而 Uint8Array.indexOf 只接受数字，传 Buffer 会得到 -1 →
+   * 表现为"缺少文件字段"（本地 Node 正常、线上浏览器上传全失败的真凶）。 */
+  const body = Buffer.isBuffer(rawBody)
+    ? rawBody
+    : (rawBody instanceof Uint8Array
+      ? Buffer.from(rawBody.buffer, rawBody.byteOffset, rawBody.byteLength)
+      : Buffer.from(rawBody));
   const delim = Buffer.from('--' + boundary);
   const parts = [];
   let pos = 0;

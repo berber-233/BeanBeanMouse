@@ -621,7 +621,9 @@ function productImg(p, w = 640, h = 480, variant = 0) {
 function productImages(p) {
   const mapped = (typeof window !== 'undefined' && window.__PRODUCT_IMAGE_MAP__ && window.__PRODUCT_IMAGE_MAP__[p && p.id]) || [];
   const own = Array.isArray(p && p.images) ? p.images.filter(x => x && (x.dataUrl || typeof x === 'string')) : [];
-  return mapped.concat(own);
+  /* 自己上传的真实照片优先：以前是概念图在前，导致"上传了新图却一直显示旧概念图"
+   * （用户反馈：管理员更新了商品图片，刷新也看不到）。 */
+  return own.concat(mapped);
 }
 function productImgUrl(p, v) {
   const imgs = productImages(p);
