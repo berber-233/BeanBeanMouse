@@ -246,6 +246,16 @@ function resolveBrowser() {
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
+  /* 2026-10-01 起：建议箱要求登录后才显示表单（未登录显示引导） */
+  await page.evaluate(() => { location.hash = '#/feedback'; });
+  await page.waitForTimeout(300);
+  check('feedback: 未登录时给出登录引导', (await page.locator('.notice-box').count()) === 1);
+  await page.evaluate(() => { location.hash = '#/login'; });
+  await page.waitForTimeout(300);
+  await safeFill('form[data-form="login-form"] input[name="email"]', 'buyer@demo.com');
+  await safeFill('form[data-form="login-form"] input[name="password"]', 'buyer123');
+  await safeClick('form[data-form="login-form"] button[type="submit"]');
+  await page.waitForTimeout(700);
   await page.evaluate(() => { location.hash = '#/feedback'; });
   await page.waitForTimeout(300);
   check('feedback: page renders form', await page.locator('form[data-form="feedback-form"]').isVisible());
@@ -768,6 +778,9 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('admin: feedback list shows suggestions', await page.locator('.as-card').count() >= 1);
   await page.locator('[data-action="feedback-status"][data-status="done"]').first().click();
+  await page.waitForTimeout(400);
+  /* 建议箱默认只看"待处理"，标记采纳后会从默认列表消失 → 切到"全部"再断言 */
+  await page.evaluate(() => { location.hash = '#/dashboard/feedback?status=all'; });
   await page.waitForTimeout(400);
   check('admin: feedback marked adopted', await page.locator('.status-pill.done').count() >= 1);
 

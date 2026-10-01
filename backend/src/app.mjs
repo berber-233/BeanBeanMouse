@@ -872,6 +872,13 @@ async function route(m, segs, q, req, res) {
       const min = q.get('min') != null ? +q.get('min') : null;
       const max = q.get('max') != null ? +q.get('max') : null;
       let list = await all('SELECT * FROM products WHERE status = ?', 'on');
+      /* status=all：管理员看全部、卖家看自己的全部（含待审核/已下架）。
+       * 没有这个，刚发布的商品在"商品管理/审核"里根本看不到（发布完像消失了一样）。 */
+      if (String(q.get('status') || '') === 'all') {
+        const u = await currentUser(req);
+        if (u && u.role === 'admin') list = await all('SELECT * FROM products');
+        else if (u && u.role === 'seller') list = await all('SELECT * FROM products WHERE seller_id = ?', u.id);
+      }
       if (cat) list = list.filter(p => p.category === cat);
       if (origin) list = list.filter(p => p.country === origin);
       if (min != null || max != null) {
@@ -926,8 +933,8 @@ async function route(m, segs, q, req, res) {
         randomUUID(), id, antiFakeCode(id, u.id, enTitle), 'B' + new Date().getFullYear(), 'active', now, 0
       );
       await audit(u.id, 'product.create', 'product', id, enTitle);
-      /* 管理员发布＝平台自营：直接上架（自己审自己没意义）；卖家发布仍需审核 */
-      if (u.role === 'admin') await run('UPDATE products SET status = ? WHERE id = ?', 'on', id);
+      /* 所有新发布/修改的商品都要过审核，管理员也一样：
+       * 这样"审核"这一步在将来做管理员权限细分时才有意义（发布权与审核权可分开）。 */
       return send(res, 201, await productView(await get('SELECT * FROM products WHERE id = ?', id)));
     }
     if (b && m === 'GET') {
@@ -953,9 +960,8 @@ async function route(m, segs, q, req, res) {
       const moq = Math.max(1, Math.round(toNum(body.moq, 1)));
       const leadTime = Math.max(1, Math.round(toNum(body.leadTime, 15)));
       const now = Date.now();
-      const nextStatus = u.role === 'admin'
-        ? (body.status && ['on', 'off', 'pending', 'draft'].includes(body.status) ? body.status : p.status)
-        : 'pending';
+      /* 修改后统一回到"待审核"（管理员改自己的商品也走审核流） */
+      const nextStatus = 'pending';
       await run(
         'UPDATE products SET category=?, sub=?, hs_code=?, country=?, price_min=?, price_max=?, moq=?, unit=?, lead_time=?, terms=?, certs=?, src_lang=?, status=?, paypal_url=?, reject_reason=NULL, updated_at=? WHERE id=?',
         body.category, String(body.sub || '').slice(0, 40), String(body.hsCode || '').slice(0, 40), body.country,
@@ -1764,7 +1770,12 @@ async function route(m, segs, q, req, res) {
       if (!buf) return fail(res, 404, 'NOT_FOUND', '文件不存在');
       const wm = q.get('watermark') ? String(q.get('watermark')).slice(0, 80) : '';
       if (wm && /svg/i.test(row.mime)) buf = watermarkSvg(buf, wm);
-      return sendBytes(res, 200, buf, row.mime, { 'Content-Disposition': 'inline' });
+      /* 文件按 uuid 命名、内容不会变：让浏览器长期缓存，图片第二次打开就秒出
+       * （用户反馈"更新图片后要等很久才显示"）。 */
+      return sendBytes(res, 200, buf, row.mime, {
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'public, max-age=31536000, immutable'
+      });
     }
   }
 
@@ -2073,6 +2084,16 @@ async function route(m, segs, q, req, res) {
       if (!['new', 'seen', 'done'].includes(body.status)) return fail(res, 400, 'VALIDATION', '状态非法');
       await run('UPDATE suggestions SET status = ?, updated_at = ? WHERE id = ?', body.status, Date.now(), b);
       return send(res, 200, await get('SELECT * FROM suggestions WHERE id = ?', b));
+    }
+    /* 删除建议（已读/不采纳的堆着影响观感，管理员可直接删掉） */
+    if (b && m === 'DELETE') {
+      const admin = await requireAuth(res, req, ['admin']);
+      if (!admin) return;
+      const rec = await get('SELECT * FROM suggestions WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '建议不存在');
+      await run('DELETE FROM suggestions WHERE id = ?', b);
+      await audit(admin.id, 'suggestion.delete', 'suggestion', b, String(rec.content || '').slice(0, 60));
+      return send(res, 200, { ok: true, id: b });
     }
   }
 

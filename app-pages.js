@@ -398,6 +398,12 @@ function renderPage() {
 }
 
 /* ---------- 产品卡片 ---------- */
+/* 豆豆鼠推荐度（平台自评）：按我们的选品标准给 3–5 星，不是买家评分。
+ * 明确区分开，避免让客户以为是真实用户评价（那是虚假宣传）。 */
+function recStars(p) {
+  const n = Math.max(3, Math.min(5, Math.round(Number(p && p.rating) || 4)));
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
 function productCard(p) {
   const fav = state.favorites.includes(p.id);
   const seller = sellerOf(p);
@@ -416,7 +422,9 @@ function productCard(p) {
   + petFitRow(p)
     + '<div class="meta">'
     + (isVerifiedSeller(p.sellerId) ? '<span class="badge verified">' + icon('shield') + t('verified') + '</span>' : '')
-    + '<span class="stars">★★★★★</span><span class="rating-num">' + p.rating.toFixed(1) + '</span>'
+    /* 原来这里是"★★★★★ 4.9"，看着像买家评分——其实是我们的演示数据。
+     * 改成明确的"豆豆鼠推荐"（平台自评），不再冒充用户评价。 */
+    + '<span class="chip recommend" title="' + esc(t('recommendNote')) + '">' + t('recommendLabel') + ' ' + recStars(p) + '</span>'
     + '</div>'
     + '<div class="price-row">'
     + '<span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMin) + '</span>'
@@ -540,7 +548,8 @@ function renderHome() {
     + '<div class="store-cta">'
     + '<a class="btn btn-accent btn-lg" href="#/products" data-nav="/products">' + t('sfCtaShop') + '</a>'
     + '<a class="btn btn-ghost btn-lg" href="#/videos" data-nav="/videos">' + t('sfCtaVideo') + '</a>'
-    + '<button type="button" class="btn btn-ghost btn-lg" data-action="ask-open">' + t('sfCtaAsk') + '</button>'
+    /* 原来这里还有个"批发询价"，和商品页的询盘重复；换成"关于我们"，让买家先认识平台 */
+    + '<a class="btn btn-ghost btn-lg" href="#/about" data-nav="/about">' + t('aboutTitle') + '</a>'
     + '</div>'
     + '<div class="store-trust">'
     + ['trustOem', 'trustShip', 'trustInspect', 'trustAfter'].map(k => '<span class="trust-chip">' + t(k) + '</span>').join('')
@@ -575,8 +584,11 @@ function renderHome() {
       ['promise1T', 'promise1D'], ['promise2T', 'promise2D'], ['promise3T', 'promise3D'], ['promise4T', 'promise4D']
     ].map(x => '<div class="promise-card"><h3>' + t(x[0]) + '</h3><p>' + t(x[1]) + '</p></div>').join('') + '</div></section>'
     + '<div class="cta-band">'
-    + '<div><h2>' + t('askCtaTitle') + '</h2><p>' + t('askCtaDesc') + '</p></div>'
-    + '<button type="button" class="btn btn-accent btn-lg" data-action="ask-open">' + t('askCtaBtn') + '</button>'
+    + '<div><h2>' + t('contactBandTitle') + '</h2><p>' + t('contactBandDesc') + '</p></div>'
+    + '<div class="flex gap-10" style="flex-wrap:wrap">'
+    + '<a class="btn btn-accent btn-lg" href="mailto:' + esc(SITE_ENTITY.email) + '">' + t('contactEmailBtn') + '</a>'
+    + '<a class="btn btn-ghost btn-lg" href="https://wa.me/8613725078850" target="_blank" rel="noopener noreferrer">' + t('contactWhatsappBtn') + '</a>'
+    + '</div>'
     + '</div>'
     /* 关于我们预告 */
     + '<section class="section about-teaser">'
@@ -625,6 +637,7 @@ function renderAbout() {
     { k: 'aboutContactEmail', v: 'beanbeanmouse.trade@outlook.com', href: 'mailto:beanbeanmouse.trade@outlook.com' },
     { k: 'aboutContactWechat', v: 'beanbeanmouse', href: '' },
     { k: 'aboutContactPhone', v: '13725078850', href: 'tel:13725078850' },
+    { k: 'aboutContactWhatsapp', v: '+86 137 2507 8850', href: 'https://wa.me/8613725078850' },
     { k: 'aboutContactAddress', v: t('aboutPending'), href: '' }
   ];
   return '<div class="container page">'
@@ -1023,7 +1036,7 @@ function renderDetail(pid) {
     + '<div class="card detail-main">'
     + '<h1' + l10nAttrs(p.id, 'title', base, srcTitle) + '>' + esc(viewProductText(p, 'title')) + '</h1>'
     + '<div class="detail-meta">'
-    + '<span class="stars">★★★★★</span><span class="rating-num"><b>' + p.rating.toFixed(1) + '</b></span>'
+    + '<span class="chip recommend" title="' + esc(t('recommendNote')) + '">' + t('recommendLabel') + ' ' + recStars(p) + '</span>'
     + '<span>' + flagEmoji(p.country) + ' ' + countryName(p.country) + '</span>'
     + '<span>' + t('orders') + ': ' + p.orders.toLocaleString() + '</span>'
     + (p.hot ? '<span class="badge verified" style="background:var(--accent-050);color:#B45309;border-color:#F3D9A4">🔥 ' + t('hot') + '</span>' : '')
@@ -1289,26 +1302,32 @@ async function translateProductForm(btn) {
   const dstDesc = form.querySelector('[name="' + (to === 'en' ? 'descEn' : 'descZh') + '"]');
   const out = form.querySelector('[data-translate-result]');
   const setOut = txt => { if (out) out.textContent = txt || ''; };
+  /* 翻译要几秒：按钮进入"翻译中"状态并禁用，避免用户以为没反应（用户反馈"卡一下然后失败"） */
+  const originalLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.classList.add('busy'); btn.textContent = t('translatingNow'); }
   setOut(t('translatingNow'));
   try {
     const parts = [
       [srcTitle, dstTitle, srcTitle ? srcTitle.value.trim() : ''],
       [srcDesc, dstDesc, srcDesc ? srcDesc.value.trim() : '']
     ];
-    let done = 0;
-    for (const [srcEl, dstEl, text] of parts) {
-      if (!srcEl || !dstEl || !text) continue;
+    /* 标题与描述并行翻译（串行会等两倍时间） */
+    const jobs = parts.filter(([s, d, txt]) => s && d && txt).map(async ([srcEl, dstEl, text]) => {
       /* 注意：翻译 API 是 api.translate.text(text, target, source) */
       const r = await api.translate.text(text, target, to === 'en' ? 'zh-CN' : 'en');
       /* 服务端所有通道都失败时会回退成"原文照抄"（provider=offline），
        * 这种情况不能当成功，否则用户以为翻译好了。 */
-      if (r && r.text && r.provider !== 'offline' && r.text !== text) { dstEl.value = r.text; done++; }
-    }
+      if (r && r.text && r.provider !== 'offline' && r.text !== text) { dstEl.value = r.text; return 1; }
+      return 0;
+    });
+    const done = (await Promise.all(jobs)).reduce((a, b) => a + b, 0);
     setOut(done ? t('translateDone') : t('translateFailed'));
     if (!done) toast(t('translateFailed'));
   } catch (e) {
     setOut(t('translateFailed'));
     toast(t('translateFailed') + (e && e.message ? '：' + e.message : ''));
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('busy'); btn.textContent = originalLabel || t('translateToEn'); }
   }
 }
 
@@ -1773,6 +1792,13 @@ function saveCardOpts(patch) {
   saveState();
 }
 async function renderCardTemplate(tplId, fields, opts) {
+  /* 名片上的字段标签：原来是 E / T / W / A 四个单字母，客户得猜（用户反馈"ETWA 是什么意思"）。
+   * 现在用完整标签，并跟随界面语言。 */
+  const cardLine = (key, val) => t(key) + '：' + String(val == null ? '' : val);
+  const cardMark = (companyEn) => {
+    const letters = String(companyEn || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+    return (letters.slice(0, 2) || 'BB');
+  };
   const W = 1050, H = 600;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -1806,14 +1832,15 @@ async function renderCardTemplate(tplId, fields, opts) {
     const lg = ctx.createLinearGradient(70, 54, 130, 114);
     lg.addColorStop(0, accent); lg.addColorStop(1, accentDark);
     ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(100, 84, 34, 0, Math.PI * 2); ctx.fill();
-    if (!o.logo) yh('YF', 100, 90, 22, '700', '#FFFFFF', '"Segoe UI", Arial');
+    if (!o.logo) yh(cardMark(companyEn), 100, 90, 22, '700', '#FFFFFF', '"Segoe UI", Arial');
     yh(company || 'COMPANY', 152, 78, 26, '700', '#4A2E08', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 152, 102, 13, '500', '#8A7654', 'Georgia, serif');
     yh(name, 84, 230, 52, '700', '#2E1F0A', '"Microsoft YaHei","Segoe UI"');
     yh(title, 84 + ctx.measureText(name).width + 28, 228, 18, '600', accent, nf);
     ctx.strokeStyle = hexA(accent, .55); ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(84, 272); ctx.lineTo(560, 272); ctx.stroke();
-    ['E  ' + (email || '—'), 'T  ' + (contact || '—'), 'W  www.beanbeanmouse.com', 'A  ' + (address || '—')].forEach((t, i) => yh(t, 84, 312 + i * 38, 16, '500', '#5A4A2E', '"Segoe UI", Arial'));
+    [cardLine('cardLblEmail', email || '—'), cardLine('cardLblPhone', contact || '—'), cardLine('cardLblWeb', 'www.beanbeanmouse.com'), cardLine('cardLblAddr', address || '—')]
+      .forEach((txt, i) => yh(txt, 84, 312 + i * 38, 16, '500', '#5A4A2E', '"Segoe UI", Arial'));
     ctx.strokeStyle = hexA(accent, .25);
     ctx.beginPath(); ctx.moveTo(84, 540); ctx.lineTo(966, 540); ctx.stroke();
     yh(brand, 84, 566, 13, '500', '#8A7654', 'Georgia, serif');
@@ -1847,7 +1874,7 @@ async function renderCardTemplate(tplId, fields, opts) {
     ctx.beginPath(); ctx.moveTo(84, 330); ctx.lineTo(700, 330); ctx.stroke();
     yh(company || 'COMPANY', 84, 378, 22, '600', '#EFE8D6', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 84, 404, 11, '400', '#8E8574', 'Georgia, serif');
-    yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 470, 13, '400', '#C9C0AC', '"Segoe UI", Arial');
+    yh(cardLine('cardLblEmail', email || '—') + '    ' + cardLine('cardLblPhone', contact || '—'), 84, 470, 13, '400', '#C9C0AC', '"Segoe UI", Arial');
     ctx.strokeStyle = hexA(accent, .25);
     ctx.beginPath(); ctx.moveTo(84, 528); ctx.lineTo(966, 528); ctx.stroke();
     yh(brand, 84, 556, 11, '400', '#7D7566', 'Georgia, serif');
@@ -1863,8 +1890,8 @@ async function renderCardTemplate(tplId, fields, opts) {
     ctx.beginPath(); ctx.moveTo(84, 300); ctx.lineTo(966, 300); ctx.stroke();
     yh(company || 'COMPANY', 84, 348, 20, '600', '#161616', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 84, 374, 11, '400', '#A5A5A5', 'Georgia, serif');
-    yh('E  ' + (email || '—'), 84, 428, 14, '400', '#777777', '"Segoe UI", Arial');
-    yh('T  ' + (contact || '—'), 84, 456, 14, '400', '#777777', '"Segoe UI", Arial');
+    yh(cardLine('cardLblEmail', email || '—'), 84, 428, 14, '400', '#777777', '"Segoe UI", Arial');
+    yh(cardLine('cardLblPhone', contact || '—'), 84, 456, 14, '400', '#777777', '"Segoe UI", Arial');
     yh('W  beanbeanmouse.com', 84, 484, 14, '400', '#777777', '"Segoe UI", Arial');
     ctx.strokeStyle = '#EFEFEF';
     ctx.beginPath(); ctx.moveTo(84, 532); ctx.lineTo(966, 532); ctx.stroke();
@@ -1889,7 +1916,7 @@ async function renderCardTemplate(tplId, fields, opts) {
     ctx.strokeStyle = 'rgba(78,155,255,.45)'; ctx.lineWidth = 1;
     rr(ctx, 84, 296, 620, 40, 8); ctx.stroke();
     yh((company || 'COMPANY') + '  ·  ' + companyEn, 104, 321, 13, '500', '#D7E8FF', '"Segoe UI", Arial');
-    yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 452, 14, '400', '#B9D4FF', '"Segoe UI", Arial');
+    yh(cardLine('cardLblEmail', email || '—') + '    ' + cardLine('cardLblPhone', contact || '—'), 84, 452, 14, '400', '#B9D4FF', '"Segoe UI", Arial');
     ctx.strokeStyle = 'rgba(120,180,255,.25)';
     ctx.beginPath(); ctx.moveTo(84, 524); ctx.lineTo(966, 524); ctx.stroke();
     yh('beanbeanmouse.com · 认证供应商', 84, 554, 11, '400', '#7FA8E0', 'Georgia, serif');
@@ -1913,7 +1940,7 @@ async function renderCardTemplate(tplId, fields, opts) {
     ctx.beginPath(); ctx.moveTo(84, 320); ctx.lineTo(560, 320); ctx.stroke();
     yh(company || 'COMPANY', 84, 368, 20, '600', '#2E2620', '"Microsoft YaHei","Segoe UI"');
     yh(companyEn, 84, 394, 11, '400', '#8A7A66', 'Georgia, serif');
-    yh('E  ' + (email || '—') + '    T  ' + (contact || '—'), 84, 456, 14, '400', '#6B5544', '"Segoe UI", Arial');
+    yh(cardLine('cardLblEmail', email || '—') + '    ' + cardLine('cardLblPhone', contact || '—'), 84, 456, 14, '400', '#6B5544', '"Segoe UI", Arial');
     ctx.strokeStyle = hexA(accent, .2);
     ctx.beginPath(); ctx.moveTo(84, 528); ctx.lineTo(966, 528); ctx.stroke();
     yh(brand + ' · 精工致远', 84, 556, 11, '400', '#9C8B74', 'Georgia, serif');
@@ -1955,7 +1982,8 @@ function renderProfileBody() {
   const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (f.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('');
   const card = businessCardOf();
   const cardPreviewHtml = card
-    ? '<div class="card-preview-box"><img src="' + card + '" alt="' + esc(t('cardPreviewLabel')) + '">'
+    ? '<div class="card-preview-box"><button type="button" class="card-zoom-btn" data-action="zoom-card" aria-label="' + t('cardZoomHint') + '"><img src="' + card + '" alt="' + esc(t('cardPreviewLabel')) + '"></button>'
+      + '<p class="small muted">' + t('cardZoomHint') + '</p>'
       + '<div class="flex gap-10"><a class="btn btn-sm" href="' + card + '" download="' + esc((state.user && state.user.businessCardName) || 'business-card') + '">' + t('downloadCard') + '</a>'
       + '<button type="button" class="btn btn-sm" data-action="card-remove">' + t('cardRemoveBtn') + '</button></div></div>'
     : '<p class="small muted">' + t('cardNoCard') + '</p>';
@@ -2100,6 +2128,7 @@ async function openCardModal(i) {
     + '<div class="card3d-face back">' + cardBackHtml(i) + '</div>'
     + '</div></div>'
     + '<div class="card3d-controls">'
+    + '<button type="button" class="btn btn-sm" data-action="zoom-card">🔍 ' + t('cardZoom') + '</button>'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="card-flip">🔄 ' + t('cardFlip') + '</button>'
     + '<span class="small muted">' + t('cardDragHint') + '</span>'
     + '</div>'
@@ -3412,6 +3441,17 @@ function feedbackStatusLabel(st) {
 function renderFeedback() {
   document.title = t('navFeedback') + ' · BeanBeanMouse';
   const types = [['page', t('feedbackTypePage')], ['feature', t('feedbackTypeFeature')], ['content', t('feedbackTypeContent')], ['ux', t('feedbackTypeUx')], ['other', t('feedbackTypeOther')]];
+  /* 建议只允许登录用户提交（和询盘一致；未登录显示引导） */
+  if (!state.user) {
+    return '<div class="container page">'
+      + '<div class="page-head guide-head"><h1>💬 ' + t('feedbackTitle') + '</h1><p>' + t('feedbackSub') + '</p></div>'
+      + '<section class="card panel"><div class="notice-box">'
+      + '<b>' + t('needAccountTitle') + '</b><p>' + t('needAccountFeedback') + '</p>'
+      + '<div class="flex gap-10" style="flex-wrap:wrap;margin-top:10px">'
+      + '<button type="button" class="btn btn-primary" data-action="show-register">📝 ' + t('registerTab') + '</button>'
+      + '<button type="button" class="btn" data-action="open-login">' + t('login') + '</button>'
+      + '</div></div></section></div>';
+  }
   const mine = state.user ? (state.suggestions || []).filter(s => s.userId === state.user.id).slice().sort((a, b) => b.updatedAt - a.updatedAt) : [];
   return '<div class="container page">'
     + '<div class="page-head guide-head"><h1>💬 ' + t('feedbackTitle') + '</h1><p>' + t('feedbackSub') + '</p></div>'
@@ -3448,9 +3488,16 @@ async function submitFeedback(form) {
   } catch (e) { toast(e.message || String(e)); }
 }
 function adminFeedbackBody() {
-  const rows = (state.suggestions || []).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  /* 默认只看"待处理"：已读/不采纳的堆在一起太乱（用户反馈）；
+   * 需要复盘时切到"全部"，也可以直接删除不要的建议。 */
+  const { params } = parseHash();
+  const showAll = (params.get('status') || 'open') === 'all';
+  const all = (state.suggestions || []).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  const rows = showAll ? all : all.filter(s => s.status !== 'done');
   return '<div class="card panel"><div class="panel-head"><h2>' + t('adminFeedback') + '</h2>'
-    + '<span class="small muted">' + rows.filter(s => s.status === 'new').length + ' ' + t('feedbackNew') + '</span></div>'
+    + '<span class="flex gap-10"><span class="small muted">' + rows.filter(s => s.status === 'new').length + ' ' + t('feedbackNew') + '</span>'
+    + '<a class="btn btn-sm' + (showAll ? '' : ' btn-primary') + '" href="#/dashboard/feedback?status=open" data-nav="/dashboard/feedback?status=open">' + t('feedbackFilterOpen') + '</a>'
+    + '<a class="btn btn-sm' + (showAll ? ' btn-primary' : '') + '" href="#/dashboard/feedback?status=all" data-nav="/dashboard/feedback?status=all">' + t('feedbackFilterAll') + '</a></span></div>'
     + (rows.length ? rows.map(s => {
       const u = (state.users || []).find(x => x.id === s.userId);
       return '<div class="as-card"><div class="as-head"><b>' + esc(feedbackTypeLabel(s.type)) + '</b>'
@@ -3460,6 +3507,7 @@ function adminFeedbackBody() {
         + '<div class="flex gap-10">'
         + (s.status === 'new' ? '<button type="button" class="btn btn-sm" data-action="feedback-status" data-id="' + s.id + '" data-status="seen">' + t('feedbackMarkSeen') + '</button>' : '')
         + (s.status !== 'done' ? '<button type="button" class="btn btn-sm btn-primary" data-action="feedback-status" data-id="' + s.id + '" data-status="done">' + t('feedbackMarkDone') + '</button>' : '')
+        + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="feedback-delete" data-id="' + s.id + '">' + t('feedbackDelete') + '</button>'
         + '</div></div>';
     }).join('') : '<div class="empty-state" style="padding:30px"><p>' + t('feedbackEmpty') + '</p></div>')
     + '</div>';
@@ -5139,7 +5187,16 @@ function submitProduct(f) {
         }
         const saved = id ? await api.products.update(id, data) : await api.products.create(data);
         const pid = (saved && (saved.id || (saved.product && saved.product.id))) || id;
-        if (pid && uploadedIds.length) await api.products.addImages(pid, uploadedIds);
+        let attached = null;
+        if (pid && uploadedIds.length) attached = await api.products.addImages(pid, uploadedIds);
+        /* 立刻把新图写进本地商品对象：不然要等一次整表刷新才看得到（用户反馈"要等很久"） */
+        if (attached && attached.images && pid) {
+          const local = (state.products || []).find(x => x.id === pid);
+          if (local) {
+            local.images = attached.images.map(x => '/api' + x.url);
+            saveState();
+          }
+        }
         productImgFiles.length = 0;
         toast(t('productSubmitted'));
         if (typeof hydrateProducts === 'function') await hydrateProducts();

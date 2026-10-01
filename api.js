@@ -264,6 +264,8 @@ api.products = {
     if (api.config.mode === 'http') {
     /* size=100：后端默认每页 20，会把后面的商品挡在前台之外 */
     const qs = new URLSearchParams({ kw: kw || '', cat: cat || '', origin: origin || '', size: '100' });
+    /* 管理端/卖家需要看到待审核与已下架的商品 */
+    if (includeOffline) qs.set('status', 'all');
       const r = await apiRequest('/products?' + qs.toString());
       return r.items || [];
     }
@@ -1516,6 +1518,16 @@ api.suggestions = {
     rec.updatedAt = Date.now();
     mockSave(st);
     return apiClone(rec);
+  }
+  ,
+  /* 删除建议（管理员） */
+  async remove(id) {
+    if (api.config.mode === 'http') return apiRequest('/suggestions/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.suggestions = (st.suggestions || []).filter(s => s.id !== id);
+    mockSave(st);
+    return { ok: true };
   }
 };
 

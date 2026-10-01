@@ -119,7 +119,7 @@ function productToFrontend(p) {
 async function hydrateProducts() {
   if (typeof api === 'undefined' || !api.config || api.config.mode !== 'http') return false;
   try {
-    const res = await api.products.list();
+    const res = await api.products.list({ includeOffline: !!(state.user && state.user.role !== 'buyer') });
     const items = Array.isArray(res) ? res : ((res && res.items) || []);
     state.products = items.map(productToFrontend);
     markServerReady('products');

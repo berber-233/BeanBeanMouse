@@ -822,6 +822,17 @@ function handleAction(el) {
       if (i) openCardModal(i);
       break;
     }
+    /* 名片放大查看（之前预览很小，客户得用放大镜看） */
+    case 'zoom-card': {
+      const img = document.querySelector('.card-preview-box img, .card3d-face.front img');
+      const src = img ? img.getAttribute('src') : '';
+      if (!src) break;
+      showModal('<div class="modal-head"><h3>' + t('businessCard') + '</h3>'
+        + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+        + '<div class="modal-body"><img class="card-zoom-img" src="' + src + '" alt="' + esc(t('businessCard')) + '">'
+        + '<p class="small muted">' + t('cardZoomHint') + '</p></div>');
+      break;
+    }
     case 'card-flip': card3d.flipped = !card3d.flipped; card3dTransform(); break;
     case 'view-attach': {
       const i = state.inquiries.find(x => x.id === el.dataset.id);
@@ -850,6 +861,12 @@ function handleAction(el) {
       toast(t('feedbackMarkSeenDone'));
       renderPage();
     })); break;
+    case 'feedback-delete': runBusy(el, () => api.suggestions.remove(id).then(() => {
+      state.suggestions = (state.suggestions || []).filter(s => s.id !== id);
+      saveState();
+      toast(t('feedbackDelete') + ' ✓');
+      renderPage();
+    }).catch(e => toast((e && e.message) || String(e)))); break;
     case 'notif-toggle': {
       const p = document.getElementById('notifPanel');
       if (p) { p.hidden = !p.hidden; el.setAttribute('aria-expanded', String(!p.hidden)); }
