@@ -391,7 +391,7 @@ function pageMetaDesc(path) {
     return (p ? langObj(p).title : t('marketplace')) + ' · BeanBeanMouse';
   }
   const base = map[path] || t('heroTitle');
-  return base + ' · BeanBeanMouse 豆豆鼠外贸平台';
+  return base + ' · BeanBeanMouse 豆豆鼠宠物用品出口';
 }
 
 function renderPage() {
@@ -440,7 +440,7 @@ function productCard(p) {
 /* ---------- 首页 ---------- */
 const HELP_ITEMS = {
   zh: [
-    ['浏览产品', '进入「产品市场」，按行业、价格、产地、认证筛选，点击卡片查看详情。'],
+    ['浏览产品', '进入「产品市场」，按宠物类别、价格、产地、认证筛选，点击卡片查看详情。'],
     ['发送询盘', '在详情页填写数量和需求发送询盘，供应商会通过站内消息和邮件回复。'],
     ['卖家发布', '进入「工作台」发布产品，填写规格与价格，平台审核通过后上架。'],
     ['平台管理', '管理员可在产品审核、企业认证、用户管理、审计日志中完成日常管理。'],
@@ -1054,6 +1054,8 @@ function renderDetail(pid) {
     + '</div>'
     + '<div class="detail-actions">'
     + '<button type="button" class="btn btn-primary btn-lg" data-action="open-inquiry" data-id="' + p.id + '" style="flex:1">' + icon('send') + t('sendInquiry') + '</button>'
+    /* 若该商品填了 PayPal 收款/账单链接，买家可直接点开付款 */
+    + (p.paypalUrl ? '<a class="btn btn-accent btn-lg" href="' + esc(p.paypalUrl) + '" target="_blank" rel="noopener noreferrer">' + t('paypalPay') + '</a>' : '')
     + '<button type="button" class="btn btn-lg ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" style="color:' + (fav ? 'var(--danger)' : '') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + ' ' + (fav ? t('favorited') : t('favorite')) + '</button>'
     + '</div>'
     + '</div>'
@@ -1273,6 +1275,41 @@ document.addEventListener('change', e => {
 });
 
 /* 产品发布：真实商品图上传 */
+/* 一键翻译：把已填写的标题/描述翻到另一种语言（中文 ↔ 英文） */
+async function translateProductForm(btn) {
+  const form = document.querySelector('form[data-form="product-form"]');
+  if (!form) return;
+  const to = btn && btn.dataset.to === 'zh' ? 'zh' : 'en';
+  const target = to === 'zh' ? 'zh-CN' : 'en';
+  const srcTitle = form.querySelector('[name="' + (to === 'en' ? 'titleZh' : 'titleEn') + '"]');
+  const dstTitle = form.querySelector('[name="' + (to === 'en' ? 'titleEn' : 'titleZh') + '"]');
+  const srcDesc = form.querySelector('[name="' + (to === 'en' ? 'descZh' : 'descEn') + '"]');
+  const dstDesc = form.querySelector('[name="' + (to === 'en' ? 'descEn' : 'descZh') + '"]');
+  const out = form.querySelector('[data-translate-result]');
+  const setOut = txt => { if (out) out.textContent = txt || ''; };
+  setOut(t('translatingNow'));
+  try {
+    const parts = [
+      [srcTitle, dstTitle, srcTitle ? srcTitle.value.trim() : ''],
+      [srcDesc, dstDesc, srcDesc ? srcDesc.value.trim() : '']
+    ];
+    let done = 0;
+    for (const [srcEl, dstEl, text] of parts) {
+      if (!srcEl || !dstEl || !text) continue;
+      /* 注意：翻译 API 是 api.translate.text(text, target, source) */
+      const r = await api.translate.text(text, target, to === 'en' ? 'zh-CN' : 'en');
+      /* 服务端所有通道都失败时会回退成"原文照抄"（provider=offline），
+       * 这种情况不能当成功，否则用户以为翻译好了。 */
+      if (r && r.text && r.provider !== 'offline' && r.text !== text) { dstEl.value = r.text; done++; }
+    }
+    setOut(done ? t('translateDone') : t('translateFailed'));
+    if (!done) toast(t('translateFailed'));
+  } catch (e) {
+    setOut(t('translateFailed'));
+    toast(t('translateFailed') + (e && e.message ? '：' + e.message : ''));
+  }
+}
+
 document.addEventListener('change', e => {
   const input = e.target;
   if (!input || !input.hasAttribute('data-product-imgs')) return;
@@ -2019,7 +2056,7 @@ function cardBackHtml(i) {
     + '</g></svg>';
   return '<div class="card-back" style="background:' + bg + ';color:' + fg + '">'
     + '<div class="cb-frame" style="border-color:' + line + '"></div>'
-    + '<div class="cb-mark"><img src="assets/mascot-main.jpg" alt="" loading="lazy" decoding="async"><b>BeanBeanMouse</b><span>豆豆鼠外贸平台</span></div>'
+    + '<div class="cb-mark"><img src="assets/mascot-main.jpg" alt="" loading="lazy" decoding="async"><b>BeanBeanMouse</b><span>豆豆鼠宠物用品</span></div>'
     + '<div class="cb-motto" style="color:' + sub + '">以精工，致远方 —— 让每一笔跨国生意更简单。</div>'
     + '<div class="cb-qr">' + qr + '<span style="color:' + sub + '">扫码验真 · 验证本站真伪</span></div>'
     + '<div class="cb-foot" style="border-top-color:' + line + ';color:' + sub + '">beanbeanmouse.com</div>'
@@ -2078,10 +2115,8 @@ function registerFormHtml() {
     + '<div class="field"><label>' + t('regName') + ' *</label><input class="input" name="name" required maxlength="80"></div>'
     + '<div class="field"><label>' + t('regEmail') + ' *</label><input class="input" type="email" name="email" required></div>'
     + '<div class="field"><label>' + t('regPassword') + ' *</label><input class="input" type="password" name="password" required minlength="8"></div>'
-    + '<div class="field"><label>' + t('regRole') + ' *</label><div class="check-group">'
-    + '<label class="check-pill"><input type="radio" name="role" value="buyer" checked data-reg-toggle="sellerRegFields">' + t('regRoleBuyer') + '</label>'
-    + '<label class="check-pill"><input type="radio" name="role" value="seller" data-reg-toggle="sellerRegFields">' + t('regRoleSeller') + '</label>'
-    + '</div></div>'
+    /* 只面向买家：平台自营、管理员代理所有产品（2026-10-01 起不再开放商家注册） */
+    + '<input type="hidden" name="role" value="buyer">'
     + '<div class="field"><label>' + t('regAccountType') + '</label><div class="check-group">'
     + '<label class="check-pill"><input type="radio" name="accountType" value="company" checked data-reg-type="company"> ' + t('regCompany') + '</label>'
     + '<label class="check-pill"><input type="radio" name="accountType" value="individual" data-reg-type="individual"> ' + t('regIndividual') + '</label>'
@@ -4497,7 +4532,8 @@ function adminReviewCard(p, st) {
   const stLabel = p.status === 'pending' ? t('pendingLabel') : p.status === 'rejected' ? t('rejectedLabel') : t('onShelfLabel');
   const stCls = p.status === 'pending' ? 'pend' : p.status === 'rejected' ? 'rej' : 'live';
   return '<div class="review-card">'
-    + '<img class="thumb" src="' + productImg(p, 240, 180) + '" alt="' + esc(langObj(p).title) + '">'
+    /* 审核时也要看到真实商品图（之前只显示程序生成的占位图） */
+    + '<img class="thumb" src="' + productMainImg(p, 240, 180) + '" alt="' + esc(langObj(p).title) + '">'
     + '<div class="info">'
     + '<div class="head"><b>' + esc(langObj(p).title) + '</b><span class="status-pill ' + stCls + '">' + stLabel + '</span></div>'
     + '<div class="meta small muted">' + esc(langObj(seller).company) + ' · ' + flagEmoji(p.country) + ' ' + countryName(p.country) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div>'
@@ -4987,12 +5023,18 @@ function renderPublishForm() {
     + '<div class="field"><label>' + t('leadTimeField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '') + '" required><span class="sep">' + t('days') + '</span></div></div>'
     + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('') + '</select></div>'
     + '<div class="field"><label>' + t('hsCode') + ' <span class="hint">' + t('hsHint') + '</span></label><input class="input" name="hsCode" value="' + esc(p ? (p.hsCode || '') : '') + '" placeholder="8456.11"></div>'
+    + '<div class="field full"><label>' + t('paypalField') + ' <span class="hint">' + t('paypalHint') + '</span></label><input class="input" name="paypalUrl" value="' + esc(p ? (p.paypalUrl || '') : '') + '" placeholder="https://www.paypal.com/invoice/p/#XXXX 或 https://paypal.me/xxx/123"></div>'
     + '<div class="field full"><label>' + t('termsField') + '</label><div class="check-group">' + TERM_LIST.map(tr => '<label class="check-pill"><input type="checkbox" name="terms" value="' + tr + '" ' + (p && p.terms.includes(tr) ? 'checked' : '') + '>' + tr + '</label>').join('') + '</div></div>'
     + '<div class="field full"><label>' + t('certsField') + '</label><div class="check-group">' + CERT_LIST.map(c => '<label class="check-pill"><input type="checkbox" name="certs" value="' + c + '" ' + (p && p.certs.includes(c) ? 'checked' : '') + '>' + c + '</label>').join('') + '</div></div>'
     + '<div class="field full"><label>' + t('marketsField') + ' <span class="hint">' + t('complianceHint') + '</span></label><div class="check-group">' + Object.keys(MARKET_COMPLIANCE).map(m => '<label class="check-pill"><input type="checkbox" name="markets" value="' + m + '" ' + (p && (p.markets || []).includes(m) ? 'checked' : '') + '>' + langObj(MARKET_COMPLIANCE[m]) + '</label>').join('') + '</div></div>'
     + '<div class="field full"><label>' + t('descEn') + ' *</label><textarea class="textarea" name="descEn" required>' + esc(p ? p.en.desc : '') + '</textarea></div>'
     + '<div class="field full"><label>' + t('descZh') + ' *</label><textarea class="textarea" name="descZh" required>' + esc(p ? p.zh.desc : '') + '</textarea></div>'
     + '</div>'
+    /* 一键翻译：中↔英互译标题与描述，省掉两边各写一遍 */
+    + '<div class="translate-bar"><span class="small muted">' + t('autoTranslateHint') + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="translate-product" data-to="en">' + t('translateToEn') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="translate-product" data-to="zh">' + t('translateToZh') + '</button>'
+    + '<span class="small muted" data-translate-result></span></div>'
     + '<button type="submit" class="btn btn-primary btn-lg">' + icon('check') + (p ? t('updateProduct') : t('saveProduct')) + '</button>'
     + '</form>'
     + '<div class="full publish-preview" id="publishPreview"><img src="' + productImg({ hue: hue, cat: cat, en: { title: p ? p.en.title : 'YOUR PRODUCT' }, zh: { title: '你的产品' } }, 800, 600) + '" alt="' + t('previewLabel') + '"></div>'
@@ -5041,6 +5083,7 @@ function submitProduct(f) {
     priceMin, priceMax, moq, unit: fd.get('unit'), leadTime,
     terms: fd.getAll('terms'), certs: fd.getAll('certs'),
     srcLang: srcLang,
+    paypalUrl: String(fd.get('paypalUrl') || '').trim(),
     en: { title: titleEn, desc: descEn, features: [] },
     zh: { title: titleZh, desc: descZh, features: [] },
     rating: 0, orders: 0
@@ -5053,7 +5096,11 @@ function submitProduct(f) {
         let uploadedIds = [];
         if (productImgFiles.length && typeof api.files.upload === 'function') {
           for (const f of productImgFiles.slice(0, 8)) {
-            try { const r = await api.files.upload(f); if (r && r.id) uploadedIds.push(r.id); }
+            /* 注意：productImgFiles 里存的是 {file, dataUrl, ...} 包装对象，
+             * 要上传它里面的 File 本体（之前传了包装对象 → 服务端报"缺少文件字段"）。 */
+            const raw = f && f.file ? f.file : (f instanceof File ? f : null);
+            if (!raw) continue;
+            try { const r = await api.files.upload(raw); if (r && r.id) uploadedIds.push(r.id); }
             catch (e) { toast((e && e.message) || String(e)); }
           }
         }

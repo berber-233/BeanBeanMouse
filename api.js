@@ -252,6 +252,7 @@ function toServerProduct(p = {}) {
     certs: Array.isArray(p.certs) ? p.certs : [],
     srcLang: p.srcLang || 'en',
     status: p.status,
+    paypalUrl: p.paypalUrl || p.paypal_url || '',
     translations: {
       en: { title: en.title || '', description: en.desc || en.description || '', features: en.features || [] },
       zh: { title: zh.title || '', description: zh.desc || zh.description || '', features: zh.features || [] }
@@ -956,6 +957,16 @@ api.notifications = {
     await apiDelay();
     const st = mockState();
     (st.notifications || []).forEach(n => { if (!n.read) n.read = true; });
+    mockSave(st);
+    return { ok: true };
+  }
+  ,
+  /* 删掉一条消息（用户反馈"点不掉"） */
+  async dismiss(id) {
+    if (api.config.mode === 'http') return apiRequest('/notifications/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.notifications = (st.notifications || []).filter(n => n.id !== id);
     mockSave(st);
     return { ok: true };
   }

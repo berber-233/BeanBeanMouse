@@ -12,6 +12,7 @@ import { configureStorage, setStorageImpl } from '../../backend/src/storage.mjs'
 import { makeR2Storage, makeDisabledStorage } from '../../backend/src/storage-r2.mjs';
 import { configureMailer } from '../../backend/src/mailer.mjs';
 import { sendViaAliyun, isAliyunMailConfigured } from '../../backend/src/mail-aliyun.mjs';
+import { configureTranslate } from '../../backend/src/translate.mjs';
 
 /* 同一个 isolate 内 env 是稳定的，应用实例只建一次 */
 let appPromise = null;
@@ -23,6 +24,8 @@ function getApp(env) {
       configureStorage({ maxFileSize: env.MAX_FILE_SIZE });
       setStorageImpl(env.FILES ? makeR2Storage(env.FILES) : makeDisabledStorage());
       configureMailer({ name: env.MAIL_TRANSPORT || 'mock', custom: mailTransport(env) });
+      /* Cloudflare Workers AI 翻译通道（未绑定则自动跳过，不影响其它通道） */
+      if (env.AI) configureTranslate({ ai: env.AI });
       return createApp({ env, deps: {} });
     });
   }

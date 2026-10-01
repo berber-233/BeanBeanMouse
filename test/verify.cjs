@@ -117,8 +117,9 @@ function resolveBrowser() {
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
   check('home: storefront section rendered', await page.locator('.storefront').count() === 1);
-  check('pet0.2: 8 pet sub-categories', await page.locator('.sub-card').count() === 8);
-  check('pet0.2: sub-category icons use pixel assets', await page.locator('.sub-card img[src^="assets/pixel/sub/"]').count() === 8);
+  /* 2026-10-01 新增"犬通用"分类 → 9 个 */
+  check('pet0.2: 9 pet sub-categories', await page.locator('.sub-card').count() === 9);
+  check('pet0.2: sub-category icons use pixel assets', await page.locator('.sub-card img[src^="assets/pixel/sub/"]').count() === 9);
   check('pet0.2: sub-category icon loads', await page.locator('.sub-card img').first().evaluate(img => img.complete && img.naturalWidth > 0));
   check('pet0.2: hero asks warm/pet framing', (await page.locator('.store-eyebrow').textContent()).length > 4);
   check('pet0.2: trust chips present', await page.locator('.trust-chip').count() === 4);
@@ -238,7 +239,8 @@ function resolveBrowser() {
   check('recruit: 3 steps', await page.locator('.guide-flow li').count() === 3);
   check('recruit: 3 benefits', await page.locator('.benefit-card').count() === 3);
   check('recruit: CTA present', await page.locator('.recruit-cta [data-nav="/login"]').count() === 1);
-  check('footer: customs & recruit links', await page.locator('[data-nav="/customs"]').count() >= 1 && await page.locator('[data-nav="/recruit"]').count() >= 1);
+  /* 2026-10-01：平台转为自营+面向买家，页脚去掉"招商入驻"入口（页面本身保留） */
+  check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   check('footer: version 0.2 shown', /0\.2/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);

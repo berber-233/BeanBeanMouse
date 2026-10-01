@@ -58,6 +58,7 @@ ensureColumns('companies', {
   reject_reason: 'TEXT'
 });
 ensureColumns('products', { sub: 'TEXT' });
+ensureColumns('products', { paypal_url: 'TEXT' });
 ensureColumns('shipments', { mode: 'TEXT' });
 ensureColumns('orders', {
   quote_id: 'TEXT REFERENCES quotes(id)',

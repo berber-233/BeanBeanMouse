@@ -6,6 +6,13 @@ import { run, get } from './store.mjs';
 const DAILY_QUOTA = Number(process.env.TRANSLATION_DAILY_QUOTA || 5000);
 const cache = new Map(); // key: text|target -> result
 
+/* Cloudflare Workers AI 绑定（平台入口注入）。跑在 Cloudflare 内部、不依赖外网，
+ * 比 MyMemory 这类外部免费接口稳（线上实测 MyMemory 从边缘超时 → 只能走离线兜底）。 */
+let AI = null;
+export function configureTranslate({ ai } = {}) {
+  if (ai) AI = ai;
+}
+
 function providerMode() {
   return process.env.TRANSLATION_PROVIDER || 'chain'; // 'chain' | 'mock'
 }
@@ -23,12 +30,30 @@ function fetchTimeout(url, opts, ms) {
 async function providerMyMemory(text, target) {
   const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500))
     + '&langpair=' + detectSource(text) + '|' + target;
-  const r = await fetchTimeout(url, null, 4000);
-  if (!r.ok) throw new Error('MyMemory HTTP ' + r.status);
-  const j = await r.json();
-  const out = j && j.responseData && j.responseData.translatedText;
-  if (!out || j.responseStatus !== 200) throw new Error('MyMemory empty');
-  return out;
+  /* 边缘节点到 MyMemory 有时要 4 秒以上：放宽到 9 秒，并重试一次 */
+  let lastErr = null;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const r = await fetchTimeout(url, null, 9000);
+      if (!r.ok) throw new Error('MyMemory HTTP ' + r.status);
+      const j = await r.json();
+      const out = j && j.responseData && j.responseData.translatedText;
+      if (!out || j.responseStatus !== 200) throw new Error('MyMemory empty');
+      return out;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('MyMemory failed');
+}
+
+/* Cloudflare Workers AI（首选真实通道，不依赖外网） */
+async function providerWorkersAi(text, target) {
+  if (!AI || typeof AI.run !== 'function') throw new Error('AI_BINDING_MISSING');
+  const src = detectSource(text) === 'zh-CN' ? 'zh' : 'en';
+  const tgt = target === 'zh-CN' ? 'zh' : (target || 'en');
+  const out = await AI.run('@cf/meta/m2m100-1.2b', { text: String(text).slice(0, 1000), source_lang: src, target_lang: tgt });
+  const t = out && (out.translated_text || out.response || out.result);
+  if (!t || String(t).trim() === '') throw new Error('AI empty');
+  return String(t).trim();
 }
 
 async function providerLibre(text, target) {
@@ -145,10 +170,14 @@ export async function translateText({ userId, text, target, source }) {
         catch (e) { /* 继续下一个通道 */ }
       }
       if (!result) {
-        try { result = await providerMyMemory(s, tgt); provider = 'mymemory'; }
-        catch (e) {
-          try { result = await providerLibre(s, tgt); provider = 'libretranslate'; }
-          catch (e2) { /* 走离线兜底 */ }
+        /* 顺序：Cloudflare AI（内部、最稳）→ MyMemory（免费外网）→ LibreTranslate → 离线词典 */
+        try { result = await providerWorkersAi(s, tgt); provider = 'workers-ai'; }
+        catch (eAi) {
+          try { result = await providerMyMemory(s, tgt); provider = 'mymemory'; }
+          catch (e) {
+            try { result = await providerLibre(s, tgt); provider = 'libretranslate'; }
+            catch (e2) { /* 走离线兜底 */ }
+          }
         }
       }
     }

@@ -422,6 +422,17 @@ async function productView(row) {
     /* 前端按 sellerId 归属商品（卖家工作台靠它筛选"我的产品"）；
      * 数据库列名是 seller_id，不映射过去卖家会看到"一件商品都没有"。 */
     sellerId: row.seller_id,
+    /* 数据库列是下划线命名，前端读驼峰；不映射的话价格/交期会全变成 0 或默认值
+     * （用户反馈的"产品界面显示 0 美元"就是这个）。 */
+    priceMin: row.price_min,
+    priceMax: row.price_max,
+    leadTime: row.lead_time,
+    hsCode: row.hs_code,
+    companyId: row.company_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    sellerName: (await get('SELECT name FROM users WHERE id = ?', row.seller_id) || {}).name || '',
+    paypalUrl: row.paypal_url || '',
     terms: safeJson(row.terms, []),
     certs: safeJson(row.certs, []),
     translations,
@@ -889,11 +900,11 @@ async function route(m, segs, q, req, res) {
         return fail(res, 400, 'VALIDATION', '价格区间不合法');
       }
       await run(
-        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, paypal_url, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id, u.id, company ? company.id : null, body.category, String(body.sub || '').slice(0, 40), body.hsCode || '', body.country,
         priceMin, priceMax, moq, body.unit || 'pcs', leadTime,
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
-        'pending', now, now
+        'pending', String(body.paypalUrl || '').slice(0, 500) || null, now, now
       );
       for (const lang of Object.keys(trs)) {
         await run(
@@ -938,11 +949,11 @@ async function route(m, segs, q, req, res) {
         ? (body.status && ['on', 'off', 'pending', 'draft'].includes(body.status) ? body.status : p.status)
         : 'pending';
       await run(
-        'UPDATE products SET category=?, sub=?, hs_code=?, country=?, price_min=?, price_max=?, moq=?, unit=?, lead_time=?, terms=?, certs=?, src_lang=?, status=?, reject_reason=NULL, updated_at=? WHERE id=?',
+        'UPDATE products SET category=?, sub=?, hs_code=?, country=?, price_min=?, price_max=?, moq=?, unit=?, lead_time=?, terms=?, certs=?, src_lang=?, status=?, paypal_url=?, reject_reason=NULL, updated_at=? WHERE id=?',
         body.category, String(body.sub || '').slice(0, 40), String(body.hsCode || '').slice(0, 40), body.country,
         priceMin, priceMax, moq, String(body.unit || 'pcs').slice(0, 20), leadTime,
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
-        nextStatus, now, p.id
+        nextStatus, String(body.paypalUrl || '').slice(0, 500) || null, now, p.id
       );
       for (const lang of Object.keys(trs)) {
         const exist = await get('SELECT id FROM product_translations WHERE product_id = ? AND lang = ?', p.id, lang);
@@ -1621,10 +1632,31 @@ async function route(m, segs, q, req, res) {
   }
 
   /* 通知 */
-  if (a === 'notifications' && m === 'GET') {
+  if (a === 'notifications') {
     const u = await requireAuth(res, req);
     if (!u) return;
-    return send(res, 200, await all('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC', u.id));
+    if (m === 'GET' && !b) {
+      return send(res, 200, await all('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC', u.id));
+    }
+    /* 标记全部已读（此前前端有这个按钮，但后端没有对应接口 → 点了报"接口不存在"） */
+    if (m === 'POST' && b === 'read-all') {
+      await run('UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL', Date.now(), u.id);
+      return send(res, 200, { ok: true });
+    }
+    /* 标记单条已读 */
+    if (m === 'POST' && b && c === 'read') {
+      const n = await get('SELECT * FROM notifications WHERE id = ? AND user_id = ?', b, u.id);
+      if (!n) return fail(res, 404, 'NOT_FOUND', '消息不存在');
+      await run('UPDATE notifications SET read_at = ? WHERE id = ?', Date.now(), b);
+      return send(res, 200, { ok: true, id: b });
+    }
+    /* 删掉一条消息（"点不掉"的另一种解法：直接移除） */
+    if (m === 'DELETE' && b) {
+      const n = await get('SELECT * FROM notifications WHERE id = ? AND user_id = ?', b, u.id);
+      if (!n) return fail(res, 404, 'NOT_FOUND', '消息不存在');
+      await run('DELETE FROM notifications WHERE id = ?', b);
+      return send(res, 200, { ok: true, id: b });
+    }
   }
 
   /* 品类需求记录：用户没找到想要的品类时提交，平台据此邀请供应商入驻 */

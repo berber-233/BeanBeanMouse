@@ -23,6 +23,9 @@
   // Pages Functions 通过 service binding 调用它（见 workers/mailer/README）。
   "services": [{ "binding": "MAILER", "service": "beanbeanmouse-mailer" }],
 
+  // 商品描述/对话翻译：用 Cloudflare 自家 Workers AI（内部调用，不依赖外网免费接口）
+  "ai": { "binding": "AI" },
+
   "vars": {
     // 非敏感配置；密钥类请用 `npx wrangler pages secret put <NAME> --project-name beanbean-mouse`
     // 邮件通道：service=Cloudflare Email（需外币订阅，暂不可用）/ aliyun=阿里云邮件推送（当前使用）

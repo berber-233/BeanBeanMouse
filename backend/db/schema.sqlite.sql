@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS products (
   src_lang TEXT NOT NULL DEFAULT 'en',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft','pending','on','off','rejected')),
   reject_reason TEXT,
+  paypal_url TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );

@@ -328,7 +328,18 @@ function subLabel(p) {
   const s = subOf(p);
   return s ? langObj(s) : '';
 }
-function sellerById(id) { return SELLERS.find(s => s.id === id) || SELLERS[0]; }
+/* 平台自营：所有商品现在归平台（管理员）所有，对外统一显示品牌名/主体名，
+ * 不再套用演示数据里那个编造的"某公司 · 杭州"。 */
+function platformSeller() {
+  const name = (typeof siteEntityDisplayName === 'function') ? siteEntityDisplayName('zh') : '豆豆鼠 BeanBeanMouse';
+  const nameEn = (typeof siteEntityDisplayName === 'function') ? siteEntityDisplayName('en') : 'BeanBeanMouse';
+  return {
+    id: 'platform', verified: true, since: 2019, responseRate: 99, responseTime: '2h',
+    rating: 4.9, orders: 0, country: 'CN',
+    zh: { company: name, city: '' }, en: { company: nameEn, city: '' }
+  };
+}
+function sellerById(id) { return SELLERS.find(s => s.id === id) || platformSeller(); }
 function productById(id) { return state.products.find(p => p.id === id); }
 function sellerOf(p) { return sellerById(p.sellerId); }
 function isLive(p) { return p.status === undefined || p.status === 'on'; }
@@ -843,6 +854,34 @@ function handleAction(el) {
       break;
     }
     case 'notif-read-all': runBusy(el, markAllNotificationsRead); break;
+    /* 发布产品：一键把标题+描述翻到另一种语言（用 Cloudflare AI，无外网依赖） */
+    case 'translate-product': runBusy(el, () => translateProductForm(el)); break;
+    /* 点消息本身：标记已读（有跳转链接就顺路跳过去） */
+    case 'notif-open': {
+      const rid = el.dataset.id;
+      const link = el.dataset.nav || '';
+      if (!rid) break;
+      api.notifications.markRead(rid).then(() => {
+        const row = (state.notifications || []).find(n => n.id === rid);
+        if (row) row.read = true;
+        saveState();
+        renderHeader();
+        if (link) go(link);
+      }).catch(e => toast((e && e.message) || String(e)));
+      break;
+    }
+    /* 删掉一条消息（用户反馈"点不掉"） */
+    case 'notif-dismiss': {
+      e.stopPropagation();
+      const did = el.dataset.id;
+      if (!did) break;
+      api.notifications.dismiss(did).then(() => {
+        state.notifications = (state.notifications || []).filter(n => n.id !== did);
+        saveState();
+        renderHeader();
+      }).catch(err => toast((err && err.message) || String(err)));
+      break;
+    }
     case 'open-conv': go('/dashboard/messages?conv=' + encodeURIComponent(id)); break;
     case 'export-orders': exportOrdersCsv(); break;
     case 'export-inquiries': exportInquiriesCsv(); break;
@@ -1168,15 +1207,19 @@ function renderHeader() {
     return;
   }
   if (u) {
-    const notifRows = (state.notifications || []).filter(n => u.role === 'admin' || n.toUserId === u.id).slice(0, 5);
+    /* 严格只看自己的消息：之前给了管理员一个"看全部"的旁路，
+     * 换账号后本地残留的消息会串到别人头上（用户反馈"换成买家还看到那条消息"）。 */
+    const notifRows = (state.notifications || []).filter(n => n.toUserId === u.id).slice(0, 5);
     const unreadN = notifRows.filter(n => !n.read).length;
     bellHtml = '<div class="notif-wrap">'
       + '<button type="button" class="icon-btn notif-btn" data-action="notif-toggle" aria-label="' + t('notificationsTitle') + '" aria-expanded="false">' + icon('bell')
       + (unreadN ? '<span class="badge-dot notif-badge">' + unreadN + '</span>' : '') + '</button>'
       + '<div class="notif-panel" id="notifPanel" hidden>'
       + (notifRows.length
-        ? notifRows.map(n => '<div class="notif-row' + (n.read ? ' read' : '') + '"' + (n.link ? ' data-nav="' + esc(n.link) + '"' : '') + '>'
-          + '<b>' + esc(n.title) + '</b><p>' + esc(n.body) + '</p><span class="small muted">' + fmtDate(n.createdAt) + '</span></div>').join('')
+        ? notifRows.map(n => '<div class="notif-row' + (n.read ? ' read' : '') + '" data-action="notif-open" data-id="' + esc(n.id) + '"' + (n.link ? ' data-nav="' + esc(n.link) + '"' : '') + '>'
+          + '<b>' + esc(n.title) + '</b><p>' + esc(n.body) + '</p>'
+          + '<span class="small muted">' + fmtDate(n.createdAt) + '</span>'
+          + '<button type="button" class="notif-x" data-action="notif-dismiss" data-id="' + esc(n.id) + '" aria-label="' + t('close') + '">✕</button></div>').join('')
         : '<p class="small muted">' + t('notificationsEmpty') + '</p>')
       + '<button type="button" class="btn btn-sm btn-block" data-action="notif-read-all">' + t('markAllRead') + '</button>'
       + '</div></div>';
