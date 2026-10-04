@@ -108,6 +108,10 @@ function productToFrontend(p) {
     material: p.material || (PET_ATTR_FALLBACK[sub] || {}).material || '',
     status: p.status || 'on',
     paypalUrl: p.paypalUrl || p.paypal_url || '',
+    /* 商品货号（SKU）：客服与仓库按货号找货、买家询盘时报货号 */
+    code: p.code || '',
+    /* 防伪码：以服务端签发的为准（前端不再自己算，否则页面显示的码根本验不过） */
+    antiFakeCode: p.antiFakeCode || '',
     images: (Array.isArray(p.images) ? p.images : []).map(x => (typeof x === 'string' ? x : ('/api' + (x.url || ('/files/' + (x.fileId || x.file_id)))))).filter(Boolean),
     hsCode: p.hsCode || p.hs_code || '',
     addedAt: p.addedAt || p.created_at || 0,
@@ -336,7 +340,15 @@ async function hydrateSessionData() {
       }),
       api.notifications.list().then(rows => {
         state.notifications = (Array.isArray(rows) ? rows : ((rows && rows.items) || [])).map(mapServerNotification);
-      })
+      }),
+      /* 客服快捷短语：自建/改过的话术随账号同步（内置话术库在前端 data.js） */
+      api.quickReplies.list().then(rows => {
+        state.quickReplies = Array.isArray(rows) ? rows : ((rows && rows.items) || []);
+      }).catch(() => { state.quickReplies = state.quickReplies || []; }),
+      /* 地址管理：交易过的客户地址（管理员看全部，买家看自己的） */
+      api.addresses.list().then(rows => {
+        state.addresses = Array.isArray(rows) ? rows : ((rows && rows.items) || []);
+      }).catch(() => { state.addresses = state.addresses || []; })
     ];
     /* 推广位只对卖家/管理员开放（买家请求会被 403，避免无意义的报错进控制台） */
     if (state.user.role === 'seller' || state.user.role === 'admin') {

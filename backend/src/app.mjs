@@ -9,7 +9,7 @@
  */
 import { randomUUID, randomBytes, toHex, sha256Hex, base64ToBytes } from './platform.mjs';
 import { get, run, all } from './store.mjs';
-import { seedIfEmpty, antiFakeCode } from './seed.mjs';
+import { seedIfEmpty, antiFakeCode, newAntiFakeCode } from './seed.mjs';
 import { hashPassword, verifyPassword, signToken, verifyToken, configureAuth } from './auth.mjs';
 import { translateText, translateError } from './translate.mjs';
 import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE, storageInfo } from './storage.mjs';
@@ -411,6 +411,116 @@ function toNum(v, dft) {
   return Number.isFinite(n) ? n : dft;
 }
 
+/* ---------------- 商品货号（SKU） ----------------
+ * 规则：BBM-<品类码>-<4 位序号>，例如 BBM-HAM-0007 / BBM-DOGL-0012。
+ * 品类码来自细分类，仓管与客服只看前缀就知道是哪一类，询盘里报货号即可定位。 */
+const CODE_TAG = {
+  hamster: 'HAM', cat: 'CAT', 'dog-small': 'DOGS', 'dog-large': 'DOGL',
+  food: 'FOOD', grooming: 'GRM', toys: 'TOY', travel: 'TRV'
+};
+function codeTagOf(sub) {
+  return CODE_TAG[String(sub || '').replace(/^pet-/, '')] || 'GEN';
+}
+async function allocateProductCode(sub) {
+  const tag = codeTagOf(sub);
+  const prefix = 'BBM-' + tag + '-';
+  const row = await get('SELECT COUNT(*) AS c FROM products WHERE code LIKE ?', prefix + '%');
+  const base = (row && row.c ? row.c : 0) + 1;
+  for (let i = 0; i < 300; i++) {
+    const code = prefix + String(base + i).padStart(4, '0');
+    if (!(await get('SELECT id FROM products WHERE code = ?', code))) return code;
+  }
+  return prefix + String(Date.now()).slice(-4);
+}
+
+/* ---------------- 发布时补齐双语 ----------------
+ * 以前必须中英各填一遍才能发布，只填一种要么发不出去、要么发布后换个语言的客户
+ * 看到的是另一种语言（"我发布的产品无法翻译"）。现在只填一种也能发，另一种服务端自动补齐。 */
+async function fillMissingTranslations(raw) {
+  const trs = {};
+  for (const lang of ['en', 'zh']) {
+    const t = (raw && raw[lang]) || {};
+    trs[lang] = {
+      title: String(t.title || '').trim(),
+      description: String(t.description || '').trim(),
+      features: Array.isArray(t.features) ? t.features.map(x => String(x || '').trim()).filter(Boolean) : []
+    };
+  }
+  const hasEn = !!trs.en.title;
+  const hasZh = !!trs.zh.title;
+  if (!hasEn && !hasZh) return { ok: false, trs };
+  if (hasEn === hasZh) return { ok: true, trs };
+
+  const from = hasZh ? 'zh' : 'en';
+  const to = from === 'zh' ? 'en' : 'zh';
+  const target = to === 'en' ? 'en' : 'zh-CN';
+  const source = from === 'zh' ? 'zh-CN' : 'en';
+  const src = trs[from];
+  const dst = trs[to];
+  const jobs = [];
+  const put = (key, text) => {
+    jobs.push(translateText({ text, target, source, skipQuota: true })
+      .then(r => { if (r && r.text && String(r.text).trim()) dst[key] = String(r.text).trim(); })
+      .catch(() => { /* 翻译通道不可用时保持空缺，不阻断发布 */ }));
+  };
+  if (src.title) put('title', src.title);
+  if (src.description) put('description', src.description);
+  if (src.features.length) {
+    jobs.push(translateText({ text: src.features.join('\n'), target, source, skipQuota: true })
+      .then(r => {
+        if (!r || !r.text) return;
+        const list = String(r.text).split('\n').map(x => x.trim()).filter(Boolean);
+        /* 行数对得上才采用，避免模型把几条特性揉成一段 */
+        if (list.length === src.features.length) dst.features = list;
+      })
+      .catch(() => {}));
+  }
+  await Promise.all(jobs);
+  /* 兜底：翻译没回来时至少保证标题非空，否则商品在另一种语言下会显示空白 */
+  if (!dst.title) dst.title = src.title;
+  dst.autoTranslated = true;
+  return { ok: true, trs };
+}
+
+/* 地址簿自动收录：询盘/下单时把客户信息存进 addresses。
+ * 去重键 = 公司 + 邮箱 + 国家；命中就累加使用次数、补齐空缺字段。 */
+async function rememberAddress(ownerId, source, i) {
+  try {
+    const name = String((i && i.name) || '').trim();
+    const company = String((i && i.company) || '').trim();
+    const email = String((i && i.email) || '').trim();
+    const country = String((i && i.country) || '').trim().toUpperCase().slice(0, 4);
+    if (!name && !company) return;
+    const key = [company.toLowerCase(), email.toLowerCase(), country].filter(Boolean).join('|');
+    if (!key) return;
+    const now = Date.now();
+    const exist = await get('SELECT * FROM addresses WHERE owner_key = ?', key);
+    if (exist) {
+      await run(
+        `UPDATE addresses SET use_count = use_count + 1, last_used_at = ?, updated_at = ?,
+           name = CASE WHEN ? <> '' THEN ? ELSE name END,
+           email = CASE WHEN ? <> '' THEN ? ELSE email END,
+           source = CASE WHEN source = 'manual' THEN source ELSE ? END
+         WHERE id = ?`,
+        now, now, name, name, email, email, source, exist.id
+      );
+      return exist.id;
+    }
+    const id = randomUUID();
+    await run(
+      `INSERT INTO addresses (id, user_id, owner_key, name, company, country, email, source, use_count, last_used_at, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      id, ownerId || null, key, name.slice(0, 80), company.slice(0, 120), country, email.slice(0, 160),
+      source, 1, now, now, now
+    );
+    return id;
+  } catch (e) {
+    /* 收录失败不能影响询盘/下单主流程 */
+    console.error('rememberAddress failed:', e && e.message);
+    return null;
+  }
+}
+
 async function productView(row) {
   const trs = await all('SELECT * FROM product_translations WHERE product_id = ?', row.id);
   const translations = {};
@@ -445,6 +555,8 @@ async function productView(row) {
     certs: safeJson(row.certs, []),
     translations,
     antiFakeCode: code ? code.code : null,
+    /* 商品货号（SKU）：客服/仓库按货号找货、买家询盘时报货号 */
+    code: row.code || '',
     promoted: !!promo,
     images: imgRows.map(x => ({ id: x.id, fileId: x.file_id, url: '/files/' + x.file_id }))
   };
@@ -885,8 +997,25 @@ async function route(m, segs, q, req, res) {
         list = list.filter(p => (min == null || p.price_max >= min) && (max == null || p.price_min <= max));
       }
       if (kw) {
-        const ids = new Set((await all('SELECT product_id FROM product_translations WHERE title LIKE ? OR description LIKE ?', '%' + kw + '%', '%' + kw + '%')).map(r => r.product_id));
-        list = list.filter(p => ids.has(p.id));
+        /* 关键词扩展：客户用别的语言搜索（俄/日/西/阿…）时先把关键词翻成中/英再匹配，
+         * 否则库里只有中英两套译文，非中英客户永远搜不到东西。
+         * 同时支持按商品货号搜索（BBM-HAM-0007），客服与仓库按货号找货。 */
+        const kws = [kw];
+        try {
+          const other = /[\u4e00-\u9fff]/.test(kw) ? 'en' : 'zh-CN';
+          const tr = await translateText({ text: kw, target: other, skipQuota: true });
+          const alt = tr && tr.text ? String(tr.text).trim().toLowerCase() : '';
+          if (alt && alt !== kw) kws.push(alt);
+        } catch (e) { /* 翻译不可用时按原关键词搜索 */ }
+        const ids = new Set();
+        for (const k of kws) {
+          const rows = await all(
+            'SELECT product_id FROM product_translations WHERE lower(title) LIKE ? OR lower(description) LIKE ?',
+            '%' + k + '%', '%' + k + '%'
+          );
+          for (const r of rows) ids.add(r.product_id);
+        }
+        list = list.filter(p => ids.has(p.id) || String(p.code || '').toLowerCase().indexOf(kw) >= 0);
       }
       return send(res, 200, paginate(await Promise.all(list.map(productView)), q));
     }
@@ -900,12 +1029,16 @@ async function route(m, segs, q, req, res) {
         }
       }
       const body = await readBody(req);
-      const trs = body.translations || {};
-      if (!body.category || !body.country || !trs.en || !trs.zh) {
-        return fail(res, 400, 'VALIDATION', 'category/country/translations(en,zh) 为必填');
+      if (!body.category || !body.country) {
+        return fail(res, 400, 'VALIDATION', 'category/country 为必填');
       }
+      /* 只填一种语言也能发布：另一种服务端自动补齐（见 fillMissingTranslations） */
+      const filled = await fillMissingTranslations(body.translations || {});
+      if (!filled.ok) return fail(res, 400, 'VALIDATION', '至少要填写一种语言的标题');
+      const trs = filled.trs;
       const id = randomUUID();
       const now = Date.now();
+      const code = await allocateProductCode(body.sub);
       const company = await get('SELECT id FROM companies WHERE user_id = ?', u.id);
       const priceMin = toNum(body.priceMin, 0);
       const priceMax = toNum(body.priceMax, 0);
@@ -915,11 +1048,11 @@ async function route(m, segs, q, req, res) {
         return fail(res, 400, 'VALIDATION', '价格区间不合法');
       }
       await run(
-        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, paypal_url, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, paypal_url, code, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id, u.id, company ? company.id : null, body.category, String(body.sub || '').slice(0, 40), body.hsCode || '', body.country,
         priceMin, priceMax, moq, body.unit || 'pcs', leadTime,
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
-        'pending', String(body.paypalUrl || '').slice(0, 500) || null, now, now
+        'pending', String(body.paypalUrl || '').slice(0, 500) || null, code, now, now
       );
       for (const lang of Object.keys(trs)) {
         await run(
@@ -930,7 +1063,7 @@ async function route(m, segs, q, req, res) {
       const enTitle = (trs.en && trs.en.title) || '';
       await run(
         'INSERT INTO anti_fake_codes (id, product_id, code, batch_no, status, issued_at, verify_count) VALUES (?,?,?,?,?,?,?)',
-        randomUUID(), id, antiFakeCode(id, u.id, enTitle), 'B' + new Date().getFullYear(), 'active', now, 0
+        randomUUID(), id, newAntiFakeCode(), 'B' + new Date().getFullYear(), 'active', now, 0
       );
       await audit(u.id, 'product.create', 'product', id, enTitle);
       /* 所有新发布/修改的商品都要过审核，管理员也一样：
@@ -950,10 +1083,12 @@ async function route(m, segs, q, req, res) {
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
       if (u.role !== 'admin' && p.seller_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能修改自己的产品');
       const body = await readBody(req);
-      const trs = body.translations || {};
-      if (!body.category || !body.country || !trs.en || !trs.zh) {
-        return fail(res, 400, 'VALIDATION', 'category/country/translations(en,zh) 为必填');
+      if (!body.category || !body.country) {
+        return fail(res, 400, 'VALIDATION', 'category/country 为必填');
       }
+      const filled = await fillMissingTranslations(body.translations || {});
+      if (!filled.ok) return fail(res, 400, 'VALIDATION', '至少要填写一种语言的标题');
+      const trs = filled.trs;
       const priceMin = toNum(body.priceMin, 0);
       const priceMax = toNum(body.priceMax, 0);
       if (!(priceMin >= 0) || !(priceMax >= priceMin)) return fail(res, 400, 'VALIDATION', '价格区间不合法');
@@ -969,6 +1104,11 @@ async function route(m, segs, q, req, res) {
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
         nextStatus, String(body.paypalUrl || '').slice(0, 500) || null, now, p.id
       );
+      /* 老商品（迁移前入库的）没有货号，编辑时补一个 */
+      if (!p.code) {
+        const code = await allocateProductCode(body.sub);
+        await run('UPDATE products SET code = ? WHERE id = ?', code, p.id);
+      }
       for (const lang of Object.keys(trs)) {
         const exist = await get('SELECT id FROM product_translations WHERE product_id = ? AND lang = ?', p.id, lang);
         if (exist) {
@@ -1170,6 +1310,10 @@ async function route(m, segs, q, req, res) {
         card, cardName, JSON.stringify(atts)
       );
       await audit(u ? u.id : null, 'inquiry.create', 'inquiry', id, body.message.slice(0, 80));
+      /* 顺手把客户地址收进地址簿（同一公司+邮箱+国家只留一条，累加使用次数） */
+      await rememberAddress(u ? u.id : null, 'inquiry', {
+        name: contactName, email: contactEmail, company: contactCompany, country: contactCountry
+      });
       const seller = await get('SELECT * FROM users WHERE id = ?', p.seller_id);
       if (seller) {
         await notifyUser(seller.id, 'inquiry', '收到新询盘', '产品 ' + (body.productId) + ' 收到新询盘：' + String(body.message).slice(0, 120));
@@ -1246,6 +1390,10 @@ async function route(m, segs, q, req, res) {
         id, inq.id, quote ? quote.id : null, inq.buyer_id, product.seller_id, 'created', total, body.currency || 'USD', Date.now(), Date.now()
       );
       await audit(u.id, 'order.create', 'order', id, String(total));
+      /* 成交客户也进地址簿（订单来源，权重更高：使用次数 +1） */
+      await rememberAddress(inq.buyer_id || u.id, 'order', {
+        name: inq.contact_name, email: inq.contact_email, company: inq.contact_company, country: inq.contact_country
+      });
       const seller = await get('SELECT * FROM users WHERE id = ?', product.seller_id);
       if (seller) await notifyUser(seller.id, 'order', '收到新订单', '订单金额 ' + (body.currency || 'USD') + ' ' + total);
       await addEvidence(id, u.id, 'order_create', id, { total, currency: body.currency || 'USD', inquiryId: inq.id });
@@ -1457,7 +1605,7 @@ async function route(m, segs, q, req, res) {
   }
 
   /* 翻译（服务端代理：真实服务链 + 额度 + 缓存 + 离线兜底） */
-  if (a === 'translate' && m === 'POST') {
+  if (a === 'translate' && !b && m === 'POST') {
     const body = await readBody(req);
     const u = await currentUser(req);
     try {
@@ -1469,6 +1617,51 @@ async function route(m, segs, q, req, res) {
     }
   }
 
+  /* 批量翻译：一次请求翻多段（商品标题+描述+特性一次搞定）。
+   * 以前前端每段发一次请求，一页 5–8 段就是 5–8 次往返，用户感觉"点了要等很久"。 */
+  if (a === 'translate' && b === 'batch' && m === 'POST') {
+    const body = await readBody(req);
+    const u = await currentUser(req);
+    const target = String(body.target || '').trim();
+    const texts = Array.isArray(body.texts) ? body.texts.slice(0, 20).map(x => String(x == null ? '' : x)) : [];
+    if (!texts.length || !target) return fail(res, 400, 'VALIDATION', 'texts/target 为必填');
+    const total = texts.reduce((n, x) => n + x.length, 0);
+    if (total > 6000) return fail(res, 400, 'TEXT_TOO_LONG', '单次批量最多 6000 字符');
+
+    const uid = u ? u.id : 'guest';
+    const day = new Date().toISOString().slice(0, 10);
+    if (total > 0) {
+      const used = await get('SELECT COALESCE(SUM(chars),0) AS c FROM translation_usage WHERE user_id = ? AND day = ?', uid, day);
+      const quota = Number(process.env.TRANSLATION_DAILY_QUOTA || 5000);
+      if ((used ? used.c : 0) + total > quota) return fail(res, 429, 'QUOTA_EXCEEDED', '今日翻译额度已用完');
+    }
+
+    const items = new Array(texts.length);
+    let cursor = 0;
+    /* 并发 3：Workers AI 并发太高会被限流 */
+    const lanes = new Array(Math.min(3, texts.length)).fill(0).map(async () => {
+      while (cursor < texts.length) {
+        const i = cursor++;
+        const src = texts[i];
+        if (!src.trim()) { items[i] = { text: src, provider: 'empty' }; continue; }
+        try {
+          const r = await translateText({ userId: uid, text: src, target, source: body.source, skipQuota: true });
+          items[i] = { text: r.text, provider: r.provider };
+        } catch (e) {
+          items[i] = { text: src, provider: 'offline' };
+        }
+      }
+    });
+    await Promise.all(lanes);
+    if (total > 0) {
+      await run(
+        'INSERT INTO translation_usage (id, user_id, day, chars, created_at) VALUES (?,?,?,?,?)',
+        randomUUID(), uid, day, total, Date.now()
+      );
+    }
+    return send(res, 200, { items, target, source: body.source || null, chars: total });
+  }
+
   /* 防伪验真 */
   if (a === 'anti-fake' && b === 'verify' && m === 'POST') {
     const body = await readBody(req);
@@ -1476,7 +1669,20 @@ async function route(m, segs, q, req, res) {
     const row = await get('SELECT * FROM anti_fake_codes WHERE code = ?', code);
     if (!row || row.status !== 'active') return fail(res, 404, 'CODE_NOT_FOUND', '防伪码不存在或已作废');
     await run('UPDATE anti_fake_codes SET last_verified_at = ?, verify_count = verify_count + 1 WHERE id = ?', Date.now(), row.id);
-    return send(res, 200, { genuine: true, code: row.code, productId: row.product_id, verifiedAt: new Date().toISOString() });
+    const prod = await get('SELECT * FROM products WHERE id = ?', row.product_id);
+    const enTr = prod ? await get('SELECT title FROM product_translations WHERE product_id = ? AND lang = ?', prod.id, 'en') : null;
+    const zhTr = prod ? await get('SELECT title FROM product_translations WHERE product_id = ? AND lang = ?', prod.id, 'zh') : null;
+    return send(res, 200, {
+      genuine: true,
+      code: row.code,
+      productId: row.product_id,
+      verifiedAt: new Date().toISOString(),
+      verifyCount: (row.verify_count || 0) + 1,
+      batchNo: row.batch_no || '',
+      productCode: prod ? prod.code : '',
+      productTitle: (enTr && enTr.title) || (zhTr && zhTr.title) || '',
+      issuedAt: row.issued_at || null
+    });
   }
 
   /* 资讯：实时更新 + 权威来源（全球多区域） */
@@ -2093,6 +2299,232 @@ async function route(m, segs, q, req, res) {
       if (!rec) return fail(res, 404, 'NOT_FOUND', '建议不存在');
       await run('DELETE FROM suggestions WHERE id = ?', b);
       await audit(admin.id, 'suggestion.delete', 'suggestion', b, String(rec.content || '').slice(0, 60));
+      return send(res, 200, { ok: true, id: b });
+    }
+  }
+
+  /* 表单记录：把每笔交易的询盘表单、报价、订单、生成的单据汇总成可检索的记录。
+   * 数据都是现成的（inquiries / quotes / orders / order_documents），
+   * 这里只做"按交易聚合 + 可搜索"，不额外往库里塞冗余数据。 */
+  if (a === 'records' && !b && m === 'GET') {
+    const u = await requireAuth(res, req);
+    if (!u) return;
+    const isAdmin = u.role === 'admin';
+    const kw = String(q.get('kw') || '').trim().toLowerCase();
+    const kind = String(q.get('kind') || '').trim();
+    const items = [];
+
+    const inqRows = await all('SELECT * FROM inquiries ORDER BY created_at DESC LIMIT 500');
+    const orderRows = await all('SELECT * FROM orders ORDER BY created_at DESC LIMIT 500');
+    const quoteRows = await all('SELECT * FROM quotes ORDER BY created_at DESC LIMIT 500');
+    const docRows = await all('SELECT * FROM order_documents ORDER BY created_at DESC LIMIT 500');
+    const prodIds = new Set([].concat(inqRows.map(r => r.product_id), orderRows.map(r => r.inquiry_id)).filter(Boolean));
+    const prods = {};
+    for (const pid of prodIds) {
+      const p = await get('SELECT id, code, seller_id FROM products WHERE id = ?', pid);
+      if (p) prods[pid] = p;
+    }
+    const orderByInquiry = {};
+    for (const o of orderRows) if (o.inquiry_id) orderByInquiry[o.inquiry_id] = o;
+    const quoteByInquiry = {};
+    for (const qq of quoteRows) if (!quoteByInquiry[qq.inquiry_id]) quoteByInquiry[qq.inquiry_id] = qq;
+
+    for (const i of inqRows) {
+      if (!isAdmin && i.buyer_id !== u.id) continue;
+      const p = prods[i.product_id] || null;
+      const title = (await get('SELECT title FROM product_translations WHERE product_id = ? AND lang = ?', i.product_id, i.buyer_id ? 'zh' : 'en')) || {};
+      items.push({
+        kind: 'inquiry', id: i.id, refId: i.id, productId: i.product_id,
+        title: title.title || i.product_id, code: p ? p.code : '',
+        party: i.contact_name || i.buyer_id || '—', company: i.contact_company || '', country: i.contact_country || '',
+        email: i.contact_email || '', amount: null, currency: null, status: i.status,
+        createdAt: i.created_at,
+        fields: [
+          { k: 'qty', v: (i.qty || '') + ' ' + (i.unit || '') },
+          { k: 'payment', v: i.payment_term || '' },
+          { k: 'message', v: String(i.message || '').slice(0, 300) },
+          { k: 'attachments', v: String((safeJson(i.attachments, []) || []).length) }
+        ]
+      });
+      const qq = quoteByInquiry[i.id];
+      if (qq) {
+        items.push({
+          kind: 'quote', id: qq.id, refId: i.id, productId: i.product_id,
+          title: title.title || i.product_id, code: p ? p.code : '',
+          party: i.contact_name || '—', company: i.contact_company || '', country: i.contact_country || '',
+          email: i.contact_email || '', amount: qq.price, currency: 'USD', status: 'quoted',
+          createdAt: qq.created_at,
+          fields: [
+            { k: 'incoterm', v: qq.incoterm }, { k: 'payment', v: qq.payment_term },
+            { k: 'validity', v: (qq.validity_days || '') + 'd' }, { k: 'lead', v: (qq.lead_time || '') + 'd' },
+            { k: 'note', v: String(qq.note || '').slice(0, 200) }
+          ]
+        });
+      }
+      const oo = orderByInquiry[i.id];
+      if (oo) {
+        items.push({
+          kind: 'order', id: oo.id, refId: oo.id, productId: i.product_id,
+          title: title.title || i.product_id, code: p ? p.code : '',
+          party: i.contact_name || '—', company: i.contact_company || '', country: i.contact_country || '',
+          email: i.contact_email || '', amount: oo.total, currency: oo.currency, status: oo.status,
+          createdAt: oo.created_at, fields: []
+        });
+      }
+    }
+    for (const d of docRows) {
+      const oo = orderRows.find(x => x.id === d.order_id);
+      if (!oo) continue;
+      const i2 = inqRows.find(x => x.id === oo.inquiry_id);
+      if (!isAdmin && (!oo.buyer_id || oo.buyer_id !== u.id)) continue;
+      items.push({
+        kind: 'document', id: d.id, refId: oo.id, productId: i2 ? i2.product_id : '',
+        title: ({ CI: '商业发票 CI', PL: '装箱单 PL', CO: '原产地证 CO', BL: '提单 B/L' })[d.doc_type] || d.doc_type,
+        code: '', party: i2 ? (i2.contact_name || '') : '', company: i2 ? (i2.contact_company || '') : '',
+        country: i2 ? (i2.contact_country || '') : '', email: i2 ? (i2.contact_email || '') : '',
+        amount: oo.total, currency: oo.currency, status: oo.status, createdAt: d.created_at, fields: []
+      });
+    }
+    let list = items;
+    if (kind) list = list.filter(x => x.kind === kind);
+    if (kw) {
+      list = list.filter(x => [x.title, x.code, x.party, x.company, x.country, x.email, x.refId]
+        .filter(Boolean).join(' ').toLowerCase().indexOf(kw) >= 0);
+    }
+    list.sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0));
+    return send(res, 200, { items: list.slice(0, 300), total: list.length });
+  }
+
+  /* 地址管理：记录交易过的客户地址（管理员看全部，买家只看自己的） */
+  if (a === 'addresses') {
+    const u = await requireAuth(res, req);
+    if (!u) return;
+    const ownerKeyOf = b => [String(b.company || '').trim().toLowerCase(), String(b.email || '').trim().toLowerCase(), String(b.country || '').trim().toUpperCase()].filter(Boolean).join('|');
+    if (b === undefined && m === 'GET') {
+      const rows = u.role === 'admin'
+        ? await all('SELECT * FROM addresses ORDER BY COALESCE(last_used_at, updated_at) DESC')
+        : await all('SELECT * FROM addresses WHERE user_id = ? ORDER BY COALESCE(last_used_at, updated_at) DESC', u.id);
+      /* 地址簿第一次被打开时，把历史询盘里的客户一次性补录进来
+       * （自动收录只对"新"询盘生效，老数据不该凭空消失）。 */
+      if (u.role === 'admin' && rows.length === 0) {
+        const old = await all('SELECT contact_name, contact_email, contact_company, contact_country FROM inquiries ORDER BY created_at DESC LIMIT 200');
+        for (const i2 of old) {
+          await rememberAddress(u.id, 'inquiry', {
+            name: i2.contact_name, email: i2.contact_email, company: i2.contact_company, country: i2.contact_country
+          });
+        }
+        const again = await all('SELECT * FROM addresses ORDER BY COALESCE(last_used_at, updated_at) DESC');
+        return send(res, 200, { items: again, total: again.length, backfilled: true });
+      }
+      return send(res, 200, { items: rows, total: rows.length });
+    }
+    if (b === undefined && m === 'POST') {
+      const body = await readBody(req);
+      const name = String(body.name || '').trim();
+      const company = String(body.company || '').trim();
+      const email = String(body.email || '').trim();
+      if (!name && !company) return fail(res, 400, 'VALIDATION', '联系人或公司名至少要填一个');
+      const now = Date.now();
+      const id = randomUUID();
+      const key = ownerKeyOf({ company: company, email: email, country: body.country }) || ('manual|' + id);
+      const exist = await get('SELECT * FROM addresses WHERE owner_key = ?', key);
+      if (exist) {
+        await run(
+          `UPDATE addresses SET name = ?, city = ?, address1 = ?, address2 = ?, zip = ?, contact = ?, phone = ?, note = ?, updated_at = ? WHERE id = ?`,
+          name || exist.name, String(body.city || exist.city || '').slice(0, 80), String(body.address1 || exist.address1 || '').slice(0, 200),
+          String(body.address2 || exist.address2 || '').slice(0, 200), String(body.zip || exist.zip || '').slice(0, 20),
+          String(body.contact || exist.contact || '').slice(0, 80), String(body.phone || exist.phone || '').slice(0, 40),
+          String(body.note || exist.note || '').slice(0, 500), now, exist.id
+        );
+        return send(res, 200, await get('SELECT * FROM addresses WHERE id = ?', exist.id));
+      }
+      await run(
+        `INSERT INTO addresses (id, user_id, owner_key, name, company, country, city, address1, address2, zip, contact, phone, email, note, source, use_count, last_used_at, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        id, u.id, key, name.slice(0, 80), company.slice(0, 120), String(body.country || '').slice(0, 4).toUpperCase(),
+        String(body.city || '').slice(0, 80), String(body.address1 || '').slice(0, 200), String(body.address2 || '').slice(0, 200),
+        String(body.zip || '').slice(0, 20), String(body.contact || '').slice(0, 80), String(body.phone || '').slice(0, 40),
+        email.slice(0, 160), String(body.note || '').slice(0, 500), 'manual', 0, null, now, now
+      );
+      return send(res, 201, await get('SELECT * FROM addresses WHERE id = ?', id));
+    }
+    if (b && m === 'PUT') {
+      const rec = await get('SELECT * FROM addresses WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '地址不存在');
+      if (u.role !== 'admin' && rec.user_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能改自己的地址');
+      const body = await readBody(req);
+      await run(
+        `UPDATE addresses SET name = ?, company = ?, country = ?, city = ?, address1 = ?, address2 = ?, zip = ?, contact = ?, phone = ?, email = ?, note = ?, updated_at = ? WHERE id = ?`,
+        String(body.name != null ? body.name : rec.name).slice(0, 80),
+        String(body.company != null ? body.company : rec.company).slice(0, 120),
+        String(body.country != null ? body.country : rec.country).slice(0, 4).toUpperCase(),
+        String(body.city != null ? body.city : rec.city).slice(0, 80),
+        String(body.address1 != null ? body.address1 : rec.address1).slice(0, 200),
+        String(body.address2 != null ? body.address2 : rec.address2).slice(0, 200),
+        String(body.zip != null ? body.zip : rec.zip).slice(0, 20),
+        String(body.contact != null ? body.contact : rec.contact).slice(0, 80),
+        String(body.phone != null ? body.phone : rec.phone).slice(0, 40),
+        String(body.email != null ? body.email : rec.email).slice(0, 160),
+        String(body.note != null ? body.note : rec.note).slice(0, 500),
+        Date.now(), b
+      );
+      return send(res, 200, await get('SELECT * FROM addresses WHERE id = ?', b));
+    }
+    if (b && m === 'DELETE') {
+      const rec = await get('SELECT * FROM addresses WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '地址不存在');
+      if (u.role !== 'admin' && rec.user_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能删自己的地址');
+      await run('DELETE FROM addresses WHERE id = ?', b);
+      return send(res, 200, { ok: true, id: b });
+    }
+  }
+
+  /* 客服快捷短语 / 聊天话术（每个账号管理自己的一套） */
+  if (a === 'quick-replies') {
+    const u = await requireAuth(res, req);
+    if (!u) return;
+    if (b === undefined && m === 'GET') {
+      const rows = await all(
+        'SELECT * FROM quick_replies WHERE user_id = ? ORDER BY scene ASC, sort ASC, created_at ASC',
+        u.id
+      );
+      return send(res, 200, { items: rows, total: rows.length });
+    }
+    if (b === undefined && m === 'POST') {
+      const body = await readBody(req);
+      const title = String(body.title || '').trim();
+      const text = String(body.body || '').trim();
+      if (!title || !text) return fail(res, 400, 'VALIDATION', '短语名称与正文都要填');
+      if (text.length > 2000) return fail(res, 400, 'VALIDATION', '单条短语最多 2000 字符');
+      const id = randomUUID();
+      const now = Date.now();
+      await run(
+        'INSERT INTO quick_replies (id, user_id, scene, title, body, lang, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        id, u.id, String(body.scene || 'custom').slice(0, 20), title.slice(0, 80), text,
+        body.lang === 'en' ? 'en' : 'zh', Math.round(toNum(body.sort, 0)), now, now
+      );
+      return send(res, 201, await get('SELECT * FROM quick_replies WHERE id = ?', id));
+    }
+    if (b && m === 'PUT') {
+      const rec = await get('SELECT * FROM quick_replies WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '短语不存在');
+      if (rec.user_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能改自己的短语');
+      const body = await readBody(req);
+      const title = String(body.title != null ? body.title : rec.title).trim();
+      const text = String(body.body != null ? body.body : rec.body).trim();
+      if (!title || !text) return fail(res, 400, 'VALIDATION', '短语名称与正文都要填');
+      await run(
+        'UPDATE quick_replies SET scene = ?, title = ?, body = ?, lang = ?, sort = ?, updated_at = ? WHERE id = ?',
+        String(body.scene || rec.scene).slice(0, 20), title.slice(0, 80), text.slice(0, 2000),
+        (body.lang || rec.lang) === 'en' ? 'en' : 'zh', Math.round(toNum(body.sort, rec.sort || 0)), Date.now(), b
+      );
+      return send(res, 200, await get('SELECT * FROM quick_replies WHERE id = ?', b));
+    }
+    if (b && m === 'DELETE') {
+      const rec = await get('SELECT * FROM quick_replies WHERE id = ?', b);
+      if (!rec) return fail(res, 404, 'NOT_FOUND', '短语不存在');
+      if (rec.user_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能删自己的短语');
+      await run('DELETE FROM quick_replies WHERE id = ?', b);
       return send(res, 200, { ok: true, id: b });
     }
   }

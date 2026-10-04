@@ -12,7 +12,7 @@ mkdirSync(dist, { recursive: true });
 const entries = [
   'index.html', 'styles.css', 'app.js', 'app-core.js', 'app-pages.js', 'data.js', 'api.js', 'product-image-map.js',
   '_headers', '_redirects', 'robots.txt', 'sitemap.xml', '404.html', '.nojekyll',
-  'assets'
+  'assets', 'vendor'
 ];
 
 for (const e of entries) {

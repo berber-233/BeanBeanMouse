@@ -27,7 +27,7 @@
 <body>
   <div id="trialBanner" class="trial-banner" hidden>
     <span id="trialBannerText"></span><a id="trialBannerMail" href="mailto:beanbeanmouse.trade@outlook.com"></a>
-    <button type="button" class="trial-dismiss" data-action="dismiss-trial" aria-label="Close">✕</button>
+    <button type="button" class="trial-dismiss" data-action="dismiss-trial" aria-label="Close">' + icon('x') + '</button>
   </div>
   <header class="site-header" id="siteHeader">
     <a class="skip-link" href="#app" data-i18n="skipToContent">跳到主内容</a>
@@ -98,7 +98,7 @@
       <div class="help-head">
         <img src="assets/mascot-icon.png" alt="" width="34" height="34" class="help-head-img" decoding="async">
         <span class="help-title" id="helpTitle">网站使用帮助</span>
-        <button type="button" class="modal-x help-close" data-action="close-help" aria-label="Close">✕</button>
+        <button type="button" class="modal-x help-close" data-action="close-help" aria-label="Close">' + icon('x') + '</button>
       </div>
       <img class="help-banner" src="assets/help-banner.jpg" alt="" width="1000" height="400" loading="lazy" decoding="async">
       <div class="help-body" id="helpBody"></div>
@@ -109,6 +109,8 @@
     </button>
   </div>
 
+  <!-- 真二维码生成（qrcode-generator，MIT，UMD 单文件）：防伪码/名片/存证报告用它生成可扫的二维码 -->
+  <script src="vendor/qrcode-generator.js?v=pet0.2.5"></script>
   <script src="data.js?v=pet0.2.5"></script>
   <script src="api.js?v=pet0.2.5"></script>
   <script src="product-image-map.js?v=pet0.2.5"></script>

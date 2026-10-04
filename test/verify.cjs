@@ -927,6 +927,25 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('mobile: no overflow at 320px', await noOverflow());
 
+  /* 回归：页面上不能把 data:image/... 数据 URI 当文字显示
+   * （曾经会话列表的 .conv-ico 直接输出 productImg() 的返回值，
+   *   用户看到一长串 "data:image/svg+xml;charset=utf-8,%3Csvg…"） */
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  for (const hash of ['#/', '#/products', '#/dashboard/messages', '#/dashboard/service', '#/dashboard/products']) {
+    await page.evaluate(h => { location.hash = h; }, hash);
+    await page.waitForTimeout(350);
+    const raw = await page.evaluate(() => {
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let n, hit = [];
+      while ((n = w.nextNode())) {
+        const s = (n.nodeValue || '').trim();
+        if (s.indexOf('data:image/') === 0) hit.push(s.slice(0, 40));
+      }
+      return hit;
+    });
+    check('no raw data URI as text @ ' + hash, raw.length === 0, raw.join(' | '));
+  }
+
   console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
   const failed = results.filter(([, ok]) => !ok).length;
   console.log('PAGE ERRORS: ' + JSON.stringify(errors));

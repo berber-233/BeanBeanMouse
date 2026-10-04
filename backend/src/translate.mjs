@@ -139,7 +139,9 @@ export function translateError(status, code, message) {
   return e;
 }
 
-export async function translateText({ userId, text, target, source }) {
+/* skipQuota：服务端自己发起的翻译（发布商品时补齐双语、搜索关键词扩展）不占用户额度，
+ * 否则管理员每发几个商品就会把当日额度用完 → 按钮报"今日翻译额度已用完"。 */
+export async function translateText({ userId, text, target, source, skipQuota }) {
   const s = String(text || '').trim();
   const tgt = String(target || '').trim();
   if (!s || !tgt) throw translateError(400, 'VALIDATION', 'text/target 为必填');
@@ -152,7 +154,7 @@ export async function translateText({ userId, text, target, source }) {
   }
 
   const uid = userId || 'guest';
-  if (await usedChars(uid) + s.length > DAILY_QUOTA) {
+  if (!skipQuota && await usedChars(uid) + s.length > DAILY_QUOTA) {
     throw translateError(429, 'QUOTA_EXCEEDED', '今日翻译额度已用完');
   }
 
@@ -188,10 +190,14 @@ export async function translateText({ userId, text, target, source }) {
   }
 
   if (provider !== 'offline') cache.set(cacheKey, { text: result, provider });
-  await run(
-    'INSERT INTO translation_usage (id, user_id, day, chars, created_at) VALUES (?,?,?,?,?)',
-    randomUUID(), uid, todayKey(), s.length, Date.now()
-  );
+  /* 服务端自发起的翻译（发布补齐双语、搜索关键词扩展）不记账：
+   * 否则管理员发几个商品、客户搜几次，就把自己的当日额度刷没了。 */
+  if (!skipQuota) {
+    await run(
+      'INSERT INTO translation_usage (id, user_id, day, chars, created_at) VALUES (?,?,?,?,?)',
+      randomUUID(), uid, todayKey(), s.length, Date.now()
+    );
+  }
   return { text: result, target: tgt, source: source || null, provider, cached: false };
 }
 

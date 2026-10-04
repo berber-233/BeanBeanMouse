@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS products (
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft','pending','on','off','rejected')),
   reject_reason TEXT,
   paypal_url TEXT,
+  code TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -372,6 +373,47 @@ CREATE TABLE IF NOT EXISTS contract_custodies (
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+-- 地址管理（pet0.3）：交易过的客户地址，来源 order/inquiry/manual
+CREATE TABLE IF NOT EXISTS addresses (
+  id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id),
+  owner_key TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL DEFAULT '',
+  company TEXT NOT NULL DEFAULT '',
+  country TEXT NOT NULL DEFAULT '',
+  city TEXT NOT NULL DEFAULT '',
+  address1 TEXT NOT NULL DEFAULT '',
+  address2 TEXT NOT NULL DEFAULT '',
+  zip TEXT NOT NULL DEFAULT '',
+  contact TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'manual',
+  use_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id, updated_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_addresses_owner_key ON addresses(owner_key);
+
+-- 客服快捷短语 / 聊天话术（pet0.3）：客服自己加的话术，随账号同步
+CREATE TABLE IF NOT EXISTS quick_replies (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  scene TEXT NOT NULL DEFAULT 'general',
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  lang TEXT NOT NULL DEFAULT 'zh',
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_quick_replies_user ON quick_replies(user_id, scene);
 
 -- 用户个人资料与名片（个体户 / 公司代表，v0.2）
 CREATE TABLE IF NOT EXISTS profiles (

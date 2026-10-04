@@ -6,12 +6,24 @@ function fakeChecksum(str) {
   return String(s).padStart(2, '0');
 }
 
-/* 每个产品一个确定性防伪码，正式版可由权威验真机构签发 */
+/* 防伪码：**以服务端签发的为准**。
+ * 这里以前自己按 id+卖家+标题算哈希，算出来是 "BBM-P1-72"，
+ * 而服务端入库的是 "TB-P1-72" —— 页面上的码拿去验证必然 404（自查发现的真 bug）。
+ * 现在优先用服务端下发的 antiFakeCode，只有演示数据（mock）才回退到本地算法。 */
 function fakeCodeOf(p) {
   if (!p) return '';
+  if (p.antiFakeCode) return String(p.antiFakeCode);
   const pid = String(p.id).toUpperCase().replace(/[^A-Z0-9]/g, '');
   const seed = p.id + ':' + p.sellerId + ':' + (p.en ? p.en.title : '');
   return 'BBM-' + pid + '-' + fakeChecksum(seed);
+}
+
+/* 验真页地址：二维码扫出来就是这个链接 */
+function verifyUrlOf(code) {
+  const base = (typeof location !== 'undefined' && location.origin && location.origin !== 'null')
+    ? location.origin + location.pathname
+    : 'https://beanbeanmouse.com/';
+  return base + '#/verify?code=' + encodeURIComponent(String(code || ''));
 }
 
 function productByFakeCode(code) {
@@ -19,8 +31,24 @@ function productByFakeCode(code) {
   return state.products.find(p => fakeCodeOf(p) === c);
 }
 
-/* 由防伪码生成的演示用“扫码”图案 */
+/* 真二维码（vendor/qrcode-generator.js，UMD 全局 qrcode）。
+ * 之前的 fakeQrSvg() 是随机方块 + 三个定位角，**扫不出来，纯装饰**（自查发现），已废弃。 */
+function realQrSvg(text, cellSize) {
+  if (typeof qrcode !== 'function') return '';
+  try {
+    const q = qrcode(0, 'M');           // 0 = 自动选版本，M 级纠错
+    q.addData(String(text || ''));
+    q.make();
+    return q.createSvgTag({ cellSize: cellSize || 3, margin: 2, scalable: true });
+  } catch (e) {
+    return '';
+  }
+}
+/* 已废弃：随机方块冒充二维码（扫不出来）。保留函数名只为兼容旧调用点，逻辑已改为真二维码。 */
 function fakeQrSvg(seed) {
+  return realQrSvg(seed, 3) || _legacyFakeQrSvg(seed);
+}
+function _legacyFakeQrSvg(seed) {
   const n = 9, cell = 3;
   let h = 0;
   for (const ch of String(seed || '')) h = (h * 131 + ch.charCodeAt(0)) >>> 0;
@@ -38,15 +66,89 @@ function fakeQrSvg(seed) {
   return '<svg viewBox="0 0 ' + (n * cell) + ' ' + (n * cell) + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR">' + rects + '</svg>';
 }
 
+/* ---------- 防伪验真页（#/verify?code=XXXX）----------
+ * 二维码扫出来就是这个地址：扫码 → 自动核验 → 显示正品/未查到。
+ * 这也是"二维码到底有没有用"的答案：以前扫不出来，现在扫一下就真的能验。 */
+function renderVerifyPage(params) {
+  const code = (params && params.get && (params.get('code') || params.get('c'))) || '';
+  document.title = t('verifyPageTitle') + ' · BeanBeanMouse';
+  return '<div class="container page verify-page">'
+    + '<div class="page-head guide-head"><h1>' + icon('shield') + ' ' + t('verifyPageTitle') + '</h1><p>' + t('verifyPageSub') + '</p></div>'
+    + '<section class="card panel verify-panel">'
+    + '<div class="input-group">'
+    + '<input class="input" id="verifyCodeInput" placeholder="' + esc(t('verifyPlaceholder')) + '" value="' + esc(code) + '" style="text-transform:uppercase" autocomplete="off">'
+    + '<button type="button" class="btn btn-primary" data-action="fake-verify">' + t('verifyBtn') + '</button>'
+    + '</div>'
+    + '<div id="verifyResult" class="verify-result" aria-live="polite">' + (code ? '<p class="small muted">' + t('verifyChecking') + '</p>' : '') + '</div>'
+    + '<p class="small muted verify-note">' + t('verifyNote') + '</p>'
+    + '</section></div>';
+}
+function bindVerifyPage(params) {
+  const code = (params && params.get && (params.get('code') || params.get('c'))) || '';
+  if (!code) return;
+  setTimeout(() => runFakeVerify(code), 50);
+}
+/* 统一核验逻辑：结果写进 #verifyResult（页面）或弹窗里 */
+async function runFakeVerify(code, box) {
+  const target = box || document.getElementById('verifyResult');
+  const clean = String(code || '').trim().toUpperCase();
+  if (!clean) return;
+  if (target) target.innerHTML = '<p class="small muted">' + t('verifyChecking') + '</p>';
+  try {
+    const r = await api.antiFake.verify(clean);
+    renderVerifyResult(target, clean, r, true);
+    toast(t('verifyOk'));
+  } catch (e) {
+    /* 本地演示（mock）没有服务端：按本地码表兜底，方便本地回归；线上必须走服务端 */
+    const p = (api.config && api.config.mode !== 'http') ? productByFakeCode(clean) : null;
+    if (p) {
+      renderVerifyResult(target, clean, {
+        code: clean, productId: p.id, productTitle: langObj(p).title, productCode: productCodeOf(p),
+        verifyCount: 1, verifiedAt: new Date().toISOString(), batchNo: ''
+      }, true);
+      return;
+    }
+    renderVerifyResult(target, clean, null, false);
+    toast(t('verifyFail'));
+  }
+}
+function renderVerifyResult(target, code, r, ok) {
+  if (!target) return;
+  if (!ok) {
+    target.innerHTML = '<div class="fake-result">'
+      + '<div class="fake-ico fake-ico--bad">' + icon('x') + '</div>'
+      + '<p class="fake-genuine" style="color:var(--danger)">' + t('verifyFail') + '</p>'
+      + '<p class="verify-code">' + esc(code) + '</p>'
+      + '<p class="small muted" style="text-align:center">' + t('verifyFailNote') + '</p>'
+      + '</div>';
+    return;
+  }
+  target.innerHTML = '<div class="fake-result">'
+    + '<div class="fake-ico fake-ico--ok">' + icon('check') + '</div>'
+    + '<p class="fake-genuine">' + t('verifyOk') + '</p>'
+    + '<p class="verify-code">' + esc(r.code || code) + '</p>'
+    + '<div class="fake-qr verify-qr">' + realQrSvg(verifyUrlOf(r.code || code), 2) + '</div>'
+    + '<ul class="pp-list verify-list">'
+    + (r.productTitle ? '<li><span class="k">' + t('verifyProduct') + '</span><span class="v">' + esc(r.productTitle) + '</span></li>' : '')
+    + (r.productCode ? '<li><span class="k">' + t('productCodeLabel') + '</span><span class="v">' + esc(r.productCode) + '</span></li>' : '')
+    + (r.batchNo ? '<li><span class="k">' + t('verifyBatch') + '</span><span class="v">' + esc(r.batchNo) + '</span></li>' : '')
+    + '<li><span class="k">' + t('verifyTimes') + '</span><span class="v">' + (r.verifyCount || 1) + '</span></li>'
+    + '<li><span class="k">' + t('verifyLast') + '</span><span class="v">' + esc(fmtDate(Date.parse(r.verifiedAt) || Date.now())) + '</span></li>'
+    + '</ul>'
+    + (r.productId ? '<a class="btn btn-sm" href="#/product/' + esc(r.productId) + '" data-nav="/product/' + esc(r.productId) + '" data-action="close-modal">' + t('verifyViewProduct') + ' →</a>' : '')
+    + '</div>';
+}
+
 function openFakeCheck() {
   showModal(
-    '<div class="modal-head"><h3> ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3>' + icon('shield') + ' ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + '<p class="small muted">' + t('fakeEnter') + '</p>'
-    + '<div class="input-group"><input class="input" id="fakeCodeInput" placeholder="' + t('fakePlaceholder') + '" style="text-transform:uppercase"><button type="button" class="btn btn-primary" data-action="fake-verify">' + t('fakeVerify') + '</button></div>'
+    + '<div class="input-group"><input class="input" id="fakeCodeInput" placeholder="' + esc(t('verifyPlaceholder')) + '" style="text-transform:uppercase" autocomplete="off"><button type="button" class="btn btn-primary" data-action="fake-verify">' + t('fakeVerify') + '</button></div>'
+    + '<div id="verifyResult" class="verify-result" aria-live="polite"></div>'
     + '<p class="small muted fake-hint">' + t('fakeHint') + '</p>'
     + '<div class="fake-demo-list">' + state.products.slice(0, 5).map(p => '<button type="button" class="chip fake-chip" data-action="verify-product" data-id="' + p.id + '" title="' + esc(langObj(p).title) + '">' + fakeCodeOf(p) + '</button>').join('') + '</div>'
-    + '<p class="small muted">' + t('fakeScanNote') + '</p>'
+    + '<p class="small muted">' + t('verifyNote') + '</p>'
     + '</div>'
   );
 }
@@ -55,16 +157,16 @@ function showFakeResult(p, code) {
   const seller = sellerOf(p);
   closeModal();
   showModal(
-    '<div class="modal-head"><h3> ' + t('fakeOkTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3> ' + t('fakeOkTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body fake-result">'
     + '<div class="fake-ico fake-ico--ok">✓</div>'
     + '<p class="fake-genuine">' + t('fakeGenuine') + '</p>'
     + '<div class="fake-row"><span>' + t('fakeCode') + '</span><b class="fake-code">' + esc(code) + '</b></div>'
     + '<div class="fake-row"><span>' + t('fakeProduct') + '</span><b>' + esc(langObj(p).title) + '</b></div>'
-    + '<div class="fake-row"><span>' + t('fakeSeller') + '</span><b>' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ✅' : '') + '</b></div>'
+    + '<div class="fake-row"><span>' + t('fakeSeller') + '</span><b>' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('check') + '' : '') + '</b></div>'
     + '<div class="fake-row"><span>' + t('fakeIssued') + '</span><b>BeanBeanMouse</b></div>'
     + '<div class="fake-row"><span>' + t('fakeVerifiedAt') + '</span><b>' + fmtDate(Date.now()) + '</b></div>'
-    + '<div class="fake-qr">' + fakeQrSvg(code + p.id) + '</div>'
+    + '<div class="fake-qr">' + realQrSvg(verifyUrlOf(code), 3) + '</div>'
     + '<p class="small muted fake-scan-label">' + t('fakeScan') + '</p>'
     + '<p class="small muted">' + t('fakeInfo') + '</p>'
     + '</div>'
@@ -73,7 +175,7 @@ function showFakeResult(p, code) {
 
 function openSiteVerify() {
   showModal(
-    '<div class="modal-head"><h3> ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3> ' + t('fakeSiteTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body fake-result">'
     + '<div class="fake-ico fake-ico--ok">✓</div>'
     + '<p class="fake-genuine">BeanBeanMouse · ' + t('fakeSiteTitle') + '</p>'
@@ -223,7 +325,7 @@ function loginModalHtml() {
   return '<div class="modal-head login-modal-head">'
     + '<div class="lm-brand"><img src="assets/mascot-icon.png" alt="" width="38" height="38" decoding="async">'
     + '<div class="lm-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
-    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body login-modal-body">'
     + '<h3 class="lm-title">' + t('loginTitle') + '</h3>'
     + '<p class="lm-sub">' + t('loginDesc') + '</p>'
@@ -233,7 +335,7 @@ function loginModalHtml() {
     + loginMessageSlot()
     + '</form>'
     + '<div class="lm-links">'
-    + '<button type="button" class="btn btn-sm" data-action="show-register">📝 ' + t('registerTab') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="show-register">' + icon('edit') + ' ' + t('registerTab') + '</button>'
     + '<a class="btn btn-sm" href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + '</a>'
     + '</div>'
     + (state.mailReady ? '<p class="lm-forgot"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
@@ -340,6 +442,7 @@ function render() {
   else if (path === '/videos') { app.innerHTML = renderVideos(); }
   else if (path === '/about') { app.innerHTML = renderAbout(); }
   else if (path === '/verify-email') { app.innerHTML = renderVerifyEmail(params); bindVerifyEmail(params); }
+  else if (path === '/verify') { app.innerHTML = renderVerifyPage(params); bindVerifyPage(params); }
   else if (path === '/customs') { app.innerHTML = renderCustoms(); }
   else if (path === '/recruit') { app.innerHTML = renderRecruit(); }
   else if (path === '/insurance') { app.innerHTML = renderInsurance(); bindInsurancePage(); }
@@ -433,7 +536,7 @@ function productCard(p) {
     + '</div>'
     + '<div class="meta">'
     + (subLabel(p) ? '<span class="chip sub-chip">' + esc(subLabel(p)) + '</span>' : '')
-    + '<span class="flag">' + flagEmoji(p.country) + '</span><span>' + countryName(p.country) + '</span>'
+    + '<span class="flag">' + countryTag(p.country) + '</span><span>' + countryName(p.country) + '</span>'
     + certs.map(c => '<span class="chip cert">' + esc(c) + '</span>').join('')
     + '</div>'
     + '</div>'
@@ -738,20 +841,20 @@ function renderProducts(params) {
   else list = [...list].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.rating - a.rating);
 
   const chips = [];
-  if (kw) chips.push('<span class="active-filter" data-action="remove-filter" data-key="kw">' + esc(kw) + ' ✕</span>');
-  if (cat) chips.push('<span class="active-filter" data-action="remove-filter" data-key="cat">' + esc(langObj(catById(cat))) + ' ✕</span>');
-  if (sub) chips.push('<span class="active-filter" data-action="remove-filter" data-key="sub">' + esc((catById(cat).subs || []).find(s => s.id === sub) ? langObj((catById(cat).subs || []).find(s => s.id === sub)) : sub) + ' ✕</span>');
-  if (min != null || max != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="minmax">$' + (min != null ? min : '0') + '–' + (max != null ? max : '∞') + ' ✕</span>');
-  if (moqMin != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="moq">MOQ ≥ ' + moqMin + ' ✕</span>');
-  if (origin) chips.push('<span class="active-filter" data-action="remove-filter" data-key="origin">' + esc(countryName(origin)) + ' ✕</span>');
-  certs.forEach(c => chips.push('<span class="active-filter" data-action="remove-filter" data-key="certs" data-value="' + esc(c) + '">' + esc(c) + ' ✕</span>'));
+  if (kw) chips.push('<span class="active-filter" data-action="remove-filter" data-key="kw">' + esc(kw) + ' ' + icon('x') + '</span>');
+  if (cat) chips.push('<span class="active-filter" data-action="remove-filter" data-key="cat">' + esc(langObj(catById(cat))) + ' ' + icon('x') + '</span>');
+  if (sub) chips.push('<span class="active-filter" data-action="remove-filter" data-key="sub">' + esc((catById(cat).subs || []).find(s => s.id === sub) ? langObj((catById(cat).subs || []).find(s => s.id === sub)) : sub) + ' ' + icon('x') + '</span>');
+  if (min != null || max != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="minmax">$' + (min != null ? min : '0') + '–' + (max != null ? max : '∞') + ' ' + icon('x') + '</span>');
+  if (moqMin != null) chips.push('<span class="active-filter" data-action="remove-filter" data-key="moq">MOQ ≥ ' + moqMin + ' ' + icon('x') + '</span>');
+  if (origin) chips.push('<span class="active-filter" data-action="remove-filter" data-key="origin">' + esc(countryName(origin)) + ' ' + icon('x') + '</span>');
+  certs.forEach(c => chips.push('<span class="active-filter" data-action="remove-filter" data-key="certs" data-value="' + esc(c) + '">' + esc(c) + ' ' + icon('x') + '</span>'));
 
   const related = kw ? relatedProducts(kw, cat, sub) : [];
   const grid = list.length
     ? '<div class="product-grid">' + list.map(productCard).join('') + '</div>'
     : '<div class="empty-state"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/search.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>'
       + (related.length
-        ? '<section class="related-section"><div class="section-head"><h2>✨ ' + t('relatedTitle') + '</h2><p class="small muted">' + t('relatedSub') + '</p></div>'
+        ? '<section class="related-section"><div class="section-head"><h2>' + icon('sparkle') + ' ' + t('relatedTitle') + '</h2><p class="small muted">' + t('relatedSub') + '</p></div>'
           + '<div class="product-grid">' + related.map(productCard).join('') + '</div></section>'
         : '');
   const searchSuggest = Array.from(new Set(
@@ -784,7 +887,7 @@ function renderProducts(params) {
     + '<div class="filter-group"><h4>' + t('moq') + '</h4><input class="input" type="number" min="0" id="moqFilter" placeholder="' + t('anyMoq') + '" value="' + (moqMin != null ? moqMin : '') + '"></div>'
     + '<div class="filter-group"><h4>' + t('origin') + '</h4><select class="select" id="originFilter">'
     + '<option value="">' + t('allCountries') + '</option>'
-    + origins.map(o => '<option value="' + o + '" ' + (origin === o ? 'selected' : '') + '>' + flagEmoji(o) + ' ' + countryName(o) + '</option>').join('')
+    + origins.map(o => '<option value="' + o + '" ' + (origin === o ? 'selected' : '') + '>' + countryTag(o) + ' ' + countryName(o) + '</option>').join('')
     + '</select></div>'
     + '<div class="filter-group"><h4>' + t('certs') + '</h4><div class="check-group">'
     + CERT_LIST.map(c => '<label class="check-pill"><input type="checkbox" value="' + c + '" data-cert="' + c + '" ' + (certs.includes(c) ? 'checked' : '') + '>' + c + '</label>').join('')
@@ -802,7 +905,7 @@ function renderProducts(params) {
     + '<option value="priceAsc" ' + (sort === 'priceAsc' ? 'selected' : '') + '>' + t('sortPriceAsc') + '</option>'
     + '<option value="priceDesc" ' + (sort === 'priceDesc' ? 'selected' : '') + '>' + t('sortPriceDesc') + '</option>'
     + '</select>'
-    + '<button type="button" class="btn btn-sm" data-action="catreq-open" style="margin-left:10px">🙋 ' + t('categoryRequestBtn') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="catreq-open" style="margin-left:10px">' + icon('message') + ' ' + t('categoryRequestBtn') + '</button>'
     + '</div>'
     + grid
     + '</div>'
@@ -929,7 +1032,7 @@ function renderNews(params) {
     ).join('') + '</div></section>'
     + fxStrip()
     + '<div class="news-integration">' + icon('globe') + ' ' + t('newsIntegration') + '</div>'
-    + '<div class="news-disclaimer">ℹ️ ' + t('newsDisclaimer') + '</div>'
+    + '<div class="news-disclaimer">ℹ ' + t('newsDisclaimer') + '</div>'
     + '</div>';
 }
 
@@ -948,7 +1051,7 @@ function detailRelatedHtml(p) {
   if (!others.length) others = liveProducts().filter(x => x.id !== p.id && x.cat === p.cat).sort((a, b) => b.rating - a.rating);
   others = others.slice(0, 4);
   if (!others.length) return '';
-  return '<section class="related-section detail-related"><div class="section-head"><h2>✨ ' + t('relatedTitle') + '</h2>'
+  return '<section class="related-section detail-related"><div class="section-head"><h2>' + icon('sparkle') + ' ' + t('relatedTitle') + '</h2>'
     + '<a class="btn btn-sm" href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + t('viewAll') + ' →</a></div>'
     + '<div class="product-grid">' + others.map(productCard).join('') + '</div></section>';
 }
@@ -977,7 +1080,7 @@ function renderSellerPage(sid) {
     + '<span class="sp-logo">' + esc(initialsOf(companyName)) + '</span>'
     + '<div class="sp-main"><div class="sp-title">' + esc(companyName) + ' ' + statusPill + '</div>'
     + '<div class="sp-en">' + esc(companyEn) + '</div>'
-    + '<div class="sp-meta">' + flagEmoji(seller.country) + ' ' + countryName(seller.country) + ' · ' + esc(langObj(seller).city) + ' · ' + t('since') + ' ' + seller.since + '</div>'
+    + '<div class="sp-meta">' + countryTag(seller.country) + ' ' + countryName(seller.country) + ' · ' + esc(langObj(seller).city) + ' · ' + t('since') + ' ' + seller.since + '</div>'
     + (company && company.businessScope ? '<div class="sp-scope">' + esc(company.businessScope) + '</div>' : '')
     + '</div>'
     + '<div class="sp-stats">'
@@ -993,10 +1096,10 @@ function renderSellerPage(sid) {
     + '<div class="trust-cell"><b>' + t('exportReadinessScore') + '</b><span>' + readiness.score + '%（' + readiness.coreDone + '/' + readiness.coreTotal + '）</span></div>'
     + '<div class="trust-cell"><b>' + t('statLive') + '</b><span>' + products.length + '</span></div>'
     + '<p class="small muted" style="margin-top:10px">' + t('sellerTrustNote') + '</p></section>'
-    + '<section class="card panel"><div class="panel-head"><h2>📜 ' + t('sellerCertsTitle') + '</h2></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('file') + ' ' + t('sellerCertsTitle') + '</h2></div>'
     + '<div class="cert-block">' + certChips + '</div>'
     + (company && company.docs && company.docs.length ? '<p class="small muted">' + t('docsLabel') + '：' + esc(company.docs.join('、')) + '</p>' : '')
-    + '<div class="panel-head mt-20"><h2>🌍 ' + t('sellerMarketsTitle') + '</h2></div><div class="cert-block">' + marketChips + '</div>'
+    + '<div class="panel-head mt-20"><h2>' + icon('globe') + ' ' + t('sellerMarketsTitle') + '</h2></div><div class="cert-block">' + marketChips + '</div>'
     + '</section>'
     + '</div>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('sellerProductsTitle') + ' (' + products.length + ')</h2>'
@@ -1037,9 +1140,10 @@ function renderDetail(pid) {
     + '<h1' + l10nAttrs(p.id, 'title', base, srcTitle) + '>' + esc(viewProductText(p, 'title')) + '</h1>'
     + '<div class="detail-meta">'
     + '<span class="chip recommend" title="' + esc(t('recommendNote')) + '">' + t('recommendLabel') + ' ' + recStars(p) + '</span>'
-    + '<span>' + flagEmoji(p.country) + ' ' + countryName(p.country) + '</span>'
+    + (p.code ? '<button type="button" class="code-chip" data-action="copy-product-code" data-id="' + esc(p.id) + '" title="' + t('copy') + '">' + t('productCodeLabel') + ' ' + esc(p.code) + '</button>' : '')
+    + '<span>' + countryTag(p.country) + ' ' + countryName(p.country) + '</span>'
     + '<span>' + t('orders') + ': ' + p.orders.toLocaleString() + '</span>'
-    + (p.hot ? '<span class="badge verified" style="background:var(--accent-050);color:#B45309;border-color:#F3D9A4">🔥 ' + t('hot') + '</span>' : '')
+    + (p.hot ? '<span class="badge verified" style="background:var(--accent-050);color:#B45309;border-color:#F3D9A4"> ' + t('hot') + '</span>' : '')
     + '</div>'
     + '<div class="detail-price-row">'
     + '<span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMin) + '</span>'
@@ -1055,7 +1159,7 @@ function renderDetail(pid) {
     + '<li><span class="k">' + t('terms') + '</span><span class="v">' + (p.terms || []).join(' / ') + '</span></li>'
     + '<li><span class="k">' + t('hsCode') + '</span><span class="v">' + esc(p.hsCode || t('noHsCode')) + '</span></li>'
     + '<li><span class="k">' + t('certs') + '</span><span class="v">' + ((p.certs || []).join(', ') || '—') + '</span></li>'
-    + '<li><span class="k">' + t('originLabel') + '</span><span class="v">' + flagEmoji(p.country) + ' ' + countryName(p.country) + '</span></li>'
+    + '<li><span class="k">' + t('originLabel') + '</span><span class="v">' + countryTag(p.country) + ' ' + countryName(p.country) + '</span></li>'
     + '</ul>'
     + '<details class="term-legend"><summary>' + icon('file') + ' ' + t('incotermsLegend') + '</summary>'
     + INCOTERMS.map(x => '<div class="term-row"><b>' + x.code + '</b><span>' + esc(langObj(x)) + '</span></div>').join('')
@@ -1090,7 +1194,7 @@ function renderDetail(pid) {
     + '</div>'
     + '<div class="card detail-block fake-card"><h2> ' + t('fakeTitle') + '</h2>'
     + '<div class="fake-card-body">'
-    + '<div class="fake-qr">' + fakeQrSvg(fakeCodeOf(p)) + '</div>'
+    + '<div class="fake-qr">' + realQrSvg(verifyUrlOf(fakeCodeOf(p)), 3) + '</div>'
     + '<div class="fake-card-info">'
     + '<div class="fake-status"><span class="fake-badge">✓ ' + t('fakeGenuine') + '</span></div>'
     + '<div class="fake-code-row"><span>' + t('fakeCode') + '：</span><b class="fake-code">' + fakeCodeOf(p) + '</b></div>'
@@ -1109,7 +1213,7 @@ function renderDetail(pid) {
     + '<p class="small muted">' + t('complianceRef') + '</p></div>'
     + (function () {
       const flags = productScreenFlags(p);
-      return '<div class="card detail-block"><h2>🔎 ' + t('compliancePanelTitle') + '</h2>'
+      return '<div class="card detail-block"><h2>' + icon('search') + ' ' + t('compliancePanelTitle') + '</h2>'
         + '<div class="compliance-screen">'
         + (flags.length
           ? '<span class="status-pill rej">' + t('complianceFlagLabel') + ' ' + flags.length + '</span>'
@@ -1210,9 +1314,9 @@ function renderAttachPreview(wrap, storeKey) {
   if (!box) return;
   const list = currentPending(storeKey);
   box.innerHTML = list.map(a =>
-    '<span class="attach-chip"><span class="attach-ico">' + (ATTACH_IMAGE_TYPES.includes(a.type) ? '🖼️' : '🗜️') + '</span>'
+    '<span class="attach-chip"><span class="attach-ico">' + (ATTACH_IMAGE_TYPES.includes(a.type) ? '' : '') + '</span>'
     + '<span class="attach-name">' + esc(a.name) + ' · ' + fmtSize(a.size) + '</span>'
-    + '<button type="button" class="attach-x" data-action="attach-remove" data-store="' + esc(storeKey) + '" data-name="' + esc(a.name) + '" aria-label="' + t('attachRemove') + '">✕</button>'
+    + '<button type="button" class="attach-x" data-action="attach-remove" data-store="' + esc(storeKey) + '" data-name="' + esc(a.name) + '" aria-label="' + t('attachRemove') + '">' + icon('x') + '</button>'
     + '</span>').join('');
 }
 function removePendingAttach(storeKey, name) {
@@ -1367,7 +1471,7 @@ function attachmentChipsHtml(list, inquiryId) {
       return '<span class="attach-chip">'
       + (ATTACH_IMAGE_TYPES.includes(a.type)
         ? '<button type="button" class="attach-img-btn" data-action="view-attach" data-id="' + esc(inquiryId || '') + '" data-name="' + esc(a.name) + '" aria-label="' + esc(a.name) + '"><img src="' + url + '" alt="' + esc(a.name) + '"></button>'
-        : '<span class="attach-ico">🗜️</span>')
+        : '<span class="attach-ico"></span>')
       + '<a href="' + url + '" download="' + esc(a.name) + '">' + esc(a.name) + ' <span class="small muted">' + fmtSize(a.size) + '</span></a>'
       + '</span>';
     }).join('')
@@ -1459,7 +1563,7 @@ function exportConversation(i, format) {
 function openAttachModal(a) {
   if (!a) return;
   const url = attachUrl(a);
-  showModal('<div class="modal-head"><h3>' + icon('file') + ' ' + esc(a.name) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3>' + icon('file') + ' ' + esc(a.name) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><div class="attach-view"><img src="' + url + '" alt="' + esc(a.name) + '"></div>'
     + '<div class="doc-actions"><a class="btn btn-primary" href="' + url + '" download="' + esc(a.name) + '">' + t('download') + '</a>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div></div>');
@@ -1474,12 +1578,12 @@ function requireLoginFor(kind) {
     '<div class="modal-head login-modal-head">'
     + '<div class="lm-brand"><img src="assets/mascot-icon.png" alt="" width="38" height="38" decoding="async">'
     + '<div class="lm-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
-    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + '<h3 class="lm-title">' + t('needAccountTitle') + '</h3>'
     + '<p class="lm-sub">' + (isAsk ? t('needAccountAsk') : t('needAccountInquiry')) + '</p>'
     + '<div class="lm-links">'
-    + '<button type="button" class="btn btn-primary" data-action="show-register">📝 ' + t('registerTab') + '</button>'
+    + '<button type="button" class="btn btn-primary" data-action="show-register">' + icon('edit') + ' ' + t('registerTab') + '</button>'
     + '<button type="button" class="btn" data-action="open-login">' + t('login') + '</button>'
     + '</div>'
     + '<p class="small muted" style="margin:12px 0 0">' + t('needAccountNote') + '</p>'
@@ -1503,7 +1607,7 @@ function openInquiryModal(pid) {
     ? '您好，我对「' + p.zh.title + '」很感兴趣。请报价 ' + p.moq + ' ' + p.unit + ' 的最佳价格（' + (p.terms || ['FOB'])[0] + '），并告知包装与交期。'
     : 'Hello, we are interested in "' + p.en.title + '". Please quote your best price for ' + p.moq + ' ' + p.unit + ' (' + (p.terms || ['FOB'])[0] + ') including packaging and lead time.';
   showModal(
-    '<div class="modal-head"><h3>' + icon('send') + ' ' + t('inquiryTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3>' + icon('send') + ' ' + t('inquiryTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + '<div class="inquiry-summary"><img src="' + productImg(p, 200, 150) + '" alt=""><div><div style="font-weight:600">' + esc(langObj(p).title) + '</div><div class="small muted">' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' USD · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div></div></div>'
     + '<form data-form="inquiry-form" data-id="' + p.id + '" novalidate>'
@@ -1979,7 +2083,7 @@ function renderProfileBody() {
   const accentVal = opts.accent || '#8F5E0A';
   const fontVal = opts.font || 'kai';
   const logoName = opts.logoName || '';
-  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (f.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('');
+  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (f.country === c ? 'selected' : '') + '>' + countryTag(c) + ' ' + countryName(c) + '</option>').join('');
   const card = businessCardOf();
   const cardPreviewHtml = card
     ? '<div class="card-preview-box"><button type="button" class="card-zoom-btn" data-action="zoom-card" aria-label="' + t('cardZoomHint') + '"><img src="' + card + '" alt="' + esc(t('cardPreviewLabel')) + '"></button>'
@@ -1988,7 +2092,7 @@ function renderProfileBody() {
       + '<button type="button" class="btn btn-sm" data-action="card-remove">' + t('cardRemoveBtn') + '</button></div></div>'
     : '<p class="small muted">' + t('cardNoCard') + '</p>';
   return '<div class="profile-layout">'
-    + '<div class="card panel"><div class="panel-head"><h2>👤 ' + t('profileTitle') + '</h2></div>'
+    + '<div class="card panel"><div class="panel-head"><h2>' + icon('users') + ' ' + t('profileTitle') + '</h2></div>'
     + '<div class="exp-level ' + level + '"><b>' + t('profileCompleteness') + '：' + pct + '%</b><span>' + (pct >= 80 ? t('exportReadyHigh') : pct >= 50 ? t('exportReadyMid') : t('exportReadyLow')) + '</span>'
     + '<div class="profile-progress"><i style="width:' + pct + '%"></i></div></div>'
     + '<form data-form="profile-form" novalidate>'
@@ -1997,10 +2101,12 @@ function renderProfileBody() {
     + '<div class="field"><label>' + t('regAccountType') + '</label><select class="select" name="accountType">'
     + '<option value="company" ' + (f.accountType !== 'individual' ? 'selected' : '') + '> ' + t('accountTypeCompany') + '</option>'
     + '<option value="individual" ' + (f.accountType === 'individual' ? 'selected' : '') + '> ' + t('accountTypeIndividual') + '</option></select></div>'
-    + '<div class="field"><label>' + t('jobTitle') + '</label><input class="input" name="jobTitle" value="' + esc(f.jobTitle) + '" maxlength="60" placeholder="Purchasing Manager / 外贸经理"></div>'
+    /* 常用字段排在前面：姓名 → 身份 → 公司 → 国家 → 联系方式（微信/WhatsApp）→ 职位 → 简介。
+     * 原来"职位"卡在公司前面，而日常改得最多的联系方式和公司反倒排在后面。 */
     + '<div class="field"><label>' + (f.accountType === 'individual' ? t('regBizName') : t('companyName')) + '</label><input class="input" name="company" value="' + esc(f.company) + '" maxlength="120"></div>'
     + '<div class="field"><label>' + t('countryLabel') + '</label><select class="select" name="country"><option value="">—</option>' + countries + '</select></div>'
-    + '<div class="field"><label>' + t('profileContact') + '</label><input class="input" name="contact" value="' + esc(f.contact) + '" maxlength="120" placeholder="电话 / WhatsApp / 微信"></div>'
+    + '<div class="field"><label>' + t('profileContact') + '</label><input class="input" name="contact" value="' + esc(f.contact) + '" maxlength="120" placeholder="' + esc(t('profileContactPlaceholder')) + '"></div>'
+    + '<div class="field"><label>' + t('jobTitle') + '</label><input class="input" name="jobTitle" value="' + esc(f.jobTitle) + '" maxlength="60" placeholder="Purchasing Manager / 外贸经理"></div>'
     + '<div class="field full"><label>' + t('profileBio') + '</label><textarea class="textarea" name="bio" rows="3" maxlength="400">' + esc(f.bio) + '</textarea></div>'
     + '</div>'
     + '<button type="submit" class="btn btn-primary">' + t('profileSave') + '</button>'
@@ -2012,16 +2118,16 @@ function renderProfileBody() {
     + '<div class="card-preview">' + cardPreviewHtml + '</div>'
     + '<p class="small muted">' + t('cardUploadHint') + '</p>'
     + '</div></div>'
-    + '<div class="card panel mt-20"><div class="panel-head"><h2>🎨 ' + t('cardTemplatesTitle') + '</h2><span class="small muted">' + t('cardTemplatesSub') + '</span></div>'
+    + '<div class="card panel mt-20"><div class="panel-head"><h2>' + icon('sparkle') + ' ' + t('cardTemplatesTitle') + '</h2><span class="small muted">' + t('cardTemplatesSub') + '</span></div>'
     + '<div class="tpl-grid">' + (typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []).map(tpl =>
       '<div class="tpl-card"><span class="tpl-swatch" style="background:' + tpl.swatch + '"></span>'
       + '<b>' + esc(state.lang === 'zh' ? tpl.zh : tpl.en) + '</b>'
       + '<button type="button" class="btn btn-sm" data-action="card-template" data-tpl="' + tpl.id + '">' + t('cardTemplateApply') + '</button></div>'
     ).join('')
-    + '<div class="tpl-card custom"><span class="tpl-swatch custom">✦</span><b>' + t('cardCustomTitle') + '</b>'
+    + '<div class="tpl-card custom"><span class="tpl-swatch custom">★</span><b>' + t('cardCustomTitle') + '</b>'
     + '<span class="small muted">' + t('cardCustomHint') + '</span></div>'
     + '</div>'
-    + '<div class="card-customize"><h4>🎛️ ' + t('cardCustomizeTitle') + '</h4>'
+    + '<div class="card-customize"><h4>' + icon('edit') + ' ' + t('cardCustomizeTitle') + '</h4>'
     + '<div class="form-grid">'
     + '<div class="field"><label>' + t('cardAccentColor') + '</label><input type="color" class="input" name="cardAccent" value="' + accentVal + '"></div>'
     + '<div class="field"><label>' + t('cardFont') + '</label><select class="select" name="cardFont">'
@@ -2032,7 +2138,7 @@ function renderProfileBody() {
     + '</div>'
     + '<div class="flex gap-10" style="flex-wrap:wrap;align-items:center">'
     + '<button type="button" class="btn btn-primary" data-action="card-apply-custom">' + t('cardApplyCustom') + '</button>'
-    + (logoName ? '<span class="small muted">🖼️ ' + esc(logoName) + '</span>' : '')
+    + (logoName ? '<span class="small muted"> ' + esc(logoName) + '</span>' : '')
     + '</div></div>'
     + '</div></div>'
     + '</div>'
@@ -2043,7 +2149,7 @@ function renderProfileBody() {
 
 /* 修改密码面板：整行宽度 + 二次确认 + 行内错误提示（原先是两个窄输入框加一个 toast，出错了也不知道错在哪） */
 function passwordPanelHtml() {
-  return '<div class="card panel mt-20 pwd-panel"><div class="panel-head"><h2>🔒 ' + t('pwdTitle') + '</h2>'
+  return '<div class="card panel mt-20 pwd-panel"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('pwdTitle') + '</h2>'
     + '<span class="small muted">' + t('pwdPanelHint') + '</span></div>'
     + '<form data-form="change-password" novalidate>'
     + '<div class="form-grid">'
@@ -2104,14 +2210,13 @@ function cardBackHtml(i) {
   const accent = dark ? '#C8A25B' : '#C8860B';
   const line = dark ? 'rgba(200,162,91,.35)' : 'rgba(200,134,11,.3)';
   const holder = (i.company ? i.company + ' · ' : '') + (i.name || '');
-  const qr = '<svg viewBox="0 0 64 64" width="74" height="74"><rect width="64" height="64" fill="rgba(0,0,0,0)"/><g fill="' + (dark ? '#C8A25B' : '#4A2E08') + '">'
-    + Array.from({ length: 16 }, (_, y) => Array.from({ length: 16 }, (_, x) => ((x * 31 + y * 17 + x * y) % 5 < 2) ? '<rect x="' + (x * 4) + '" y="' + (y * 4) + '" width="4" height="4"/>' : '').join('')).join('')
-    + '</g></svg>';
+  /* 真二维码（扫码直接进官网）。以前这里是手画的假方块，扫不出来 —— 纯装饰。 */
+  const qr = realQrSvg('https://beanbeanmouse.com', 2);
   return '<div class="card-back" style="background:' + bg + ';color:' + fg + '">'
     + '<div class="cb-frame" style="border-color:' + line + '"></div>'
     + '<div class="cb-mark"><img src="assets/mascot-main.jpg" alt="" loading="lazy" decoding="async"><b>BeanBeanMouse</b><span>豆豆鼠宠物用品</span></div>'
     + '<div class="cb-motto" style="color:' + sub + '">以精工，致远方 —— 让每一笔跨国生意更简单。</div>'
-    + '<div class="cb-qr">' + qr + '<span style="color:' + sub + '">扫码验真 · 验证本站真伪</span></div>'
+    + '<div class="cb-qr">' + qr + '<span style="color:' + sub + '">扫码进入官网</span></div>'
     + '<div class="cb-foot" style="border-top-color:' + line + ';color:' + sub + '">beanbeanmouse.com</div>'
     + '<div class="cb-holder" style="color:' + sub + '">' + esc(holder) + '</div>'
     + '</div>';
@@ -2119,7 +2224,7 @@ function cardBackHtml(i) {
 async function openCardModal(i) {
   if (!i || !i.card) return;
   card3d.rx = -6; card3d.ry = 0; card3d.flipped = false;
-  showModal('<div class="modal-head"><h3> ' + t('businessCard') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3> ' + t('businessCard') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + '<div class="card3d" id="card3d"><div class="card3d-inner" id="card3dInner">'
     + '<div class="card3d-face front"><div class="holo"></div>'
@@ -2128,8 +2233,8 @@ async function openCardModal(i) {
     + '<div class="card3d-face back">' + cardBackHtml(i) + '</div>'
     + '</div></div>'
     + '<div class="card3d-controls">'
-    + '<button type="button" class="btn btn-sm" data-action="zoom-card">🔍 ' + t('cardZoom') + '</button>'
-    + '<button type="button" class="btn btn-sm btn-primary" data-action="card-flip">🔄 ' + t('cardFlip') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="zoom-card">' + icon('search') + ' ' + t('cardZoom') + '</button>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="card-flip">' + icon('refresh') + ' ' + t('cardFlip') + '</button>'
     + '<span class="small muted">' + t('cardDragHint') + '</span>'
     + '</div>'
     + '<p class="small muted" style="text-align:center">' + t('cardWatermarkNote') + '</p>'
@@ -2160,7 +2265,7 @@ async function openCardModal(i) {
   } catch (e) { /* 水印失败时保留原图展示 */ }
 }
 function registerFormHtml() {
-  return '<div class="modal-head"><h3>' + t('regTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  return '<div class="modal-head"><h3>' + t('regTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="register-form" class="full" novalidate>'
     + '<input type="text" name="homepage" style="position:absolute;left:-9999px;opacity:0" tabindex="-1" autocomplete="off">'
     + (window.__TURNSTILE_KEY__
@@ -2201,7 +2306,7 @@ function registerFormHtml() {
 }
 function companyFormHtml() {
   const c = companyOfSeller() || {};
-  return '<div class="modal-head"><h3>' + t('companyApply') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  return '<div class="modal-head"><h3>' + t('companyApply') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="company-form" class="full">'
     + '<div class="field"><label>' + t('regCompanyName') + ' *</label><input class="input" name="name" required value="' + esc(c.name || '') + '"></div>'
     + '<div class="field"><label>' + t('regCountry') + ' *</label><input class="input" name="country" required value="' + esc(c.country || '') + '"></div>'
@@ -2216,7 +2321,7 @@ function companyFormHtml() {
     + '</form></div>';
 }
 function catReqFormHtml() {
-  return '<div class="modal-head"><h3>' + t('categoryRequestTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  return '<div class="modal-head"><h3>' + t('categoryRequestTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="catreq-form" class="full">'
     + '<div class="field"><label>' + t('catName') + ' *</label><input class="input" name="name" required maxlength="120"></div>'
     + '<div class="field"><label>' + t('catDesc') + '</label><textarea class="input" name="description" rows="3"></textarea></div>'
@@ -2227,19 +2332,19 @@ function catReqFormHtml() {
 function companyBannerHtml() {
   const c = companyOfSeller();
   if (!c) {
-    return '<div class="card panel" style="border-color:rgba(245,158,11,.45)"><div class="panel-head"><h2>🏭 ' + t('companyApply') + '</h2></div>'
+    return '<div class="card panel" style="border-color:rgba(245,158,11,.45)"><div class="panel-head"><h2>' + icon('building') + ' ' + t('companyApply') + '</h2></div>'
       + '<p class="muted">' + t('companyTip') + '</p>'
       + '<button type="button" class="btn btn-primary" data-action="company-form">' + t('companyApply') + '</button></div>';
   }
   if (c.status === 'approved') {
-    return '<div class="card panel" style="border-color:rgba(34,197,94,.35)"><div class="panel-head"><h2>✅ ' + esc(c.name || '') + '</h2><span class="status-pill done">' + t('companyApproved') + '</span></div></div>';
+    return '<div class="card panel" style="border-color:rgba(34,197,94,.35)"><div class="panel-head"><h2>' + icon('check') + ' ' + esc(c.name || '') + '</h2><span class="status-pill done">' + t('companyApproved') + '</span></div></div>';
   }
   if (c.status === 'rejected') {
-    return '<div class="card panel" style="border-color:rgba(239,68,68,.35)"><div class="panel-head"><h2>🏭 ' + esc(c.name || '') + '</h2><span class="status-pill new">' + t('companyRejected') + '</span></div>'
+    return '<div class="card panel" style="border-color:rgba(239,68,68,.35)"><div class="panel-head"><h2>' + icon('building') + ' ' + esc(c.name || '') + '</h2><span class="status-pill new">' + t('companyRejected') + '</span></div>'
       + (c.rejectReason ? '<p class="muted">' + t('companyReason') + '：' + esc(c.rejectReason) + '</p>' : '')
       + '<button type="button" class="btn btn-primary" data-action="company-form">' + t('companyResubmit') + '</button></div>';
   }
-  return '<div class="card panel" style="border-color:rgba(245,158,11,.45)"><div class="panel-head"><h2>🏭 ' + esc(c.name || '') + '</h2><span class="status-pill new">' + t('companyPending') + '</span></div>'
+  return '<div class="card panel" style="border-color:rgba(245,158,11,.45)"><div class="panel-head"><h2>' + icon('building') + ' ' + esc(c.name || '') + '</h2><span class="status-pill new">' + t('companyPending') + '</span></div>'
     + '<p class="muted">' + t('companyTip') + '</p></div>';
 }
 function orderStatusLabel(s) {
@@ -2374,7 +2479,7 @@ function evidencePanelHtml(o) {
     + '<div class="flex gap-10 ev-actions">'
     + '<button type="button" class="btn btn-sm" data-action="evidence-save" data-id="' + o.id + '">' + t('evidenceSave') + '</button>'
     + (evs.length ? '<button type="button" class="btn btn-sm" data-action="evidence-verify" data-id="' + o.id + '">' + t('evidenceVerify') + '</button>' : '')
-    + (evs.length ? '<button type="button" class="btn btn-sm" data-action="evidence-print" data-id="' + o.id + '">🖨 ' + t('evidencePrint') + '</button>' : '')
+    + (evs.length ? '<button type="button" class="btn btn-sm" data-action="evidence-print" data-id="' + o.id + '">' + icon('file') + ' ' + t('evidencePrint') + '</button>' : '')
     + '</div></div>';
 }
 function tipCalloutHtml(o) {
@@ -2459,10 +2564,10 @@ function openContractPrint(o) {
   const printEl = document.getElementById('printDoc');
   if (printEl) printEl.innerHTML = doc;
   showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + t('contractsTitle') + '</h3>'
-    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">' + doc
     + '<p class="small muted">' + icon('file') + ' ' + t('contractPrintHint') + '</p>'
-    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">' + icon('file') + ' ' + t('printNow') + '</button>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
     + '</div></div>');
 }
@@ -2515,7 +2620,7 @@ function orderCard(o) {
     + (activeTips.length ? '<div class="tip-list-head"><img src="assets/tip-hamster-full.png" alt="" width="42" height="42" loading="lazy" decoding="async"><span>' + t('tipList') + ' · ' + t('tipAlready') + '</span></div>' : '')
     + insuranceBoxHtml(o)
     + (tips.length ? '<div class="reply-box"><ul style="margin:6px 0 0;padding-left:18px">'
-      + tips.map(x => '<li>💛 ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
+      + tips.map(x => '<li> ' + x.amount + ' ' + (x.currency || 'USD') + (x.note ? ' — ' + esc(x.note) : '') + (x.status === 'cancelled' ? ' <span class="muted">' + t('tipCancelled') + '</span>' : '')
         + (x.fromUserId === state.user.id && x.status === 'active' ? ' <button type="button" class="btn btn-sm" data-action="tip-cancel" data-order="' + o.id + '" data-tip="' + x.id + '">' + t('tipCancel') + '</button>' : '')
         + '</li>').join('')
       + '</ul></div>' : '')
@@ -2530,9 +2635,9 @@ function orderCard(o) {
         : '<button type="button" class="btn" data-action="pay-open" data-id="' + o.id + '">' + t('payTitle') + '</button>')
       : '')
     + (o.status === 'created' && isBuyer ? '<button type="button" class="btn btn-primary" data-action="order-confirm" data-id="' + o.id + '">' + t('confirmReceipt') + '</button><button type="button" class="btn" data-action="order-cancel" data-id="' + o.id + '">' + t('orderStatusCancelled') + '</button>' : '')
-    + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '">💛 ' + (tippedByMe ? t('tipBtnAgain') : t('tipTitle')) + '</button>' : '')
+    + (o.status === 'complete' ? '<button type="button" class="btn" data-action="tip-open" data-id="' + o.id + '"> ' + (tippedByMe ? t('tipBtnAgain') : t('tipTitle')) + '</button>' : '')
     + (isSeller && !shipments.length && (o.status === 'created' || o.status === 'complete')
-      ? '<button type="button" class="btn btn-primary" data-action="shipment-create" data-id="' + o.id + '">🚚 ' + t('shipmentCreate') + '</button>' : '')
+      ? '<button type="button" class="btn btn-primary" data-action="shipment-create" data-id="' + o.id + '">' + icon('box') + ' ' + t('shipmentCreate') + '</button>' : '')
     + (isSeller && shipments.length
       ? '<button type="button" class="btn" data-action="shipment-event" data-id="' + o.id + '" data-shipment="' + shipments[0].id + '">' + t('shipmentAddEvent') + '</button>' : '')
     + '</div>'
@@ -2562,6 +2667,26 @@ function downloadCsv(filename, rows) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
+/* 仓库清单：按货号排序导出，含中英标题、品类、价格、起订量、状态，
+ * 线下点货/入仓时对着货号找货，不用再靠图片认。 */
+function exportProductsCsv() {
+  const zh = state.lang === 'zh';
+  const rows = (state.products || []).slice().sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
+  const head = [
+    zh ? '货号' : 'Code', zh ? '英文标题' : 'Title (EN)', zh ? '中文标题' : 'Title (ZH)',
+    zh ? '品类' : 'Category', zh ? '细分' : 'Sub-category', 'HS',
+    zh ? '最低价' : 'Price min', zh ? '最高价' : 'Price max', zh ? '单位' : 'Unit',
+    zh ? '起订量' : 'MOQ', zh ? '交期(天)' : 'Lead time', zh ? '状态' : 'Status', zh ? '更新时间' : 'Updated'
+  ];
+  const data = rows.map(p => [
+    productCodeOf(p), (p.en && p.en.title) || '', (p.zh && p.zh.title) || '',
+    langObj(catById(p.cat)), (subOf(p) ? langObj(subOf(p)) : ''), p.hsCode || '',
+    p.priceMin, p.priceMax, p.unit, p.moq, p.leadTime,
+    p.status === 'on' ? (zh ? '已上架' : 'Live') : p.status === 'pending' ? (zh ? '待审核' : 'Pending') : p.status === 'rejected' ? (zh ? '已驳回' : 'Rejected') : (zh ? '已下架' : 'Unlisted'),
+    new Date(p.addedAt || 0).toISOString().slice(0, 10)
+  ]);
+  downloadCsv('bbm-warehouse-products.csv', [head].concat(data));
+}
 function exportOrdersCsv() {
   const u = state.user;
   const rows = (state.orders || []).filter(o => !u || u.role === 'admin' || o.buyerId === u.id || o.sellerId === (u.sellerId || u.id));
@@ -2586,10 +2711,10 @@ function exportInquiriesCsv() {
 }
 function tipModalHtml(o) {
   const tippedByMe = hasActiveTipFromMe(o);
-  return '<div class="modal-head"><h3>💛 ' + t('tipTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  return '<div class="modal-head"><h3> ' + t('tipTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + '<div class="tip-img-wrap"><img src="' + tipMascotImg(o.id) + '" alt="' + t('tipTitle') + '" width="110" height="110" loading="lazy" decoding="async">'
-    + (tippedByMe ? '<span class="tip-coins">🪙🪙🪙</span>' : '')
+    + (tippedByMe ? '<span class="tip-coins"></span>' : '')
     + '</div>'
     + '<p class="muted" style="text-align:center">' + (tippedByMe ? t('tipAgain') : t('tipHint')) + '</p>'
     + '<div class="tip-chips" role="group" aria-label="' + esc(t('tipAmount')) + '">' + [5, 10, 25, 50, 100].map(v => '<button type="button" class="chip" data-action="tip-quick" data-amount="' + v + '">$' + v + '</button>').join('') + '</div>'
@@ -2693,7 +2818,7 @@ function openTipModal(id) {
 }
 function openPayModal(o) {
   if (!o) return;
-  showModal('<div class="modal-head"><h3>💳 ' + t('payTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3>' + icon('file') + ' ' + t('payTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + '<div class="pay-order"><b>' + esc(o.id) + '</b><span>' + t('orderTotal') + '：' + (o.currency || 'USD') + ' ' + Number(o.total || 0).toLocaleString() + '</span></div>'
     + '<div class="pay-provider"><span class="pay-logo">P</span><div><b>PayPal</b><span class="small muted">Sandbox · USD/EUR/GBP</span></div>'
@@ -2725,7 +2850,7 @@ async function sendTip(orderId) {
     closeModal();
     state.tipDismissed[orderId] = true;
     saveState();
-    toast('💛 ' + t('tipReceived') + ' ✓');
+    toast(' ' + t('tipReceived') + ' ✓');
     render();
   }
   catch (e) { toast(e.message || String(e)); }
@@ -2783,7 +2908,7 @@ function buildEvidenceReport(o, evs, verified) {
     ).join('') + '</tbody>'
     + '</table>'
     + '<div class="ev-report-verdict ' + (verified ? 'ok' : 'bad') + '">' + (verified ? '✓ ' + t('evReportSealed') : '✗ ' + t('evReportBroken')) + '</div>'
-    + '<div class="ev-seal"><div class="ev-qr">' + fakeQrSvg(no + '|' + evs.length + '|' + (verified ? 'OK' : 'BAD')) + '</div>'
+    + '<div class="ev-seal"><div class="ev-qr">' + realQrSvg('BeanBeanMouse 存证报告 ' + no + ' · 记录 ' + evs.length + ' 条 · ' + (verified ? '链完整' : '链异常'), 2) + '</div>'
     + '<div class="ev-seal-txt"><b>BeanBeanMouse</b><div>' + esc(t('evReportSub')) + '</div><div class="muted small">' + esc(t('evidenceVerifiedAt')) + '：' + dateFmt(Date.now()) + '</div></div></div>'
     + '<div class="doc-sign"><div>' + t('docSellerSign') + '</div><div>' + t('docBuyerSign') + '</div></div>'
     + '<div class="doc-disclaimer">' + t('evReportNote') + '</div>'
@@ -2799,10 +2924,10 @@ function openEvidencePrint(orderId) {
   const doc = buildEvidenceReport(o, evs, verified);
   const printEl = document.getElementById('printDoc');
   if (printEl) printEl.innerHTML = doc;
-  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('shield') + ' ' + t('evidencePrint') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('shield') + ' ' + t('evidencePrint') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">' + doc
     + '<p class="small muted">' + icon('file') + ' ' + t('evidencePrintHint') + '</p>'
-    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">' + icon('file') + ' ' + t('printNow') + '</button>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
     + '</div></div>');
 }
@@ -2819,7 +2944,7 @@ function openShipmentCreateModal(orderId) {
   if (!o) return;
   const p = productById(o.productId);
   showModal(
-    '<div class="modal-head"><h3>🚚 ' + t('shipmentCreate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3>' + icon('box') + ' ' + t('shipmentCreate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="shipment-create-form" data-order="' + orderId + '" novalidate>'
     + (p ? '<p class="small muted">' + esc(langObj(p).title) + '</p>' : '')
     + '<div class="field"><label>' + t('shipmentCarrier') + '</label><input class="input" name="carrier" maxlength="80" placeholder="COSCO / DHL / FedEx…"></div>'
@@ -2871,7 +2996,7 @@ function openShipmentEventModal(orderId, shipmentId) {
   const shipment = (state.shipments || []).find(s => s.id === shipmentId && s.orderId === orderId);
   if (!shipment) return;
   showModal(
-    '<div class="modal-head"><h3>🚚 ' + t('shipmentAddEvent') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3>' + icon('box') + ' ' + t('shipmentAddEvent') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="shipment-event-form" data-order="' + orderId + '" data-shipment="' + shipmentId + '" novalidate>'
     + '<div class="field"><label>' + t('shipmentEvent') + ' *</label><select class="input" name="status">' + shipmentStatusOptions(shipment.status) + '</select></div>'
     + '<div class="field"><label>' + t('shipmentCurrent') + '</label><input class="input" name="location" maxlength="120" placeholder="' + t('shipmentLocPh') + '"></div>'
@@ -3017,14 +3142,14 @@ function renderCustoms() {
     + '<section class="card panel"><div class="panel-head"><h2>' + t('customsPick') + '</h2></div>'
     + '<div class="customs-grid">' + CUSTOMS_REF.map(c =>
       '<a class="customs-card' + (c.code === row.code ? ' on' : '') + '" href="#/customs?country=' + c.code + '" data-nav="/customs?country=' + c.code + '">'
-      + '<span class="lang-flag">' + flagEmoji(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
+      + '<span class="lang-flag">' + countryTag(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
     ).join('') + '</div></section>'
     + '<div class="dash-layout customs-layout">'
-    + '<aside class="card panel customs-side"><h3>' + flagEmoji(row.flag) + ' ' + esc(zh ? row.zh : row.en) + '</h3>'
+    + '<aside class="card panel customs-side"><h3>' + countryTag(row.flag) + ' ' + esc(zh ? row.zh : row.en) + '</h3>'
     + '<p class="small muted">' + esc(row.note) + '</p></aside>'
     + '<div class="customs-main">'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('customsDocs') + '</h2></div>'
-    + '<ul class="guide-list">' + row.docs.map(d => '<li>📄 ' + esc(zh ? d.zh : d.en) + '</li>').join('') + '</ul></section>'
+    + '<ul class="guide-list">' + row.docs.map(d => '<li>' + icon('file') + ' ' + esc(zh ? d.zh : d.en) + '</li>').join('') + '</ul></section>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('customsSources') + '</h2></div>'
     + '<div class="source-grid">' + row.sources.map(s =>
       '<a class="source-card" href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer"><b>' + esc(s.name) + '</b><span class="small muted">' + esc(s.region) + ' · ' + t('viewSource') + '</span></a>'
@@ -3044,9 +3169,9 @@ function renderRecruit() {
     ? [['注册并提交企业资料', '填写公司/工厂真实资质，平台审核（可查证）'], ['按外贸品类发布产品', '选择细分品类与 HS 参考，等待上架审核'], ['获得询盘与推广', '买家询盘直达邮箱与站内信，可申请推广位']]
     : [['Register & verify', 'Submit real company/factory credentials for platform review'], ['Publish by category', 'Pick a foreign-trade subcategory with HS reference and go live'], ['Get inquiries & growth', 'Buyer inquiries hit your inbox; apply for promotion slots']];
   const benefits = [
-    ['🌍', zh ? '面向全球买家' : 'Global buyers', zh ? '多语言界面与实时翻译，跨时区询盘直达' : 'Multilingual UI with live translation'],
+    ['' + icon('globe') + '', zh ? '面向全球买家' : 'Global buyers', zh ? '多语言界面与实时翻译，跨时区询盘直达' : 'Multilingual UI with live translation'],
     ['', zh ? '企业实名审核' : 'Verified companies', zh ? '真实可查证公司/工厂才能发品，建立信任' : 'Only real, verifiable companies can list'],
-    ['📈', zh ? '细分品类与推广' : 'Subcategories & promotion', zh ? '外贸细分品类 + HS 参考，推广位放大曝光' : 'Foreign-trade subcategories with HS reference and promo slots']
+    ['' + icon('chart') + '', zh ? '细分品类与推广' : 'Subcategories & promotion', zh ? '外贸细分品类 + HS 参考，推广位放大曝光' : 'Foreign-trade subcategories with HS reference and promo slots']
   ];
   return '<div class="container page">'
     + '<div class="page-head guide-head"><h1>' + t('recruitTitle') + '</h1><p>' + t('recruitSub') + '</p></div>'
@@ -3066,7 +3191,7 @@ function renderInsurance() {
     + '<div class="page-head guide-head"><h1>' + icon('shield') + ' ' + t('insurancePageTitle') + '</h1><p>' + t('insurancePageSub') + '</p></div>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('insProviderLabel') + '</h2></div>'
     + '<div id="insuranceProviders" class="ins-providers"><p class="muted">…</p></div></section>'
-    + '<section class="card panel"><div class="panel-head"><h2>⚖️ ' + t('insurancePageNote') + '</h2></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('insurancePageNote') + '</h2></div>'
     + '<p class="small muted">' + t('insurancePartnersNote') + '</p></section>'
     + '</div>';
 }
@@ -3128,7 +3253,7 @@ function renderContractPreview() {
   wrap.innerHTML = '<div class="contract-doc"><h4>' + esc(o.id) + '</h4><pre class="contract-pre">' + esc(contractDraftText(o)) + '</pre></div>'
     + '<div class="warn-box"><b>' + t('contractWarnings') + '</b><p class="small muted">' + t('contractWarningTitle') + '</p><ul>' + contractWarningsHtml() + '</ul></div>'
     + '<div class="flex gap-10">'
-    + '<button type="button" class="btn" data-action="contract-print" data-order="' + o.id + '">🖨 ' + t('contractDownloadPdf') + '</button>'
+    + '<button type="button" class="btn" data-action="contract-print" data-order="' + o.id + '">' + icon('file') + ' ' + t('contractDownloadPdf') + '</button>'
     + (cust
       ? '<span class="status-pill done">' + t('contractCustodyDone') + '</span>'
       : '<button type="button" class="btn btn-primary" data-action="contract-custody" data-order="' + o.id + '">' + t('contractCustody') + '</button>')
@@ -3191,10 +3316,10 @@ function renderExport() {
   const checklist = u && u.role === 'seller' ? exportChecklistHtml(u.sellerId || u.id) : '';
   const guideItems = (typeof EXPORT_READINESS_ITEMS !== 'undefined' ? EXPORT_READINESS_ITEMS : []);
   return '<div class="container page">'
-    + '<div class="page-head guide-head"><h1>📋 ' + t('exportTitle') + '</h1><p>' + t('exportSub') + '</p></div>'
+    + '<div class="page-head guide-head"><h1>' + icon('file') + ' ' + t('exportTitle') + '</h1><p>' + t('exportSub') + '</p></div>'
     + (u && u.role === 'seller'
       ? checklist
-      : '<div class="card panel"><div class="panel-head"><h2>🏭 ' + t('exportChecklistTitle') + '</h2></div>'
+      : '<div class="card panel"><div class="panel-head"><h2>' + icon('building') + ' ' + t('exportChecklistTitle') + '</h2></div>'
         + '<p class="muted">' + t('exportNoLoginHint') + '</p>'
         + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('exportLoginBtn') + '</a></div>')
     + '<section class="card panel guide-section"><div class="panel-head"><h2>' + t('exportChecklistTitle') + '</h2>'
@@ -3211,7 +3336,7 @@ function renderExport() {
         + '</div></div>';
     }).join('') : '<p class="muted">—</p>')
     + '<p class="small muted" style="margin-top:10px">' + t('exportGuideNote') + '</p></section>'
-    + '<section class="card panel"><div class="panel-head"><h2>🏷️ ' + t('exportProductHint') + '</h2></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('file') + ' ' + t('exportProductHint') + '</h2></div>'
     + '<p class="small muted">' + t('exportChecklistSub') + '</p>'
     + '<div class="flex gap-10" style="flex-wrap:wrap">'
     + '<a class="btn" href="#/guide" data-nav="/guide">' + t('navGuide') + ' →</a>'
@@ -3239,7 +3364,7 @@ function renderLogistics() {
   const portCode = params.get('port') || 'Hamburg';
   const port = PORT_CHARGES.find(x => x.code === portCode) || PORT_CHARGES[0];
   return '<div class="container page">'
-    + '<div class="page-head guide-head"><h1>🚢 ' + t('logisticsTitle') + '</h1><p>' + t('logisticsSub') + '</p></div>'
+    + '<div class="page-head guide-head"><h1>' + icon('box') + ' ' + t('logisticsTitle') + '</h1><p>' + t('logisticsSub') + '</p></div>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('logisticsModeTitle') + '</h2><span class="small muted">' + t('logisticsModeNote') + '</span></div>'
     + '<div class="table-responsive"><table class="table guide-table logistics-table"><thead><tr><th>' + t('logisticsFieldMode') + '</th><th>' + t('logisticsSpeed') + '</th><th>' + t('logisticsCost') + '</th><th>' + t('logisticsBestFor') + '</th></tr></thead><tbody>'
     + LOGISTICS_MODES.map(m => '<tr><td><b>' + esc(langObj(m).name) + '</b></td><td>' + esc(langObj(m).speed) + '</td><td>' + esc(langObj(m).cost) + '</td><td>' + esc(langObj(m).bestFor) + '</td></tr>').join('')
@@ -3250,15 +3375,15 @@ function renderLogistics() {
     + '<section class="card panel"><div class="panel-head"><h2>' + t('logisticsCostTitle') + '</h2><span class="small muted">' + t('logisticsCostNote') + '</span></div>'
     + '<div class="customs-grid">' + PORT_CHARGES.map(c =>
       '<a class="customs-card' + (c.code === port.code ? ' on' : '') + '" href="#/logistics?port=' + c.code + '" data-nav="/logistics?port=' + c.code + '">'
-      + '<span class="lang-flag">' + flagEmoji(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
+      + '<span class="lang-flag">' + countryTag(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
     ).join('') + '</div>'
-    + '<div class="port-charge-card"><h3>' + flagEmoji(port.flag) + ' ' + esc(zh ? port.zh : port.en) + '</h3>'
+    + '<div class="port-charge-card"><h3>' + countryTag(port.flag) + ' ' + esc(zh ? port.zh : port.en) + '</h3>'
     + '<p class="small muted">' + esc(port.note) + '</p>'
     + '<div class="table-responsive"><table class="table"><tbody>' + port.items.map(r =>
       '<tr><td>' + esc(r[0]) + '</td><td><b>' + esc(r[1]) + '</b></td></tr>').join('') + '</tbody></table></div></div></section>'
     + '<section class="card panel"><div class="panel-head"><h2>' + icon('sparkle') + ' ' + t('logisticsTelexTitle') + '</h2></div>'
     + '<p class="small">' + t('logisticsTelexNote') + '</p></section>'
-    + '<section class="card panel"><div class="panel-head"><h2>🧮 ' + t('logisticsEstimateTitle') + '</h2><span class="small muted">' + t('logisticsEstimateHint') + '</span></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('chart') + ' ' + t('logisticsEstimateTitle') + '</h2><span class="small muted">' + t('logisticsEstimateHint') + '</span></div>'
     + '<form data-form="logistics-estimate-form" novalidate>'
     + '<div class="form-grid">'
     + '<div class="field"><label>' + t('logisticsFieldMode') + '</label><select class="select" name="mode">' + LOGISTICS_MODES.map(m => '<option value="' + m.id + '">' + esc(langObj(m).name) + '</option>').join('') + '</select></div>'
@@ -3316,7 +3441,7 @@ function renderCompliance() {
   const demo = state.products.filter(isLive).slice(0, 4);
   return '<div class="container page">'
     + '<div class="page-head guide-head"><h1> ' + t('complianceTitle') + '</h1><p>' + t('complianceSub') + '</p></div>'
-    + '<section class="card panel"><div class="panel-head"><h2>🔎 ' + t('complianceControlTitle') + '</h2><span class="small muted">' + t('complianceControlNote') + '</span></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('search') + ' ' + t('complianceControlTitle') + '</h2><span class="small muted">' + t('complianceControlNote') + '</span></div>'
     + '<form data-form="compliance-screen-form" novalidate>'
     + '<div class="field"><label>' + t('complianceScreenHint') + '</label><textarea class="textarea" name="text" rows="3" maxlength="2000" placeholder="e.g. 3000W fiber laser cutting machine with automatic focus"></textarea></div>'
     + '<div class="flex gap-10" style="flex-wrap:wrap;margin:8px 0">'
@@ -3325,9 +3450,9 @@ function renderCompliance() {
     + '<button type="submit" class="btn btn-primary">' + t('complianceScreenBtn') + '</button>'
     + '<div id="complianceResult" class="screen-result"></div>'
     + '</form></section>'
-    + '<section class="card panel"><div class="panel-head"><h2>📋 ' + t('complianceListTitle') + '</h2></div>'
+    + '<section class="card panel"><div class="panel-head"><h2>' + icon('file') + ' ' + t('complianceListTitle') + '</h2></div>'
     + '<div class="compliance-grid">' + COMPLIANCE_RULES.map(r =>
-      '<div class="compliance-card"><div class="compliance-ico">' + r.icon + '</div><b>' + esc(langObj(r).name) + '</b>'
+      '<div class="compliance-card"><div class="compliance-ico">' + icon(r.icon) + '</div><b>' + esc(langObj(r).name) + '</b>'
       + '<ul>' + langObj(r).items.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>'
     ).join('') + '</div></section>'
     + '<p class="small muted" style="margin:14px 0 0">' + t('complianceDisclaimer') + '</p>'
@@ -3381,7 +3506,7 @@ function afterSalesCaseHtml(c) {
   const isSeller = state.user && c.sellerId === (state.user.sellerId || state.user.id);
   const isAdmin = state.user && state.user.role === 'admin';
   return '<div class="as-card">'
-    + '<div class="as-head"><b>' + (c.dispute ? '⚖️ ' : '🔧 ') + esc(afterSalesTypeLabel(c.type)) + '</b>'
+    + '<div class="as-head"><b>' + (c.dispute ? '' + icon('shield') + ' ' : '' + icon('shield') + ' ') + esc(afterSalesTypeLabel(c.type)) + '</b>'
     + '<span class="status-pill ' + afterSalesStatusCls(c.status) + '">' + esc(afterSalesStatusLabel(c.status)) + '</span></div>'
     + '<p class="small muted">' + t('afterSalesCaseNo') + '：' + esc(c.id) + ' · ' + t('afterSalesOrder') + '：' + esc(c.orderId)
     + (p ? ' · ' + esc(langObj(p).title) : '') + '</p>'
@@ -3413,7 +3538,7 @@ function renderDisputes() {
     (u.role === 'buyer' ? o.buyerId === u.id : u.role === 'seller' ? o.sellerId === (u.sellerId || u.id) : false)
     && (o.status === 'created' || o.status === 'complete'));
   return '<div class="container page">'
-    + '<div class="page-head guide-head"><h1>⚖️ ' + t('disputesTitle') + '</h1><p>' + t('disputesSub') + '</p></div>'
+    + '<div class="page-head guide-head"><h1>' + icon('shield') + ' ' + t('disputesTitle') + '</h1><p>' + t('disputesSub') + '</p></div>'
     + (u.role === 'buyer' && eligible.length
       ? '<section class="card panel"><div class="panel-head"><h2>' + t('afterSalesCreate') + '</h2></div>'
         + '<div class="as-order-grid">' + eligible.map(o => {
@@ -3444,17 +3569,17 @@ function renderFeedback() {
   /* 建议只允许登录用户提交（和询盘一致；未登录显示引导） */
   if (!state.user) {
     return '<div class="container page">'
-      + '<div class="page-head guide-head"><h1>💬 ' + t('feedbackTitle') + '</h1><p>' + t('feedbackSub') + '</p></div>'
+      + '<div class="page-head guide-head"><h1>' + icon('message') + ' ' + t('feedbackTitle') + '</h1><p>' + t('feedbackSub') + '</p></div>'
       + '<section class="card panel"><div class="notice-box">'
       + '<b>' + t('needAccountTitle') + '</b><p>' + t('needAccountFeedback') + '</p>'
       + '<div class="flex gap-10" style="flex-wrap:wrap;margin-top:10px">'
-      + '<button type="button" class="btn btn-primary" data-action="show-register">📝 ' + t('registerTab') + '</button>'
+      + '<button type="button" class="btn btn-primary" data-action="show-register">' + icon('edit') + ' ' + t('registerTab') + '</button>'
       + '<button type="button" class="btn" data-action="open-login">' + t('login') + '</button>'
       + '</div></div></section></div>';
   }
   const mine = state.user ? (state.suggestions || []).filter(s => s.userId === state.user.id).slice().sort((a, b) => b.updatedAt - a.updatedAt) : [];
   return '<div class="container page">'
-    + '<div class="page-head guide-head"><h1>💬 ' + t('feedbackTitle') + '</h1><p>' + t('feedbackSub') + '</p></div>'
+    + '<div class="page-head guide-head"><h1>' + icon('message') + ' ' + t('feedbackTitle') + '</h1><p>' + t('feedbackSub') + '</p></div>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('feedbackSubmit') + '</h2></div>'
     + '<form data-form="feedback-form" novalidate>'
     + '<div class="field"><label>' + t('feedbackType') + '</label><select class="select" name="type">' + types.map(([v, l]) => '<option value="' + v + '">' + esc(l) + '</option>').join('') + '</select></div>'
@@ -3558,7 +3683,7 @@ function registerNextHtml(r, email) {
   const needVerify = !!(r && r.needVerify);
   const needReview = !!(r && r.needReview);
   return '<div class="modal-head"><h3>' + t('regNextTitle') + '</h3>'
-    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
     + (needVerify
       ? '<div class="reg-next-step"><b>1. ' + t('regNextCheckMail') + '</b>'
@@ -3596,7 +3721,7 @@ async function removeBusinessCard() {
 function openAfterSalesModal(orderId, dispute) {
   const o = (state.orders || []).find(x => x.id === orderId);
   if (!o) return;
-  showModal('<div class="modal-head"><h3>' + (dispute ? '⚖️ ' + t('afterSalesOpen') : '🔧 ' + t('afterSalesCreate')) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3>' + (dispute ? '' + icon('shield') + ' ' + t('afterSalesOpen') : '' + icon('shield') + ' ' + t('afterSalesCreate')) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="after-sales-form" data-order="' + orderId + '" data-dispute="' + (dispute ? 1 : 0) + '" novalidate>'
     + '<p class="small muted">' + esc(o.id) + ' · ' + (dispute ? t('afterSalesOpen') : t('afterSalesCreate')) + '</p>'
     + '<div class="field"><label>' + t('afterSalesTypeLabel') + ' *</label><select class="select" name="type">'
@@ -3629,7 +3754,7 @@ async function submitAfterSales(form) {
 function openAfterSalesRespondModal(id) {
   const c = (state.afterSales || []).find(x => x.id === id);
   if (!c) return;
-  showModal('<div class="modal-head"><h3>' + t('afterSalesRespond') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3>' + t('afterSalesRespond') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="aftersales-respond-form" data-id="' + id + '" novalidate>'
     + '<p class="small muted">' + esc(c.id) + ' · ' + esc(afterSalesTypeLabel(c.type)) + '</p>'
     + '<p class="small">' + t('afterSalesDescLabel') + '：' + esc(c.description) + '</p>'
@@ -3651,7 +3776,7 @@ async function submitAfterSalesRespond(form) {
 function openAfterSalesArbitrateModal(id) {
   const c = (state.afterSales || []).find(x => x.id === id);
   if (!c) return;
-  showModal('<div class="modal-head"><h3>⚖️ ' + t('afterSalesArbitrate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal-head"><h3>' + icon('shield') + ' ' + t('afterSalesArbitrate') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="aftersales-arbitrate-form" data-id="' + id + '" novalidate>'
     + '<p class="small muted">' + esc(c.id) + ' · ' + esc(c.orderId) + '</p>'
     + '<p class="small">' + t('afterSalesDescLabel') + '：' + esc(c.description) + '</p>'
@@ -3716,7 +3841,7 @@ function orderDocPanelHtml(o) {
       const gen = rec.generated && rec.generated[type];
       return '<div class="doc-type"><b>' + esc(label) + '</b>'
         + '<span class="small muted">' + (gen ? t('docGenerated') + ' · ' + fmtDate(gen) : '—') + '</span>'
-        + '<button type="button" class="btn btn-sm ' + (gen ? '' : 'btn-primary') + '" data-action="' + (gen ? 'doc-print' : 'doc-gen') + '" data-order="' + o.id + '" data-type="' + type + '">' + (gen ? '🖨' : t('docGenerate')) + '</button>'
+        + '<button type="button" class="btn btn-sm ' + (gen ? '' : 'btn-primary') + '" data-action="' + (gen ? 'doc-print' : 'doc-gen') + '" data-order="' + o.id + '" data-type="' + type + '">' + (gen ? '' + icon('file') + '' : t('docGenerate')) + '</button>'
         + '</div>';
     }).join('') + '</div>'
     + '<div class="flex gap-10">'
@@ -3814,10 +3939,10 @@ function openOrderDocPrint(orderId, type) {
   const printEl = document.getElementById('printDoc');
   if (printEl) printEl.innerHTML = doc;
   const titleMap = { CI: t('docCI'), PL: t('docPL'), CO: t('docCO'), BL: t('docBL') };
-  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + esc(titleMap[type] || type) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + esc(titleMap[type] || type) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">' + doc
     + '<p class="small muted">' + icon('file') + ' ' + t('printHint') + '</p>'
-    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">' + icon('file') + ' ' + t('printNow') + '</button>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
     + '</div></div>');
 }
@@ -3838,7 +3963,7 @@ function orderAfterSalesPanel(o) {
   const cases = (state.afterSales || []).filter(c => c.orderId === o.id);
   const isBuyer = state.user && o.buyerId === state.user.id;
   return '<div class="as-order-panel">'
-    + '<div class="as-order-head"><b>🛠 ' + t('asPanelTitle') + '</b>'
+    + '<div class="as-order-head"><b>' + icon('shield') + ' ' + t('asPanelTitle') + '</b>'
     + (isBuyer && (o.status === 'created' || o.status === 'complete')
       ? '<span class="flex gap-10"><button type="button" class="btn btn-sm" data-action="after-sales-open" data-id="' + o.id + '">' + t('asApplyBtn') + '</button>'
         + '<button type="button" class="btn btn-sm" data-action="dispute-open" data-id="' + o.id + '">' + t('asDisputeBtn') + '</button></span>'
@@ -3857,6 +3982,9 @@ function bindChatLive(convId) {
   if (chatLiveUnsub) chatLiveUnsub();
   chatLiveUnsub = api.messages.live(convId, ev => {
     if (ev && (ev.type === 'message' || ev.type === 'read') && ev.conversationId === convId) {
+      /* 对方发来新消息、而客服正在往上翻旧记录时，不打断他：
+       * 记一笔"新消息"角标，右下角出现"回到最新"按钮。 */
+      if (ev.type === 'message') noteIncomingMessage(convId);
       refreshConvReaders(convId);
       renderPage();
     }
@@ -3988,7 +4116,206 @@ async function loadConversationMessages(convId, force) {
     convMsgLoaded[convId] = false;
   }
 }
-function renderMessagesBody(convId) {
+/* ---------- 对话里的商品卡片（pet0.3） ----------
+ * 客服/管理员在对话里直接"发商品"：消息正文存 [[p:商品ID]]，
+ * 渲染成一张小卡片，点开是预览小窗口（不用离开对话去翻商品页）。
+ * 买家侧同样渲染，所以线上是双向可用的。 */
+const CHAT_PROD_RE = /\[\[p:([A-Za-z0-9_-]+)\]\]/g;
+function productCodeOf(p) {
+  return (p && (p.code || p.sku)) ? String(p.code || p.sku) : '—';
+}
+function chatProductId(text) {
+  const m = /\[\[p:([A-Za-z0-9_-]+)\]\]/.exec(String(text || ''));
+  return m ? m[1] : '';
+}
+/* 会话列表/摘要里不要把标记原样显示出来 */
+function chatPreviewText(text) {
+  return String(text || '').replace(CHAT_PROD_RE, state.lang === 'zh' ? '[商品]' : '[Product]').trim();
+}
+function chatProductCardHtml(pid) {
+  const p = productById(pid);
+  if (!p) return '<div class="chat-prod missing">' + t('productGone') + '</div>';
+  return '<button type="button" class="chat-prod" data-action="preview-product" data-id="' + esc(p.id) + '">'
+    + '<img src="' + productImg(p, 160, 120) + '" alt="" loading="lazy" decoding="async">'
+    + '<span class="cp-info">'
+    + '<b class="oneline" title="' + esc(langObj(p).title) + '">' + esc(langObj(p).title) + '</b>'
+    + '<span class="cp-meta oneline">' + esc(productCodeOf(p)) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' / ' + esc(p.unit || 'pcs') + '</span>'
+    + '<span class="cp-meta oneline">' + t('moqLabel') + ' ' + p.moq + ' ' + esc(p.unit || 'pcs') + '</span>'
+    + '</span>'
+    + '<span class="cp-eye">' + icon('eye') + '</span>'
+    + '</button>';
+}
+/* 正文：普通文字 +（可选）商品卡片 */
+function chatBubbleHtml(text) {
+  const raw = String(text || '');
+  const pid = chatProductId(raw);
+  const plain = raw.replace(CHAT_PROD_RE, '').trim();
+  return (plain ? '<p>' + esc(plain) + '</p>' : '') + (pid ? chatProductCardHtml(pid) : '');
+}
+
+/* 商品预览小窗口：客服发过来的商品，买家在这个小窗口里就能看清关键信息 */
+function openProductPreview(pid) {
+  const p = productById(pid);
+  if (!p) { toast(t('productGone')); return; }
+  const imgs = (p.images && p.images.length) ? p.images : [productImg(p, 480, 360)];
+  showModal('<div class="modal prod-preview">'
+    + '<div class="modal-head"><h3>' + icon('box') + ' ' + t('productPreview') + '</h3>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
+    + '<div class="pp-body">'
+    + '<div class="pp-img"><img src="' + esc(imgs[0]) + '" alt="" loading="lazy" decoding="async"></div>'
+    + '<div class="pp-info">'
+    + '<h4>' + esc(langObj(p).title) + '</h4>'
+    + '<div class="pp-code"><span class="small muted">' + t('productCodeLabel') + '</span><b>' + esc(productCodeOf(p)) + '</b>'
+    + '<button type="button" class="btn btn-sm" data-action="copy-product-code" data-id="' + esc(p.id) + '">' + t('copy') + '</button></div>'
+    + '<ul class="pp-list">'
+    + '<li><span class="k">' + t('priceRangeLabel') + '</span><span class="v">$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' / ' + esc(p.unit || 'pcs') + '</span></li>'
+    + '<li><span class="k">' + t('moqLabel') + '</span><span class="v">' + p.moq + ' ' + esc(p.unit || 'pcs') + '</span></li>'
+    + '<li><span class="k">' + t('leadTime') + '</span><span class="v">' + p.leadTime + ' ' + t('days') + '</span></li>'
+    + (p.hsCode ? '<li><span class="k">HS</span><span class="v">' + esc(p.hsCode) + '</span></li>' : '')
+    + '<li><span class="k">' + t('originLabel') + '</span><span class="v">' + esc(countryName(p.country)) + '</span></li>'
+    + '</ul>'
+    + '<p class="small muted pp-desc">' + esc(String(viewProductText(p, 'desc') || '').slice(0, 300)) + '</p>'
+    + '</div></div>'
+    + '<div class="pp-actions">'
+    + '<a class="btn btn-primary" href="#/product/' + esc(p.id) + '" data-nav="/product/' + esc(p.id) + '" data-action="close-modal">' + t('openProductPage') + ' →</a>'
+    + '<button type="button" class="btn" data-action="copy-product-link" data-id="' + esc(p.id) + '">' + icon('file') + ' ' + t('copyProductLink') + '</button>'
+    + '</div></div>');
+}
+function productLinkOf(pid) {
+  return location.origin + location.pathname + '#/product/' + encodeURIComponent(pid);
+}
+async function copyText(text, okMsg) {
+  const s = String(text || '');
+  if (!s) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(s);
+    else {
+      const ta = document.createElement('textarea');
+      ta.value = s;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    toast((okMsg || t('copy')) + ' ✓');
+  } catch (e) {
+    toast(s);
+  }
+}
+
+/* ---------- 对话滚动位置（2026-10-03） ----------
+ * 问题：消息区拉不动 / 一往上翻就被顶回最新。
+ * 原因有两个：① 原来的 .chat-msgs 只有 max-height:360px，又被后加的快捷短语栏、
+ * 选品抽屉挤，可视高度只剩一两行；② 收到消息或已读回执都会整页重渲染，
+ * DOM 一换滚动位置就归零。
+ * 处理：消息区改为弹性高度（.chat-pane 固定 560px，消息区自己滚），
+ * 并在重渲染后恢复滚动位置——只有原本就在底部时才自动跟到最新。 */
+const chatScrollPos = {};
+const chatPending = {};
+document.addEventListener('scroll', e => {
+  const el = e.target;
+  if (!el || !el.classList || !el.classList.contains('chat-msgs')) return;
+  const id = el.dataset.conv;
+  if (!id) return;
+  const atBottom = (el.scrollHeight - el.clientHeight - el.scrollTop) < 24;
+  chatScrollPos[id] = { top: el.scrollTop, atBottom: atBottom };
+  if (atBottom) chatPending[id] = 0;
+  const btn = document.querySelector('.chat-jump[data-conv="' + String(id).replace(/"/g, '') + '"]');
+  if (btn) btn.hidden = atBottom && !(chatPending[id] > 0);
+}, true);
+/* 收到新消息时：不在底部就累计"新消息"角标，点按钮回到底部并清空 */
+function noteIncomingMessage(convId) {
+  if (!convId) return;
+  const pos = chatScrollPos[convId];
+  if (pos && pos.atBottom) return;
+  chatPending[convId] = (chatPending[convId] || 0) + 1;
+}
+function jumpChatToBottom(convId) {
+  const el = document.querySelector('.chat-msgs[data-conv="' + String(convId || '').replace(/"/g, '') + '"]');
+  if (!el) return;
+  chatPending[convId] = 0;
+  chatScrollPos[convId] = { top: el.scrollHeight, atBottom: true };
+  el.scrollTop = el.scrollHeight;
+  const btn = document.querySelector('.chat-jump[data-conv="' + String(convId).replace(/"/g, '') + '"]');
+  if (btn) btn.hidden = true;
+}
+/* 时间助记：今天 / 昨天 / 具体日期 + 时分 */
+function fmtClock(ts) {
+  return new Date(ts).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDayLabel(ts) {
+  const d = new Date(ts), now = new Date();
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, now)) return t('dayToday');
+  if (sameDay(d, new Date(now.getTime() - 86400000))) return t('dayYesterday');
+  return d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
+}
+/* 会话列表筛选：搜索（买家/邮箱/货号/消息）+ 仅未读 */
+/* 表单记录筛选：关键词 + 类型（询盘/报价/订单/单据） */
+function applyRecordFilter(listEl) {
+  if (!listEl) return;
+  const card = listEl.closest('.card');
+  const input = card ? card.querySelector('[data-rec-filter]') : null;
+  const kw = String((input && input.value) || '').trim().toLowerCase();
+  const kind = listEl.dataset.kind || '';
+  let shown = 0;
+  listEl.querySelectorAll('[data-rec-row]').forEach(row => {
+    const okKw = !kw || String(row.dataset.hay || '').indexOf(kw) >= 0;
+    const okKind = !kind || row.dataset.kind === kind;
+    row.hidden = !(okKw && okKind);
+    if (!row.hidden) shown++;
+  });
+  const empty = listEl.querySelector('[data-rec-empty]');
+  if (empty) empty.hidden = shown > 0;
+}
+
+/* 地址簿筛选：关键词（公司/联系人/国家/邮箱/电话/地址） */
+function applyAddrFilter(box) {
+  if (!box) return;
+  const card = box.closest('.card');
+  const input = card ? card.querySelector('[data-addr-filter]') : null;
+  const kw = String((input && input.value) || '').trim().toLowerCase();
+  let shown = 0;
+  box.querySelectorAll('[data-addr-row]').forEach(row => {
+    const hit = !kw || String(row.dataset.hay || '').indexOf(kw) >= 0;
+    row.hidden = !hit;
+    if (hit) shown++;
+  });
+  const empty = box.querySelector('[data-addr-empty]');
+  if (empty) empty.hidden = shown > 0;
+}
+
+function applyConvFilter(listEl) {
+  if (!listEl) return;
+  const input = listEl.parentElement ? listEl.parentElement.querySelector('[data-conv-filter]') : null;
+  const kw = String((input && input.value) || '').trim().toLowerCase();
+  const onlyUnread = listEl.dataset.unreadOnly === '1';
+  let shown = 0;
+  listEl.querySelectorAll('[data-conv-row]').forEach(row => {
+    const okKw = !kw || String(row.dataset.hay || '').indexOf(kw) >= 0;
+    const okUnread = !onlyUnread || row.dataset.unread === '1';
+    row.hidden = !(okKw && okUnread);
+    if (!row.hidden) shown++;
+  });
+  const empty = listEl.querySelector('[data-conv-empty]');
+  if (empty) empty.hidden = shown > 0;
+}
+function restoreChatScroll(convId) {
+  const el = document.querySelector('.chat-msgs[data-conv="' + String(convId || '').replace(/"/g, '') + '"]');
+  if (!el) return;
+  const saved = chatScrollPos[convId];
+  if (!saved || saved.atBottom) { el.scrollTop = el.scrollHeight; return; }
+  el.scrollTop = Math.min(saved.top, Math.max(0, el.scrollHeight - el.clientHeight));
+}
+function scheduleChatScroll(convId) {
+  if (!convId) return;
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => restoreChatScroll(convId));
+  else setTimeout(() => restoreChatScroll(convId), 0);
+}
+
+function renderMessagesBody(convId, isService) {
   const u = state.user;
   if (!u) return '';
   const convs = myConversations();
@@ -4012,39 +4339,424 @@ function renderMessagesBody(convId) {
       const p = i ? productById(i.productId) : null;
       const lm = (c.messages || []).slice(-1)[0];
       const unread = convUnread(c);
-      return '<button type="button" class="conv-row' + (active && c.id === active.id ? ' on' : '') + '" data-action="open-conv" data-id="' + c.id + '">'
-      + '<span class="conv-ico">' + (p ? productImg(p, 80, 80) : icon('message')) + '</span>'
-      + '<span class="conv-info"><b class="oneline" title="' + esc(p ? langObj(p).title : c.id) + '">' + esc(p ? langObj(p).title : c.id) + '</b>'
-      + '<span class="small muted oneline" title="' + esc((lm ? lm.fromName + '：' : '') + (lm ? lm.text : '')) + '">' + esc((lm ? lm.fromName + '：' : '') + (lm ? lm.text : '')) + '</span></span>'
+      /* 客服最关心"是谁"，所以第一行放买家，第二行放最后一句话，第三行才是货号+商品。
+       * 之前第一行是商品名，买家名反而看不到。 */
+      const buyer = (i && (i.name || i.email)) || c.id;
+      const buyerMeta = i ? [i.email, i.company, i.country].filter(Boolean).join(' ') : '';
+      const hay = [buyer, buyerMeta, p ? [langObj(p).title, (p.en && p.en.title), (p.zh && p.zh.title), productCodeOf(p)].filter(Boolean).join(' ') : '', chatPreviewText(lm ? lm.text : '')].join(' ').toLowerCase();
+      return '<button type="button" class="conv-row' + (active && c.id === active.id ? ' on' : '') + '" data-action="open-conv" data-id="' + c.id + '" data-conv-row data-unread="' + (unread ? 1 : 0) + '" data-hay="' + esc(hay) + '">'
+      /* 图标位必须是 <img src="…">：productImg() 返回 data:image/svg+xml 数据 URI，
+       * 直接当文本塞进 span 会在会话列表里显示一长串 "data:image/svg+xml;charset=utf-8,%3Csvg…" */
+      + '<span class="conv-ico">' + (p ? '<img src="' + productImg(p, 80, 80) + '" alt="" loading="lazy" decoding="async">' : icon('message')) + '</span>'
+      + '<span class="conv-info">'
+      + '<span class="conv-top"><b class="oneline" title="' + esc(buyer) + '">' + esc(buyer) + '</b><i class="conv-time">' + esc(lm ? fmtClock(lm.at) : '') + '</i></span>'
+      + '<span class="small muted oneline" title="' + esc(chatPreviewText(lm ? lm.text : '')) + '">' + esc(chatPreviewText(lm ? lm.text : '')) + '</span>'
+      /* 国家 + 公司 + 货号：客服扫一眼就知道是哪个市场、哪家公司、问的哪款货 */
+      + '<span class="conv-sub oneline">'
+      + (i && i.country ? '<b class="cc">' + esc(countryTag(i.country)) + '</b>' : '')
+      + (i && i.company ? '<i class="conv-co">' + esc(i.company) + '</i>' : '')
+      + (p ? '<i class="conv-code">' + esc(productCodeOf(p)) + '</i>' : '')
+      + '</span>'
+      + '</span>'
         + (unread ? '<span class="badge-dot">' + unread + '</span>' : '')
         + '</button>';
     }).join('')
     : '<p class="small muted" style="padding:18px">' + t('messagesEmpty') + '</p>';
   const chatHtml = active
     ? '<div class="chat-pane">'
-      + '<div class="chat-head"><b>' + esc((function () { const i = (state.inquiries || []).find(x => x.id === active.id); const p = i ? productById(i.productId) : null; return p ? langObj(p).title : active.id; })()) + '</b>'
-      + '<a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
-      + '<div class="chat-msgs" aria-live="polite">' + (active.messages || []).map(m => {
-        const mine = m.fromUserId === u.id;
-        const read = mine && counterpartReadAt(active) >= m.at;
-        return '<div class="chat-msg ' + (mine ? 'mine' : 'theirs') + '"><div class="chat-bubble">'
-          + (mine ? '' : '<b>' + esc(m.fromName || '') + '</b>')
-          + '<p>' + esc(m.text) + '</p>'
-          + (m.attachments && m.attachments.length ? attachmentChipsHtml(m.attachments, active.id) : '')
-      + '<span class="small muted">' + fmtDate(m.at) + (read ? '<i class="dot-sep"></i><b class="chat-read">' + t('chatRead') + '</b>' : '') + '</span></div></div>';
-      }).join('') + '</div>'
+      + '<div class="chat-head">' + chatHeadHtml(active, isService) + '</div>'
+      + '<div class="chat-msgs" data-conv="' + esc(active.id) + '" aria-live="polite">' + (function () {
+        /* 消息流：跨天或间隔超过 30 分钟插一条时间分隔；对方消息带首字母头像，
+         * 长时间对话回看时能分清"什么时候、谁说的"。 */
+        const rows = [];
+        let prevAt = 0;
+        for (const m of (active.messages || [])) {
+          const mine = m.fromUserId === u.id;
+          const read = mine && counterpartReadAt(active) >= m.at;
+          const gap = m.at - prevAt;
+          if (!prevAt || gap > 30 * 60000 || new Date(m.at).toDateString() !== new Date(prevAt).toDateString()) {
+            rows.push('<div class="chat-sep"><span>' + esc(fmtDayLabel(m.at) + ' ' + fmtClock(m.at)) + '</span></div>');
+          }
+          prevAt = m.at;
+          rows.push('<div class="chat-msg ' + (mine ? 'mine' : 'theirs') + '">'
+            + (mine ? '' : '<span class="chat-avatar" aria-hidden="true">' + esc(initialsOf(m.fromName || (state.lang === 'zh' ? '买家' : 'Buyer'))) + '</span>')
+            + '<div class="chat-bubble">'
+            + (mine ? '' : '<b>' + esc(m.fromName || '') + '</b>')
+            + chatBubbleHtml(m.text)
+            + (m.attachments && m.attachments.length ? attachmentChipsHtml(m.attachments, active.id) : '')
+            + '<span class="small muted">' + esc(fmtClock(m.at)) + (read ? '<i class="dot-sep"></i><b class="chat-read">' + t('chatRead') + '</b>' : '') + '</span></div></div>');
+        }
+        return rows.join('');
+      })() + '</div>'
+      + '<button type="button" class="chat-jump" data-action="conv-jump-bottom" data-conv="' + esc(active.id) + '"' + (chatPending[active.id] > 0 ? '' : ' hidden') + '>'
+      + icon('arrow') + ' ' + t('jumpLatest') + (chatPending[active.id] > 0 ? ' <b>' + chatPending[active.id] + '</b>' : '') + '</button>'
+      + (isService ? quickReplyBarHtml(active.id) : '')
       + '<form data-form="chat-send" data-conv="' + active.id + '" class="chat-input" novalidate>'
       + '<input class="input" name="text" maxlength="2000" placeholder="' + t('chatPlaceholder') + '" autocomplete="off">'
       + '<button type="submit" class="btn btn-primary">' + t('chatSend') + '</button></form>'
+      + (isService ? serviceProductPickerHtml(active.id) : '')
       + '</div>'
     : '<div class="chat-pane empty"><p class="muted">' + t('messagesEmpty') + '</p></div>';
-  return '<div class="card panel"><div class="panel-head"><h2>💬 ' + t('messagesTab') + '</h2>'
-    + '<span class="small muted">' + totalUnread() + ' ' + t('unreadLabel') + '</span></div>'
-    + '<div class="messages-layout">' + '<div class="conv-list">' + listHtml + '</div>' + chatHtml + '</div>'
-    + '<div class="card panel mt-20"><div class="panel-head"><h2>🔔 ' + t('notificationsTitle') + '</h2>'
+  /* 标题统一用内联 SVG 图标：emoji 在不同 Windows 字体下会渲染成方块（用户反馈两轮了） */
+  if (active) scheduleChatScroll(active.id);
+  return '<div class="card panel"><div class="panel-head"><h2>' + (isService ? icon('headset') + ' ' + t('serviceTab') : icon('message') + ' ' + t('messagesTab')) + '</h2>'
+    + '<span class="small muted">' + convs.length + ' ' + t('serviceConvs') + ' · ' + totalUnread() + ' ' + t('unreadLabel') + '</span></div>'
+    + '<div class="messages-layout">'
+    + '<div class="conv-side">'
+    + '<div class="conv-tools">'
+    + '<input class="input conv-search" type="search" data-conv-filter placeholder="' + esc(t('convSearchPlaceholder')) + '" autocomplete="off">'
+    + '<button type="button" class="conv-filter" data-action="conv-unread-toggle">' + t('convUnreadOnly') + '</button>'
+    + '</div>'
+    + '<div class="conv-list" data-conv-list>' + listHtml
+    + '<p class="small muted conv-none" data-conv-empty hidden style="padding:14px">' + t('noResults') + '</p></div>'
+    + '</div>'
+    + chatHtml + '</div>'
+    + '<div class="card panel mt-20"><div class="panel-head"><h2>' + icon('bell') + ' ' + t('notificationsTitle') + '</h2>'
     + '<button type="button" class="btn btn-sm" data-action="notif-read-all">' + t('markAllRead') + '</button></div>'
     + notificationsListHtml() + '</div></div>';
 }
+/* 买家标签：国家 / 公司 / 身份（个体户 or 公司代表）。
+ * 客服看一眼就知道对方是哪个市场、什么规模的客户。 */
+function buyerTagsHtml(i) {
+  if (!i) return '';
+  const out = [];
+  if (i.country) out.push('<span class="chip buyer-tag">' + esc(countryTag(i.country)) + ' ' + esc(countryName(i.country)) + '</span>');
+  if (i.company) out.push('<span class="chip buyer-tag" title="' + esc(i.company) + '">' + esc(i.company) + '</span>');
+  if (i.buyerType) out.push('<span class="chip buyer-tag">' + esc(i.buyerType === 'individual' ? t('accountTypeIndividual') : t('accountTypeCompany')) + '</span>');
+  return out.join('');
+}
+/* 会话标题栏：普通"消息"只显示商品；客服工作台额外显示买家与货号，
+ * 客服一眼知道"这是谁、在问哪款货"。 */
+function chatHeadHtml(active, isService) {
+  const i = (state.inquiries || []).find(x => x.id === active.id);
+  const p = i ? productById(i.productId) : null;
+  const title = p ? langObj(p).title : active.id;
+  if (!isService) {
+    return '<b class="oneline" title="' + esc(title) + '">' + esc(title) + '</b>'
+      + '<a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a>';
+  }
+  return '<div class="ch-main">'
+    + '<b class="oneline" title="' + esc(title) + '">' + esc(title) + '</b>'
+    + (i ? '<span class="ch-buyer oneline">' + esc(i.name || '—') + ' · ' + esc(i.email || '') + '</span>' : '')
+    + (i ? '<span class="ch-tags">' + buyerTagsHtml(i) + '</span>' : '')
+    + '</div>'
+    + '<span class="ch-actions">'
+    + '<span class="chip" title="' + t('productCodeLabel') + '">' + icon('box') + ' ' + esc(productCodeOf(p)) + '</span>'
+    + (p ? '<a class="btn btn-sm" href="#/product/' + esc(p.id) + '" data-nav="/product/' + esc(p.id) + '">' + t('viewDetail') + '</a>' : '')
+    + '<a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('inquiryManage') + '</a>'
+    + '</span>';
+}
+
+/* 客服工作台（管理员专属）：会话列表 + 对话框 + 选品直接发送商品卡片。
+ * 管理员本来就要代理全部商品，买家问什么由这里直接对话、直接发商品。
+ * 待办：常用回复短语（一键插入）留到下一轮，先把对话与发商品跑顺。 */
+function renderServiceBody(convId) {
+  const u = state.user;
+  if (!u || u.role !== 'admin') return renderMessagesBody(convId, false);
+  const convs = myConversations();
+  const newOnes = (state.inquiries || []).filter(i => i.status === 'new').length;
+  const strip = '<div class="service-strip">'
+    + '<span class="chip">' + icon('message') + ' ' + convs.length + ' ' + t('serviceConvs') + '</span>'
+    + '<span class="chip">' + icon('mail') + ' ' + totalUnread() + ' ' + t('unreadLabel') + '</span>'
+    + '<span class="chip">' + icon('sparkle') + ' ' + newOnes + ' ' + t('statusNew') + '</span>'
+    + '<span class="small muted">' + t('serviceHint') + '</span>'
+    + '</div>';
+  return strip + renderMessagesBody(convId, true);
+}
+
+/* ==================== 客服快捷短语 / 聊天话术（pet0.3） ====================
+ * 内置话术库（data.js 的 QUICK_REPLY_LIB，中英双语 + 场景分组）打底，
+ * 客服自建/改过的话术存服务器（api.quickReplies，随账号同步）。
+ * 交互：点短语 → 填入输入框（可改完再发）；"译成对方语言" → 走自家翻译接口。 */
+const qrState = { lang: '', scene: 'all' };
+/* 「点一下直接发」开关：默认关（先填入输入框、可改完再发，避免手误发错价）。
+ * 熟练客服可以打开，点一条短语就立刻发出去。偏好存本地，不用每次重设。 */
+const QR_DIRECT_KEY = 'bbm_qr_direct_v1';
+function qrDirectOn() {
+  try { return localStorage.getItem(QR_DIRECT_KEY) === '1'; } catch (e) { return false; }
+}
+function setQrDirect(on) {
+  try { localStorage.setItem(QR_DIRECT_KEY, on ? '1' : '0'); } catch (e) { /* 忽略 */ }
+  toast(on ? t('qrDirectOn') : t('qrDirectOff'));
+}
+
+/* 对方大概用什么语言：先看国家/地区，再看对方写的字 */
+function guessBuyerLang(i) {
+  const byCountry = {
+    CN: 'zh', HK: 'zh', TW: 'zh', MO: 'zh',
+    US: 'en', GB: 'en', AU: 'en', CA: 'en', IN: 'en', SG: 'en', PH: 'en', NZ: 'en',
+    ES: 'es', MX: 'es', AR: 'es', CL: 'es', CO: 'es', PE: 'es',
+    RU: 'ru', KZ: 'ru', UA: 'ru', BY: 'ru',
+    FR: 'fr', BE: 'fr', DE: 'de', AT: 'de', CH: 'de',
+    PT: 'pt', BR: 'pt', JP: 'ja', KR: 'ko', SA: 'ar', AE: 'ar', EG: 'ar',
+    IT: 'it', NL: 'nl', PL: 'pl', TR: 'tr', VN: 'vi', TH: 'th', ID: 'id', MY: 'ms'
+  };
+  const hit = i && i.country ? byCountry[i.country] : '';
+  if (hit) return hit;
+  return detectSource((i && i.message) || '') === 'zh-CN' ? 'zh' : 'en';
+}
+function qrConvContext(convId) {
+  const i = (state.inquiries || []).find(x => x.id === convId) || null;
+  return { i: i, p: i ? productById(i.productId) : null };
+}
+/* 把 {{占位符}} 换成这单的真实信息，客服不用手打货号/价格 */
+function fillPhrase(text, convId) {
+  const ctx = qrConvContext(convId);
+  const zh = state.lang === 'zh';
+  const me = (state.user && (state.user.name || '')) || 'BeanBeanMouse';
+  const p = ctx.p;
+  const price = p
+    ? ('$' + fmtPrice(p.priceMin) + (p.priceMax > p.priceMin ? '–' + fmtPrice(p.priceMax) : '') + ' / ' + (p.unit || 'pcs'))
+    : (zh ? '（报价待确认）' : '(price to be confirmed)');
+  return String(text || '')
+    .replace(/\{\{name\}\}/g, (ctx.i && ctx.i.name) || (zh ? '你好' : 'there'))
+    .replace(/\{\{code\}\}/g, p ? productCodeOf(p) : (zh ? '（货号待确认）' : '(item code to be confirmed)'))
+    .replace(/\{\{price\}\}/g, price)
+    .replace(/\{\{moq\}\}/g, p ? String(p.moq) : (zh ? '待确认' : 'to be confirmed'))
+    .replace(/\{\{lead\}\}/g, p ? String(p.leadTime) : '15')
+    .replace(/\{\{me\}\}/g, me);
+}
+/* 内置（中英各一条，靠筛选切换）+ 自建（原样，带标记）。
+ * 语言切换只切 DOM 显示，不重渲染，所以两种语言都要先渲染出来。 */
+function qrAllItems() {
+  const builtin = [];
+  QUICK_REPLY_LIB.forEach((p, i) => {
+    builtin.push({ key: 'b' + i, scene: p.scene, custom: false, lang: 'zh', label: p.titleZh });
+    builtin.push({ key: 'b' + i, scene: p.scene, custom: false, lang: 'en', label: p.titleEn });
+  });
+  const custom = (state.quickReplies || []).map(r => ({ key: r.id, scene: r.scene || 'custom', custom: true, lang: r.lang === 'en' ? 'en' : 'zh', label: r.title }));
+  return custom.concat(builtin);
+}
+function qrTextOfKey(key, lang) {
+  if (String(key).charAt(0) === 'b') {
+    const p = QUICK_REPLY_LIB[+String(key).slice(1)];
+    if (!p) return '';
+    return lang === 'en' ? p.en : p.zh;
+  }
+  const rec = (state.quickReplies || []).find(r => r.id === key);
+  return rec ? rec.body : '';
+}
+function qrSceneLabel(id, lang) {
+  const s = QUICK_REPLY_SCENES.find(x => x.id === id);
+  if (s) return lang === 'en' ? s.en : s.zh;
+  return id === 'custom' ? (lang === 'en' ? 'Custom' : '自建') : id;
+}
+
+/* 面板：语言切换 + 场景筛选 + 短语列表 */
+function quickReplyBarHtml(convId) {
+  const ctx = qrConvContext(convId);
+  const guess = guessBuyerLang(ctx.i);
+  const lang = qrState.lang || (guess === 'en' ? 'en' : 'zh');
+  const scene = qrState.scene || 'all';
+  const items = qrAllItems();
+  const scenes = [{ id: 'all', zh: t('qrSceneAll'), en: t('qrSceneAll') }].concat(QUICK_REPLY_SCENES);
+  const out = [];
+  out.push('<div class="qr" data-qr data-conv="' + esc(convId) + '" data-qr-lang="' + lang + '" data-qr-scene="' + esc(scene) + '">');
+  out.push('<div class="qr-bar">');
+  out.push('<button type="button" class="btn btn-sm btn-primary" data-action="toggle-qr">' + icon('sparkle') + ' ' + t('qrTitle') + '</button>');
+  out.push('<span class="qr-lang-group" role="group" aria-label="' + esc(t('qrLangField')) + '">');
+  out.push('<button type="button" class="qr-lang" data-action="qr-lang" data-lang="zh">中文</button>');
+  out.push('<button type="button" class="qr-lang" data-action="qr-lang" data-lang="en">EN</button>');
+  out.push('</span>');
+  if (guess !== 'zh' && guess !== 'en') out.push('<span class="chip qr-buyer">' + t('qrBuyerLang') + '：' + esc(guess.toUpperCase()) + '</span>');
+  out.push('<button type="button" class="btn btn-sm" data-action="qr-translate">' + icon('sparkle') + ' ' + t('qrTranslate') + '</button>');
+  out.push('<button type="button" class="btn btn-sm" data-action="qr-manage">' + icon('edit') + ' ' + t('qrManage') + '</button>');
+  out.push('<label class="qr-direct"><input type="checkbox" data-qr-direct' + (qrDirectOn() ? ' checked' : '') + '> ' + t('qrDirect') + '</label>');
+  out.push('<span class="small muted qr-hint">' + t('qrHint') + '</span>');
+  out.push('</div>');
+  out.push('<div class="qr-panel" hidden>');
+  out.push('<div class="qr-scenes">' + scenes.map(s => '<button type="button" class="qr-scene" data-action="qr-scene" data-scene="' + s.id + '">' + esc(lang === 'en' ? s.en : s.zh) + '</button>').join('') + '</div>');
+  out.push('<div class="qr-items">');
+  for (const it of items) {
+    const full = fillPhrase(qrTextOfKey(it.key, lang), convId);
+    out.push('<button type="button" class="qr-chip' + (it.custom ? ' custom' : '') + '" data-action="qr-insert" data-key="' + esc(it.key) + '" data-qr-item data-scene="' + esc(it.scene) + '" data-custom="' + (it.custom ? '1' : '0') + '" data-item-lang="' + esc(it.lang || 'zh') + '" title="' + esc(full) + '">'
+      + esc(it.label)
+      + (it.custom ? '<i class="qr-tag">' + t('qrCustomTag') + '</i>' : '')
+      + '</button>');
+  }
+  out.push('<p class="small muted qr-empty" data-qr-empty hidden>' + t('noResults') + '</p>');
+  out.push('</div></div></div>');
+  return out.join('');
+}
+/* 语言/场景筛选只改 DOM，不整页重渲染（否则正在打的字会丢） */
+function applyQrFilter(box) {
+  if (!box) return;
+  const lang = box.dataset.qrLang || 'zh';
+  const scene = box.dataset.qrScene || 'all';
+  let shown = 0;
+  box.querySelectorAll('[data-qr-item]').forEach(el => {
+    const isCustom = el.dataset.custom === '1';
+    const langOk = isCustom ? true : (el.dataset.itemLang === 'both' || el.dataset.itemLang === lang);
+    const sceneOk = scene === 'all' || el.dataset.scene === scene;
+    el.hidden = !(langOk && sceneOk);
+    if (!el.hidden) shown++;
+  });
+  const empty = box.querySelector('[data-qr-empty]');
+  if (empty) empty.hidden = shown > 0;
+  box.querySelectorAll('[data-action="qr-lang"]').forEach(b => b.classList.toggle('on', b.dataset.lang === lang));
+  box.querySelectorAll('[data-action="qr-scene"]').forEach(b => b.classList.toggle('on', (b.dataset.scene || 'all') === scene));
+}
+function toggleQrPanel(el) {
+  const box = el.closest('[data-qr]');
+  if (!box) return;
+  const panel = box.querySelector('.qr-panel');
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
+  applyQrFilter(box);
+}
+function setQrLang(el) {
+  const box = el.closest('[data-qr]');
+  if (!box) return;
+  box.dataset.qrLang = el.dataset.lang === 'en' ? 'en' : 'zh';
+  applyQrFilter(box);
+}
+function setQrScene(el) {
+  const box = el.closest('[data-qr]');
+  if (!box) return;
+  box.dataset.qrScene = el.dataset.scene || 'all';
+  applyQrFilter(box);
+}
+function chatInputOf(el) {
+  const pane = el.closest('.chat-pane');
+  return pane ? pane.querySelector('form[data-form="chat-send"] input[name="text"]') : null;
+}
+function insertQuickReply(el) {
+  const box = el.closest('[data-qr]');
+  const input = chatInputOf(el);
+  if (!box) return;
+  const lang = (box.dataset.qrLang || 'zh') === 'en' ? 'en' : 'zh';
+  const text = fillPhrase(qrTextOfKey(el.dataset.key, lang), box.dataset.conv);
+  /* 开了「点一下直接发」就直接发出去；否则只填入输入框，客服改完再发 */
+  if (qrDirectOn() && box.dataset.conv && typeof api !== 'undefined' && api.messages) {
+    const convId = box.dataset.conv;
+    api.messages.send(convId, text).then(() => {
+      convMsgLoaded[convId] = false;
+      toast(t('qrSent') + ' ✓');
+      renderPage();
+    }).catch(e => toast(e.message || String(e)));
+    return;
+  }
+  if (!input) return;
+  input.value = text;
+  if (input.focus) input.focus();
+  toast(t('qrInserted'));
+}
+/* 把输入框里的话译成对方语言（外贸客服最常用的一步） */
+async function translateChatInput(el) {
+  const box = el.closest('[data-qr]');
+  const input = chatInputOf(el);
+  if (!box || !input) return;
+  const text = String(input.value || '').trim();
+  if (!text) { toast(t('qrNeedText')); return; }
+  const ctx = qrConvContext(box.dataset.conv);
+  const target = guessBuyerLang(ctx.i);
+  if (el) { el.disabled = true; el.classList.add('busy'); }
+  try {
+    const r = await api.translate.text(text, target === 'zh' ? 'zh-CN' : target, detectSource(text));
+    if (r && r.text && r.provider !== 'offline') {
+      input.value = r.text;
+      if (input.focus) input.focus();
+      toast(t('qrTranslated') + ' · ' + target.toUpperCase());
+    } else {
+      toast(t('qrTransFail'));
+    }
+  } catch (e) {
+    toast(t('qrTransFail'));
+  } finally {
+    if (el && el.isConnected) { el.disabled = false; el.classList.remove('busy'); }
+  }
+}
+/* 话术库管理：自建/删除自己的短语（内置的不可删） */
+function quickReplyManagerHtml() {
+  const lang = state.lang === 'en' ? 'en' : 'zh';
+  const rows = (state.quickReplies || []).slice().sort((a, b) => String(a.scene).localeCompare(String(b.scene)));
+  const out = [];
+  out.push('<div class="modal-head"><h3>' + icon('edit') + ' ' + t('qrManage') + '</h3>');
+  out.push('<button type="button" class="modal-x" data-action="close-modal" aria-label="' + esc(t('close')) + '">' + icon('x') + '</button></div>');
+  out.push('<div class="modal-body">');
+  out.push('<form data-form="qr-add" novalidate>');
+  out.push('<div class="qr-add-grid">');
+  out.push('<div class="field"><label>' + t('qrSceneField') + '</label><select class="select" name="scene">');
+  out.push(QUICK_REPLY_SCENES.map(s => '<option value="' + s.id + '">' + esc(lang === 'en' ? s.en : s.zh) + '</option>').join(''));
+  out.push('<option value="custom">' + t('qrCustomTag') + '</option></select></div>');
+  out.push('<div class="field"><label>' + t('qrLangField') + '</label><select class="select" name="lang"><option value="zh">中文</option><option value="en">English</option></select></div>');
+  out.push('<div class="field qr-wide"><label>' + t('qrName') + ' *</label><input class="input" name="title" maxlength="80" required></div>');
+  out.push('<div class="field qr-wide"><label>' + t('qrBody') + ' *</label><textarea class="textarea" name="body" maxlength="2000" style="min-height:96px" required></textarea></div>');
+  out.push('</div>');
+  out.push('<p class="small muted">' + t('qrPlaceholderNote') + '</p>');
+  out.push('<button type="submit" class="btn btn-primary">' + icon('plus') + ' ' + t('qrAdd') + '</button>');
+  out.push('</form>');
+  out.push('<h3 class="section-divider">' + t('qrLibrary') + ' · ' + rows.length + '</h3>');
+  if (rows.length) {
+    out.push('<div class="qr-manage-list">');
+    for (const r of rows) {
+      out.push('<div class="qr-manage-row"><span class="qr-manage-info"><b>' + esc(r.title) + '</b>');
+      out.push('<span class="small muted">' + esc(qrSceneLabel(r.scene, lang)) + ' · ' + (r.lang === 'en' ? 'EN' : '中文') + ' · ' + esc(String(r.body || '').slice(0, 60)) + '</span></span>');
+      out.push('<button type="button" class="btn btn-sm btn-danger-ghost" data-action="qr-delete" data-id="' + esc(r.id) + '">' + icon('trash') + '</button></div>');
+    }
+    out.push('</div>');
+  } else {
+    out.push('<p class="small muted">' + t('qrEmpty') + '</p>');
+  }
+  out.push('</div>');
+  return out.join('');
+}
+function openQrManager() { showModal(quickReplyManagerHtml()); }
+async function submitQuickReply(form) {
+  const fd = new FormData(form);
+  const title = String(fd.get('title') || '').trim();
+  const body = String(fd.get('body') || '').trim();
+  if (!title || !body) { toast(t('required')); return; }
+  try {
+    await api.quickReplies.create({ scene: fd.get('scene') || 'custom', title: title, body: body, lang: fd.get('lang') || 'zh' });
+    await hydrateQuickReplies();
+    toast(t('qrAdded') + ' ✓');
+    openQrManager();
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function deleteQuickReply(id) {
+  try {
+    await api.quickReplies.remove(id);
+    await hydrateQuickReplies();
+    toast(t('qrDeleted') + ' ✓');
+    openQrManager();
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function hydrateQuickReplies() {
+  if (typeof api === 'undefined' || !api.config) return;
+  try {
+    const rows = await api.quickReplies.list();
+    state.quickReplies = Array.isArray(rows) ? rows : ((rows && rows.items) || []);
+  } catch (e) { state.quickReplies = state.quickReplies || []; }
+}
+
+/* 客服专用：把商品发进当前对话（可按标题/品类/货号筛选）。
+ * 买家问"你们有没有 XX"，客服直接搜出来发过去，对方点开就是预览小窗口。 */
+function serviceProductPickerHtml(convId) {
+  const list = (state.products || []).filter(isLive);
+  return '<div class="prod-picker" data-prod-picker data-conv="' + esc(convId) + '">'
+    + '<div class="pk-head">'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="toggle-prod-picker">' + icon('box') + ' ' + t('sendProduct') + '</button>'
+    + '<input class="input pk-search" type="search" data-prod-filter placeholder="' + t('sendProductSearch') + '" autocomplete="off" hidden>'
+    + '<span class="small muted pk-hint">' + t('sendProductHint') + '</span>'
+    + '</div>'
+    + '<div class="pk-rows" hidden>'
+    + (list.length
+      ? list.map(p => {
+        const hay = (langObj(p).title + ' ' + ((p.en && p.en.title) || '') + ' ' + ((p.zh && p.zh.title) || '') + ' ' + productCodeOf(p)).toLowerCase();
+        return '<button type="button" class="pk-row" data-prod-row data-hay="' + esc(hay) + '" data-action="send-product" data-conv="' + esc(convId) + '" data-id="' + esc(p.id) + '">'
+          + '<img src="' + productImg(p, 80, 80) + '" alt="" loading="lazy" decoding="async">'
+          + '<span class="pk-info"><b class="oneline">' + esc(langObj(p).title) + '</b>'
+          + '<span class="small muted oneline">' + esc(productCodeOf(p)) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' / ' + esc(p.unit || 'pcs') + '</span></span>'
+          + '<span class="pk-send">' + t('sendProduct') + '</span></button>';
+      }).join('')
+      : '<p class="small muted" style="padding:10px">' + t('noProducts') + '</p>')
+    + '<p class="small muted pk-empty" data-prod-empty hidden style="padding:10px">' + t('noResultsHint') + '</p>'
+    + '</div></div>';
+}
+
 function notificationsListHtml() {
   const rows = (state.notifications || []).filter(n => {
     const u = state.user;
@@ -4056,6 +4768,71 @@ function notificationsListHtml() {
       + '<span class="small muted">' + fmtDate(n.createdAt) + '</span></div>').join('')
     : '<p class="small muted" style="padding:14px">' + t('notificationsEmpty') + '</p>';
 }
+/* 「点一下直接发」开关（只认 change，避免 input+change 双触发弹两次提示） */
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el && el.hasAttribute && el.hasAttribute('data-qr-direct')) setQrDirect(!!el.checked);
+});
+
+/* 客服选品：展开/收起 + 关键词过滤（不重新渲染，避免打断正在看的对话） */
+function toggleProdPicker(el) {
+  const box = el && el.closest ? el.closest('[data-prod-picker]') : null;
+  if (!box) return;
+  const rows = box.querySelector('.pk-rows');
+  const search = box.querySelector('.pk-search');
+  const hint = box.querySelector('.pk-hint');
+  if (!rows) return;
+  const open = rows.hidden;
+  rows.hidden = !open;
+  if (search) { search.hidden = !open; if (open && search.focus) search.focus(); }
+  if (hint) hint.hidden = open;
+}
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el && el.hasAttribute && el.hasAttribute('data-conv-filter')) {
+    const list = el.closest('.conv-side') ? el.closest('.conv-side').querySelector('[data-conv-list]') : null;
+    applyConvFilter(list);
+    return;
+  }
+  if (el && el.hasAttribute && el.hasAttribute('data-addr-filter')) {
+    applyAddrFilter(el.closest('.card') ? el.closest('.card').querySelector('.addr-list') : null);
+    return;
+  }
+  if (el && el.hasAttribute && el.hasAttribute('data-rec-filter')) {
+    applyRecordFilter(el.closest('.card') ? el.closest('.card').querySelector('.rec-list') : null);
+    return;
+  }
+  if (!el || !el.hasAttribute || !el.hasAttribute('data-prod-filter')) return;
+  const box = el.closest('[data-prod-picker]');
+  if (!box) return;
+  const kw = String(el.value || '').trim().toLowerCase();
+  let shown = 0;
+  box.querySelectorAll('[data-prod-row]').forEach(row => {
+    const hit = !kw || String(row.dataset.hay || '').indexOf(kw) >= 0;
+    row.hidden = !hit;
+    if (hit) shown++;
+  });
+  const empty = box.querySelector('[data-prod-empty]');
+  if (empty) empty.hidden = shown > 0;
+});
+/* 把某款商品作为卡片发进对话：正文存 [[p:商品ID]]，双方都渲染成商品小卡片 */
+async function sendProductToConv(convId, pid, el) {
+  if (!convId || !pid) return;
+  const p = productById(pid);
+  if (!p) { toast(t('productGone')); return; }
+  try {
+    if (el) { el.disabled = true; el.classList.add('busy'); }
+    await api.messages.send(convId, '[[p:' + pid + ']]');
+    convMsgLoaded[convId] = false;
+    toast(t('productSent') + ' ✓');
+    renderPage();
+  } catch (e) {
+    toast(e.message || String(e));
+  } finally {
+    if (el && el.isConnected) { el.disabled = false; el.classList.remove('busy'); }
+  }
+}
+
 async function sendChatMessage(form) {
   const convId = form.dataset.conv;
   const text = String((form.querySelector('input[name="text"]') || {}).value || '').trim();
@@ -4125,7 +4902,7 @@ function openPromoModal(productId) {
   const p = productById(productId);
   if (!p) return;
   showModal(
-    '<div class="modal-head"><h3>📈 ' + t('promoApply') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3>' + icon('chart') + ' ' + t('promoApply') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><p class="small muted">' + esc(langObj(p).title) + '</p>'
     + '<form data-form="promo-form" data-product="' + productId + '" novalidate>'
     + '<div class="field"><label>' + t('promoDays') + ' *</label><input class="input" name="days" type="number" min="1" max="90" value="7" required></div>'
@@ -4172,13 +4949,13 @@ function renderLogin() {
       ? '<p class="small muted login-divider">' + t('loginOrDemo') + '</p>'
     + '<div class="role-cards">'
     + '<div class="role-card" data-action="login-role" data-role="buyer">'
-    + '<div class="role-ico" style="background:linear-gradient(135deg,#2563EB,#7C3AED)">🛒</div>'
+    + '<div class="role-ico" style="background:linear-gradient(135deg,#2563EB,#7C3AED)">' + icon('box') + '</div>'
     + '<h3>' + t('asBuyer') + '</h3>'
     + '<p>' + t('asBuyerDesc') + '</p>'
     + '<span class="role-arrow">→</span>'
     + '</div>'
     + '<div class="role-card" data-action="login-role" data-role="seller">'
-    + '<div class="role-ico" style="background:linear-gradient(135deg,#F59E0B,#DC2626)">🏭</div>'
+    + '<div class="role-ico" style="background:linear-gradient(135deg,#F59E0B,#DC2626)">' + icon('building') + '</div>'
     + '<h3>' + t('asSeller') + '</h3>'
     + '<p>' + t('asSellerDesc') + '</p>'
     + '<span class="role-arrow">→</span>'
@@ -4191,7 +4968,7 @@ function renderLogin() {
     + '</div>'
     + '</div>'
       : '')
-    + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">📝 ' + t('registerTab') + '</button>'
+    + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">' + icon('edit') + ' ' + t('registerTab') + '</button>'
     + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<div class="login-note"> ' + t('loginNote') + '</div>'
     + (state.mailReady ? '<p class="login-admin-link"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
@@ -4348,7 +5125,7 @@ async function submitAdminLogin(f) {
 /* 默认密码提醒条：改完密码后消失 */
 function adminPwdWarnHtml() {
   return '<div class="container admin-pwd-warn-wrap"><div class="admin-pwd-warn">'
-    + '<span class="apw-ico">🔒</span>'
+    + '<span class="apw-ico">' + icon('shield') + '</span>'
     + '<div class="apw-txt"><b>' + t('adminPwdWarn') + '</b><span>' + t('adminPwdWarnSub') + '</span></div>'
     + '<a class="btn btn-sm btn-primary" href="#/dashboard/profile" data-nav="/dashboard/profile">' + t('adminPwdWarnBtn') + '</a>'
     + '</div></div>';
@@ -4456,7 +5233,7 @@ function renderSellerDash(path) {
     body = companyBannerHtml() + ordersBody();
   } else if (activeTab === 'export') {
     body = exportChecklistHtml(sid)
-      + '<div class="card panel mt-20"><div class="panel-head"><h2>🏷️ ' + t('exportProductHint') + '</h2></div>'
+      + '<div class="card panel mt-20"><div class="panel-head"><h2>' + icon('file') + ' ' + t('exportProductHint') + '</h2></div>'
       + '<p class="small muted">' + t('exportGuideNote') + '</p>'
       + '<a class="btn" href="#/export" data-nav="/export">' + t('navExport') + ' →</a></div>';
   } else if (activeTab === 'profile') {
@@ -4485,6 +5262,7 @@ function renderAdminDash(path) {
   const tabs = [
     { tab: 'overview', icon: 'chart', label: t('adminOverview') },
     { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: (state.inquiries || []).filter(i => i.status === 'new').length || null },
+    { tab: 'service', icon: 'headset', label: t('serviceTab'), count: totalUnread() || null },
     { tab: 'products', icon: 'box', label: t('productManage') },
     { tab: 'publish', icon: 'plus', label: t('publish') },
     { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
@@ -4494,11 +5272,14 @@ function renderAdminDash(path) {
     { tab: 'aftersales', icon: 'shield', label: t('adminAfterSales'), count: (state.afterSales || []).filter(c => c.status === 'arbitrating').length || null },
     { tab: 'feedback', icon: 'mail', label: t('adminFeedback'), count: (state.suggestions || []).filter(s => s.status === 'new').length || null },
     { tab: 'users', icon: 'users', label: t('userManage') },
+    { tab: 'addresses', icon: 'users', label: t('addressBook') },
+    { tab: 'records', icon: 'file', label: t('recordsTab') },
     { tab: 'profile', icon: 'users', label: t('profileTab') },
     { tab: 'logs', icon: 'clock', label: t('auditLog') }
   ];
   let body = '';
   if (activeTab === 'inquiries') body = adminInquiriesBody();
+  else if (activeTab === 'service') body = renderServiceBody(parseHash().params.get('conv') || '');
   else if (activeTab === 'products') body = adminProductsBody();
   else if (activeTab === 'publish') body = renderPublishForm();
   else if (activeTab === 'review') body = adminReviewBody();
@@ -4508,6 +5289,8 @@ function renderAdminDash(path) {
   else if (activeTab === 'aftersales') body = adminAfterSalesBody();
   else if (activeTab === 'feedback') body = adminFeedbackBody();
   else if (activeTab === 'users') body = adminUsersBody();
+  else if (activeTab === 'addresses') body = addressesBody();
+  else if (activeTab === 'records') { if (!state.recordsLoaded) hydrateRecords(); body = recordsBody(); }
   else if (activeTab === 'profile') body = renderProfileBody();
   else if (activeTab === 'logs') body = adminLogsBody();
   else body = adminOverviewBody();
@@ -4540,7 +5323,7 @@ function adminCatReqBody() {
       + '<button type="button" class="btn btn-sm" data-action="catreq-status" data-id="' + r.id + '" data-status="done">' + t('catStatusDone') + '</button>'
       + '</div>'
       + (r.description ? '<p class="muted" style="margin-top:6px">' + esc(r.description) + '</p>' : '')
-      + (r.note ? '<p class="small muted">📝 ' + esc(r.note) + '</p>' : '')
+      + (r.note ? '<p class="small muted">' + icon('edit') + ' ' + esc(r.note) + '</p>' : '')
       + '</div></div>').join('')
       : '<div class="empty-state" style="padding:36px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/user.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noUsers') + '</p></div>')
     + '</div>';
@@ -4572,7 +5355,7 @@ function adminOverviewBody() {
     + '</div>'
     + '<div class="stat-grid stat-grid--two">'
     + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCategory') + '</h2></div><div class="chart-bars">' + barRows(catRows, maxCat, k => langObj(catById(k))) + '</div></div>'
-    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCountry') + '</h2></div><div class="chart-bars">' + barRows(cntRows, maxCnt, k => k === '—' ? '—' : flagEmoji(k) + ' ' + countryName(k)) + '</div></div>'
+    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCountry') + '</h2></div><div class="chart-bars">' + barRows(cntRows, maxCnt, k => k === '—' ? '—' : countryTag(k) + ' ' + countryName(k)) + '</div></div>'
     + '</div>'
     + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('latestActivity') + '</h2><a class="btn btn-sm" href="#/dashboard/logs" data-nav="/dashboard/logs">' + t('viewAll') + ' →</a></div>'
     + (logs.length
@@ -4594,7 +5377,7 @@ function adminReviewBody() {
   ];
   return '<div class="card panel"><div class="panel-head"><h2>' + t('productReview') + '</h2><span class="small muted">' + t('reviewHint') + '</span></div>'
     + '<div class="sub-tabs">' + tabs.map(tb => '<a class="sub-tab ' + (st === tb.k ? 'on' : '') + '" href="#/dashboard/review?status=' + tb.k + '" data-nav="/dashboard/review?status=' + tb.k + '">' + tb.label + (tb.k === 'pending' ? ' (' + list.length + ')' : '') + '</a>').join('') + '</div>'
-    + (list.length ? list.map(p => adminReviewCard(p, st)).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">✅</div><p>' + t('noPending') + '</p></div>')
+    + (list.length ? list.map(p => adminReviewCard(p, st)).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('check') + '</div><p>' + t('noPending') + '</p></div>')
     + '</div>';
 }
 
@@ -4608,7 +5391,7 @@ function adminReviewCard(p, st) {
     + '<img class="thumb" src="' + productMainImg(p, 240, 180) + '" alt="' + esc(langObj(p).title) + '">'
     + '<div class="info">'
     + '<div class="head"><b>' + esc(langObj(p).title) + '</b><span class="status-pill ' + stCls + '">' + stLabel + '</span></div>'
-    + '<div class="meta small muted">' + esc(langObj(seller).company) + ' · ' + flagEmoji(p.country) + ' ' + countryName(p.country) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div>'
+    + '<div class="meta small muted">' + esc(langObj(seller).company) + ' · ' + countryTag(p.country) + ' ' + countryName(p.country) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div>'
     + '<div class="meta">' + (p.certs || []).map(c => '<span class="chip cert">' + esc(c) + '</span>').join('') + '</div>'
     + ((p.markets || []).length ? '<div class="meta">' + p.markets.map(m => '<span class="chip">' + esc(MARKET_COMPLIANCE[m] ? langObj(MARKET_COMPLIANCE[m]) : m) + '</span>').join('') + '</div>' : '')
     + (st === 'pending'
@@ -4646,7 +5429,7 @@ function adminVerifyBody() {
   return '<div class="card panel"><div class="panel-head"><h2>' + t('companyVerify') + '</h2><span class="small muted">' + pending.length + ' ' + t('pendingVerify') + '</span></div>'
     + (pending.length
       ? pending.map(verifyCard).join('')
-      : '<div class="empty-state" style="padding:28px"><div class="ico">🏛️</div><p>' + t('noCompanies') + '</p></div>')
+      : '<div class="empty-state" style="padding:28px"><div class="ico">' + icon('building') + '</div><p>' + t('noCompanies') + '</p></div>')
     + (approved.length ? '<div class="section-divider">' + t('verifiedLabel') + ' · ' + approved.length + '</div>' + approved.map(verifyCard).join('') : '')
     + (rejected.length ? '<div class="section-divider">' + t('rejectedVerify') + ' · ' + rejected.length + '</div>' + rejected.map(verifyCard).join('') : '')
     + '</div>';
@@ -4764,12 +5547,14 @@ function adminProductsBody() {
   const pill = st => st === 'on' ? ['live', t('onShelfLabel')] : st === 'pending' ? ['pend', t('pendingLabel')] : st === 'rejected' ? ['rej', t('rejectedLabel')] : ['off', t('offShelfLabel')];
   return '<div class="card panel"><div class="panel-head"><h2>' + t('productManage') + '</h2>'
     + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('totalProducts') + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="export-products">' + icon('file') + ' ' + t('exportWarehouse') + '</button>'
     + '<a class="btn btn-sm btn-primary" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + ' ' + t('publish') + '</a></span></div>'
     + (rows.length
-      ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('regName') + '</th><th>' + t('quotePrice') + '</th><th>MOQ</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
+      ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('productCodeLabel') + '</th><th>' + t('regName') + '</th><th>' + t('quotePrice') + '</th><th>MOQ</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
         + rows.map(p => {
           const st = pill(p.status);
           return '<tr>'
+            + '<td class="nowrap"><button type="button" class="code-chip" data-action="copy-product-code" data-id="' + esc(p.id) + '" title="' + t('copy') + '">' + esc(productCodeOf(p)) + '</button></td>'
             + '<td><div class="prod-cell"><img src="' + productImg(p, 60, 45) + '" alt=""><span class="t">' + esc(langObj(p).title || p.id) + '</span></div></td>'
             + '<td>$' + fmtPrice(p.priceMin) + (p.priceMax > p.priceMin ? '–' + fmtPrice(p.priceMax) : '') + '</td>'
             + '<td>' + p.moq + ' ' + esc(p.unit) + '</td>'
@@ -4810,7 +5595,7 @@ function realUsersBody() {
           + '<td>' + roleLabel + '</td>'
           + '<td>' + esc(u.email) + '</td>'
           + '<td>' + esc(u.company || '—') + '</td>'
-          + '<td>' + (u.country ? flagEmoji(u.country) + ' ' + countryName(u.country) : '—') + '</td>'
+          + '<td>' + (u.country ? countryTag(u.country) + ' ' + countryName(u.country) : '—') + '</td>'
           + '<td>' + fmtDate(u.joinedAt) + '</td>'
           + '<td><span class="status-pill ' + (frozen ? 'rej' : 'live') + '">' + (frozen ? t('frozenStatus') : t('activeStatus')) + '</span></td>'
           + '<td><div class="row-actions">' + (u.role === 'admin' ? '<span class="small muted">—</span>' : '<button type="button" class="btn btn-sm ' + (frozen ? '' : 'btn-danger-ghost') + '" data-action="freeze-user" data-id="' + u.id + '">' + (frozen ? t('unfreeze') : t('freeze')) + '</button>') + '</div></td>'
@@ -4818,6 +5603,180 @@ function realUsersBody() {
       }).join('') + '</tbody></table></div>'
       : '<div class="empty-state"><p>' + t('noUsers') + '</p></div>')
     + '</div>';
+}
+
+/* ---------- 地址管理 ---------- */
+/* 列表：按国家/公司/联系人/邮箱/电话搜索；订单/询盘来源自动收录，也可手动新增。 */
+function addressRowHtml(a) {
+  const hay = [a.name, a.company, a.country, a.email, a.phone, a.address1, a.city].filter(Boolean).join(' ').toLowerCase();
+  const srcLabel = a.source === 'order' ? t('addrSrcOrder') : a.source === 'inquiry' ? t('addrSrcInquiry') : t('addrSrcManual');
+  return '<div class="addr-card" data-addr-row data-hay="' + esc(hay) + '">'
+    + '<div class="addr-main">'
+    + '<div class="addr-title"><b>' + esc(a.company || a.name || '—') + '</b>'
+    + '<span class="chip addr-src ' + esc(a.source || 'manual') + '">' + esc(srcLabel) + '</span>'
+    + (a.use_count ? '<span class="chip addr-src">' + t('addrUsed') + ' ' + a.use_count + '</span>' : '')
+    + '</div>'
+    + '<div class="addr-line small muted">'
+    + (a.country ? '<b class="cc">' + esc(countryTag(a.country)) + '</b> ' + esc(countryName(a.country)) : '')
+    + (a.city ? ' · ' + esc(a.city) : '')
+    + (a.address1 ? ' · ' + esc(a.address1) : '')
+    + (a.address2 ? ' ' + esc(a.address2) : '')
+    + (a.zip ? ' · ' + esc(a.zip) : '')
+    + '</div>'
+    + '<div class="addr-line small muted">' + esc(a.contact || a.name || '')
+    + (a.phone ? ' · ' + esc(a.phone) : '')
+    + (a.email ? ' · ' + esc(a.email) : '')
+    + '</div>'
+    + (a.note ? '<div class="addr-line small muted">' + esc(a.note) + '</div>' : '')
+    + '</div>'
+    + '<div class="addr-ops">'
+    + '<button type="button" class="btn btn-sm" data-action="address-edit" data-id="' + esc(a.id) + '">' + t('edit') + '</button>'
+    + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="address-delete" data-id="' + esc(a.id) + '">' + t('delete') + '</button>'
+    + '</div></div>';
+}
+function addressesBody() {
+  const rows = (state.addresses || []).slice();
+  return '<div class="card panel"><div class="panel-head"><h2>' + icon('users') + ' ' + t('addressBook') + '</h2>'
+    + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('addrCount') + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="address-export">' + icon('file') + ' ' + t('exportCsv') + '</button>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="address-add">' + icon('plus') + ' ' + t('addrAdd') + '</button></span></div>'
+    + '<div class="addr-tools"><input class="input" type="search" data-addr-filter placeholder="' + esc(t('addrSearchPlaceholder')) + '" autocomplete="off"></div>'
+    + (rows.length
+      ? '<div class="addr-list">' + rows.map(addressRowHtml).join('')
+        + '<p class="small muted" data-addr-empty hidden style="padding:14px">' + t('noResults') + '</p></div>'
+      : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('users') + '</div><p>' + t('addrEmpty') + '</p></div>')
+    + '<p class="small muted addr-note">' + t('addrNote') + '</p>'
+    + '</div>';
+}
+function addressFormHtml(a) {
+  const v = a || {};
+  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '"' + (v.country === c ? ' selected' : '') + '>' + countryTag(c) + ' ' + countryName(c) + '</option>').join('');
+  return '<div class="modal-head"><h3>' + icon('users') + ' ' + (v.id ? t('addrEdit') : t('addrAdd')) + '</h3>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + esc(t('close')) + '">' + icon('x') + '</button></div>'
+    + '<div class="modal-body"><form data-form="address-form" data-id="' + esc(v.id || '') + '" novalidate>'
+    + '<div class="form-grid">'
+    + '<div class="field"><label>' + t('regName') + ' *</label><input class="input" name="name" value="' + esc(v.name || v.contact || '') + '" required></div>'
+    + '<div class="field"><label>' + t('companyName') + '</label><input class="input" name="company" value="' + esc(v.company || '') + '"></div>'
+    + '<div class="field"><label>' + t('countryLabel') + '</label><select class="select" name="country">' + countries + '</select></div>'
+    + '<div class="field"><label>' + t('cityLabel') + '</label><input class="input" name="city" value="' + esc(v.city || '') + '"></div>'
+    + '<div class="field"><label>' + t('addrLine1') + '</label><input class="input" name="address1" value="' + esc(v.address1 || '') + '"></div>'
+    + '<div class="field"><label>' + t('addrLine2') + '</label><input class="input" name="address2" value="' + esc(v.address2 || '') + '"></div>'
+    + '<div class="field"><label>' + t('addrZip') + '</label><input class="input" name="zip" value="' + esc(v.zip || '') + '"></div>'
+    + '<div class="field"><label>' + t('contactName') + '</label><input class="input" name="contact" value="' + esc(v.contact || '') + '"></div>'
+    + '<div class="field"><label>' + t('addrPhone') + '</label><input class="input" name="phone" value="' + esc(v.phone || '') + '"></div>'
+    + '<div class="field"><label>' + t('contactEmail') + '</label><input class="input" type="email" name="email" value="' + esc(v.email || '') + '"></div>'
+    + '<div class="field full"><label>' + t('addrNoteField') + '</label><input class="input" name="note" value="' + esc(v.note || '') + '"></div>'
+    + '</div>'
+    + '<button type="submit" class="btn btn-primary">' + t('addrSave') + '</button>'
+    + '</form></div>';
+}
+async function submitAddress(form) {
+  const fd = new FormData(form);
+  const id = form.dataset.id || '';
+  const body = {};
+  ['name', 'company', 'country', 'city', 'address1', 'address2', 'zip', 'contact', 'phone', 'email', 'note'].forEach(k => { body[k] = String(fd.get(k) || '').trim(); });
+  if (!body.name && !body.company) { toast(t('required')); return; }
+  try {
+    if (id) await api.addresses.update(id, body);
+    else await api.addresses.create(body);
+    const rows = await api.addresses.list();
+    state.addresses = Array.isArray(rows) ? rows : ((rows && rows.items) || []);
+    closeModal();
+    toast(t('addrSaved') + ' ✓');
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function deleteAddress(id) {
+  try {
+    await api.addresses.remove(id);
+    const rows = await api.addresses.list();
+    state.addresses = Array.isArray(rows) ? rows : ((rows && rows.items) || []);
+    toast(t('addrDeleted') + ' ✓');
+    renderPage();
+  } catch (e) { toast(e.message || String(e)); }
+}
+function exportAddressesCsv() {
+  const zh = state.lang === 'zh';
+  const rows = state.addresses || [];
+  const head = [zh ? '公司' : 'Company', zh ? '联系人' : 'Contact', zh ? '国家' : 'Country', zh ? '城市' : 'City',
+    zh ? '地址1' : 'Address 1', zh ? '地址2' : 'Address 2', zh ? '邮编' : 'Zip',
+    zh ? '电话' : 'Phone', zh ? '邮箱' : 'Email', zh ? '来源' : 'Source', zh ? '使用次数' : 'Used', zh ? '备注' : 'Note'];
+  const data = rows.map(a => [a.company || '', a.name || a.contact || '', a.country || '', a.city || '', a.address1 || '', a.address2 || '',
+    a.zip || '', a.phone || '', a.email || '', a.source || '', a.use_count || 0, a.note || '']);
+  downloadCsv('bbm-addresses.csv', [head].concat(data));
+}
+
+/* ---------- 表单记录 ---------- */
+async function hydrateRecords(force) {
+  if (typeof api === 'undefined' || !api.config || api.config.mode !== 'http') { state.records = state.records || []; return; }
+  if (state.recordsLoaded && !force) return;
+  state.recordsLoading = true;
+  try {
+    const rows = await api.records.list({});
+    state.records = Array.isArray(rows) ? rows : [];
+    state.recordsLoaded = true;
+  } catch (e) { state.records = state.records || []; }
+  state.recordsLoading = false;
+  renderPage();
+}
+const RECORD_KINDS = [
+  { id: '', zh: '全部', en: 'All' },
+  { id: 'inquiry', zh: '询盘表单', en: 'Inquiry' },
+  { id: 'quote', zh: '报价单', en: 'Quotation' },
+  { id: 'order', zh: '订单', en: 'Order' },
+  { id: 'document', zh: '单据', en: 'Documents' }
+];
+function recordKindLabel(kind) {
+  const k = RECORD_KINDS.find(x => x.id === kind);
+  if (!k) return kind;
+  return state.lang === 'zh' ? k.zh : k.en;
+}
+function recordCardHtml(r) {
+  const hay = [r.title, r.code, r.party, r.company, r.country, r.email, r.refId, recordKindLabel(r.kind)].filter(Boolean).join(' ').toLowerCase();
+  return '<div class="rec-card" data-rec-row data-kind="' + esc(r.kind) + '" data-hay="' + esc(hay) + '">'
+    + '<div class="rec-head"><span class="chip rec-kind ' + esc(r.kind) + '">' + esc(recordKindLabel(r.kind)) + '</span>'
+    + '<b class="oneline">' + esc(r.title || r.refId) + '</b>'
+    + (r.amount != null ? '<span class="rec-amount">' + esc(r.currency || 'USD') + ' ' + fmtPrice(r.amount) + '</span>' : '')
+    + '<span class="small muted rec-date">' + esc(fmtDate(r.createdAt)) + '</span></div>'
+    + '<div class="rec-meta small muted">'
+    + (r.code ? '<span class="rec-code">' + esc(r.code) + '</span>' : '')
+    + (r.party ? '<span>' + esc(r.party) + '</span>' : '')
+    + (r.company ? '<span>' + esc(r.company) + '</span>' : '')
+    + (r.country ? '<span class="cc">' + esc(countryTag(r.country)) + '</span>' : '')
+    + (r.email ? '<span>' + esc(r.email) + '</span>' : '')
+    + '<span class="rec-ref">#' + esc(String(r.refId || '').slice(0, 8)) + '</span>'
+    + '</div>'
+    + ((r.fields || []).filter(f => f && f.v).length
+      ? '<ul class="rec-fields">' + r.fields.filter(f => f && f.v).map(f => '<li><span class="k">' + esc(f.k) + '</span><span class="v">' + esc(String(f.v)) + '</span></li>').join('') + '</ul>'
+      : '')
+    + '</div>';
+}
+function recordsBody() {
+  const rows = state.records || [];
+  const kinds = RECORD_KINDS.map(k => '<button type="button" class="rec-filter' + (k.id === '' ? ' on' : '') + '" data-action="rec-kind" data-kind="' + k.id + '">' + esc(state.lang === 'zh' ? k.zh : k.en) + '</button>').join('');
+  return '<div class="card panel"><div class="panel-head"><h2>' + icon('file') + ' ' + t('recordsTab') + '</h2>'
+    + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('recordsCount') + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="records-refresh">' + icon('refresh') + ' ' + t('refresh') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="records-export">' + icon('file') + ' ' + t('exportCsv') + '</button></span></div>'
+    + '<div class="rec-tools"><input class="input" type="search" data-rec-filter placeholder="' + esc(t('recordsSearchPlaceholder')) + '" autocomplete="off">'
+    + '<div class="rec-kinds">' + kinds + '</div></div>'
+    + (state.recordsLoading
+      ? '<p class="small muted" style="padding:20px">' + t('loading') + '</p>'
+      : rows.length
+        ? '<div class="rec-list">' + rows.map(recordCardHtml).join('')
+          + '<p class="small muted" data-rec-empty hidden style="padding:14px">' + t('noResults') + '</p></div>'
+        : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('file') + '</div><p>' + t('recordsEmpty') + '</p></div>')
+    + '<p class="small muted addr-note">' + t('recordsNote') + '</p>'
+    + '</div>';
+}
+function exportRecordsCsv() {
+  const zh = state.lang === 'zh';
+  const rows = (state.records || []);
+  const head = [zh ? '类型' : 'Kind', zh ? '标题' : 'Title', zh ? '货号' : 'Code', zh ? '客户' : 'Party', zh ? '公司' : 'Company',
+    zh ? '国家' : 'Country', zh ? '邮箱' : 'Email', zh ? '金额' : 'Amount', zh ? '币种' : 'Currency', zh ? '关联单号' : 'Ref', zh ? '时间' : 'Time'];
+  const data = rows.map(r => [recordKindLabel(r.kind), r.title || '', r.code || '', r.party || '', r.company || '', r.country || '',
+    r.email || '', r.amount == null ? '' : r.amount, r.currency || '', r.refId || '', fmtDate(r.createdAt)]);
+  downloadCsv('bbm-records.csv', [head].concat(data));
 }
 
 function adminLogsBody() {
@@ -4828,7 +5787,7 @@ function adminLogsBody() {
       ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('logTime') + '</th><th>' + t('logActor') + '</th><th>' + t('logAction') + '</th><th>' + t('logTarget') + '</th><th>' + t('logDetail') + '</th></tr></thead><tbody>'
       + logs.map(l => '<tr><td>' + fmtDate(l.ts) + '</td><td>' + esc(l.actor) + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.target) + '</td><td class="small muted">' + esc(l.detail || '—') + '</td></tr>').join('')
       + '</tbody></table></div>'
-      : '<div class="empty-state" style="padding:36px"><div class="ico">📋</div><p>' + t('logsEmpty') + '</p></div>')
+      : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('file') + '</div><p>' + t('logsEmpty') + '</p></div>')
     + '</div>';
 }
 
@@ -4865,7 +5824,7 @@ function inquiryItem(i) {
     + '<div class="top">'
     + '<span class="avatar">' + esc(initialsOf(i.name)) + '</span>'
     + '<div class="who">'
-    + '<div class="nm">' + esc(i.name) + (i.country ? ' <span class="flag">' + flagEmoji(i.country) + '</span>' : '') + identityBadgeHtml(i) + '</div>'
+    + '<div class="nm">' + esc(i.name) + (i.country ? ' <span class="flag">' + countryTag(i.country) + '</span>' : '') + identityBadgeHtml(i) + '</div>'
     + '<div class="ct">' + esc(i.company || '—') + ' · ' + esc(i.email) + ' · ' + t('sentAt') + ' ' + fmtDate(i.createdAt) + '</div>'
     + '</div>'
     + '<span class="status-pill ' + (done ? 'done' : 'new') + '">' + (i.status === 'quoted' ? t('quotedStatus') : done ? t('statusReplied') : t('statusNew')) + '</span>'
@@ -5026,10 +5985,10 @@ function openPrintDoc(inquiryId, type) {
   const printEl = document.getElementById('printDoc');
   if (printEl) printEl.innerHTML = doc;
   const title = type === 'proforma' ? t('docProforma') : t('docQuotation');
-  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + esc(title) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+  showModal('<div class="modal doc-modal"><div class="modal-head"><h3>' + icon('file') + ' ' + esc(title) + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">' + doc
     + '<p class="small muted">' + icon('file') + ' ' + t('printHint') + '</p>'
-    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">🖨 ' + t('printNow') + '</button>'
+    + '<div class="doc-actions"><button type="button" class="btn btn-primary" data-action="print-now">' + icon('file') + ' ' + t('printNow') + '</button>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
     + '</div></div>');
 }
@@ -5051,7 +6010,7 @@ function productImgListHtml(p) {
   if (!all.length) return '';
   return '<div class="product-imgs">' + all.map((x, idx) =>
     '<span class="product-img-item"><img src="' + x.dataUrl + '" alt="' + esc(x.name) + '">'
-    + '<button type="button" class="attach-x" data-action="product-img-remove" data-idx="' + idx + '" aria-label="' + t('imgRemove') + '">✕</button></span>'
+    + '<button type="button" class="attach-x" data-action="product-img-remove" data-idx="' + idx + '" aria-label="' + t('imgRemove') + '">' + icon('x') + '</button></span>'
   ).join('') + '</div>';
 }
 function refreshProductImgWrap() {
@@ -5100,7 +6059,7 @@ function renderPublishForm() {
     + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
     + '<div class="field"><label>' + t('moqField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="moq" value="' + (p ? p.moq : '') + '" required><select class="select" name="unit" style="width:100px">' + UNITS.map(u => '<option value="' + u + '" ' + (p && p.unit === u ? 'selected' : '') + '>' + u + '</option>').join('') + '</select></div></div>'
     + '<div class="field"><label>' + t('leadTimeField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '') + '" required><span class="sep">' + t('days') + '</span></div></div>'
-    + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + flagEmoji(c) + ' ' + countryName(c) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + countryTag(c) + ' ' + countryName(c) + '</option>').join('') + '</select></div>'
     + '<div class="field"><label>' + t('hsCode') + ' <span class="hint">' + t('hsHint') + '</span></label><input class="input" name="hsCode" value="' + esc(p ? (p.hsCode || '') : '') + '" placeholder="8456.11"></div>'
     + '<div class="field full"><label>' + t('paypalField') + ' <span class="hint">' + t('paypalHint') + '</span></label><input class="input" name="paypalUrl" value="' + esc(p ? (p.paypalUrl || '') : '') + '" placeholder="https://www.paypal.com/invoice/p/#XXXX 或 https://paypal.me/xxx/123"></div>'
     + '<div class="form-section-title full">' + t('formSecTerms') + '</div>'
@@ -5289,18 +6248,21 @@ function renderBuyerDash(path) {
     { tab: 'inquiries', icon: 'message', label: t('myInquiries'), count: myInquiries.filter(i => i.status === 'new').length || null },
     { tab: 'favorites', icon: 'heart', label: t('myFavorites'), count: favProducts.length || null },
     { tab: 'orders', icon: 'box', label: t('orders'), count: (state.orders || []).filter(o => o.buyerId === u.id && o.status === 'created').length || null },
+    { tab: 'addresses', icon: 'users', label: t('addressBook') },
     { tab: 'profile', icon: 'users', label: t('profileTab') },
     { tab: 'messages', icon: 'message', label: t('messagesTab'), count: totalUnread() || null }
   ];
   let body = '';
   if (activeTab === 'favorites') {
     body = '<div class="card panel"><div class="panel-head"><h2>' + t('myFavorites') + '</h2></div>'
-      + (favProducts.length ? '<div class="product-grid">' + favProducts.map(productCard).join('') + '</div>' : '<div class="empty-state" style="padding:36px"><div class="ico">🤍</div><p>' + t('noFavoritesYet') + '</p></div>')
+      + (favProducts.length ? '<div class="product-grid">' + favProducts.map(productCard).join('') + '</div>' : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('heart') + '</div><p>' + t('noFavoritesYet') + '</p></div>')
       + '</div>';
   } else if (activeTab === 'orders') {
     body = ordersBody();
   } else if (activeTab === 'profile') {
     body = renderProfileBody();
+  } else if (activeTab === 'addresses') {
+    body = addressesBody();
   } else if (activeTab === 'messages') {
     body = renderMessagesBody(parseHash().params.get('conv') || '');
   } else {
@@ -5320,7 +6282,7 @@ function buyerInquiryItem(i) {
     + '<div class="who"><div class="nm">' + (p ? esc(langObj(p).title) : '—') + '</div>'
     + '<div class="ct">' + t('sentAt') + ' ' + fmtDate(i.createdAt) + ' · ' + i.qty + ' ' + i.unit + ' · ' + identityBadgeHtml(i) + ' <span class="status-pill ' + (status ? 'done' : 'new') + '">' + (i.status === 'quoted' ? t('quotedStatus') : status ? t('statusReplied') : t('statusNew')) + '</span></div></div>'
     + (p ? '<a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>' : '')
-    + (i.quote ? '<button type="button" class="btn btn-sm btn-primary" data-action="order-create" data-id="' + i.id + '" style="margin-left:6px">📦 ' + t('orders') + '</button>' : '')
+    + (i.quote ? '<button type="button" class="btn btn-sm btn-primary" data-action="order-create" data-id="' + i.id + '" style="margin-left:6px">' + icon('box') + ' ' + t('orders') + '</button>' : '')
     + '</div>'
     + inquiryMsg(i)
     + attachmentChipsHtml(i.attachments, i.id)
@@ -5333,11 +6295,11 @@ function buyerInquiryItem(i) {
 /* ---------- 对话式询价（pet0.2）：分步引导，像聊天一样问需求 ---------- */
 const ASK_PETS = [
   /* 口径统一为"采购方视角"：问的是市场与渠道，不是"你家养什么" */
-  { id: 'cat', zh: '🐱 猫用品市场', en: 'Cat supplies' },
-  { id: 'dog-small', zh: '🐶 小型犬市场', en: 'Small-dog supplies' },
-  { id: 'dog-large', zh: '🦮 中大型犬市场', en: 'Medium / large-dog supplies' },
-  { id: 'hamster', zh: '🐹 仓鼠 / 小宠市场', en: 'Hamster / small-pet supplies' },
-  { id: 'small-pet', zh: '🐰 兔 / 豚鼠市场', en: 'Rabbit / guinea-pig supplies' },
+  { id: 'cat', zh: ' 猫用品市场', en: 'Cat supplies' },
+  { id: 'dog-small', zh: ' 小型犬市场', en: 'Small-dog supplies' },
+  { id: 'dog-large', zh: ' 中大型犬市场', en: 'Medium / large-dog supplies' },
+  { id: 'hamster', zh: ' 仓鼠 / 小宠市场', en: 'Hamster / small-pet supplies' },
+  { id: 'small-pet', zh: ' 兔 / 豚鼠市场', en: 'Rabbit / guinea-pig supplies' },
   { id: 'other', zh: '综合采购 / 其他', en: 'Mixed / other' }
 ];
 const ASK_QTY = [
@@ -5391,7 +6353,7 @@ function renderAskStep() {
       : '<button type="button" class="btn btn-accent" data-action="ask-submit">' + t('askSubmit') + '</button>')
     + '</div>';
   showModal('<div class="modal-head"><h3>' + t('askTitle') + '</h3>'
-    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body ask-body">' + bar + inner + nav + '</div>');
 }
 
@@ -5472,8 +6434,8 @@ function stickyAskBar(pid) {
   const p = productById(pid);
   if (!p) return '';
   return '<div class="sticky-ask">'
-    + '<div class="sa-price">' + t('priceRange') + ' <b>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</b> / ' + esc(p.unit || 'pcs') + '</div>'
-    + '<button type="button" class="btn btn-accent" data-action="open-inquiry" data-id="' + esc(p.id) + '">' + t('sendInquiry') + '</button>'
+    + '<div class="sa-price"><span class="sa-plabel">' + t('priceRange') + ' </span><b>$' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + '</b> / ' + esc(p.unit || 'pcs') + '</div>'
+    + '<button type="button" class="btn btn-accent" data-action="open-inquiry" data-id="' + esc(p.id) + '"><span class="sa-label">' + t('sendInquiry') + '</span></button>'
     + '</div>';
 }
 

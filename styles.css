@@ -96,7 +96,11 @@ button { font-family: inherit; }
 }
 .lang-opt:hover { border-color: var(--primary); background: var(--primary-050); }
 .lang-opt.on { border-color: var(--primary); background: var(--primary-050); color: var(--primary); font-weight: 700; }
-.lang-flag { font-size: 17px; line-height: 1; }
+.lang-flag {
+  font-size: 10.5px; line-height: 1; font-weight: 800; letter-spacing: .5px;
+  color: var(--text-2); background: #EEF2FA; border-radius: 4px; padding: 2px 5px;
+  min-width: 26px; text-align: center;
+}
 .lang-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lang-code { font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: .4px; }
 .lang-auto {
@@ -314,7 +318,12 @@ button { font-family: inherit; }
   border-top: 1px solid #EFF2F8; padding: 10px 14px; background: #FBFCFE;
 }
 .seller-mini { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
-.flag { font-size: 15px; line-height: 1; }
+/* 国家码标记（替代国旗 emoji：Windows 无旗帜字形，会显示成方框字母） */
+.flag {
+  font-size: 10.5px; line-height: 1; font-weight: 800; letter-spacing: .5px;
+  color: var(--text-2); background: #EEF2FA; border-radius: 4px; padding: 1px 4px;
+  vertical-align: 1px;
+}
 .stars { color: #B45309; font-size: 12px; letter-spacing: 1px; }
 .rating-num { color: var(--muted); font-size: 12px; }
 
@@ -349,10 +358,15 @@ button { font-family: inherit; }
 .breadcrumb { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 .breadcrumb a { color: var(--muted); }
 .breadcrumb a:hover { color: var(--primary); }
-.detail-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+/* 商品图跟随滚动：右栏（标题/规格/特性/供应商）很长时，左栏图片原来只占顶部一小块，
+ * 下面留一大片空白，观感差。sticky 之后图片一路跟着看，空白问题自然消失。 */
+.detail-layout .gallery { position: sticky; top: 88px; align-self: start; }
 .gallery .main-img {
   border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
-  aspect-ratio: 4 / 3; background: #EAF0FB;
+  /* 用 1:1：我们自己的商品照是 800×800，概念图是 2:3 竖图；
+   * 原来的 4:3 横框会把竖图裁得只剩中间一条。 */
+  aspect-ratio: 1 / 1; background: #EAF0FB;
 }
 .gallery .main-img img { width: 100%; height: 100%; object-fit: cover; }
 .gallery-thumbs { display: flex; gap: 10px; margin-top: 10px; }
@@ -651,6 +665,7 @@ button { font-family: inherit; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 0; }
 .modal-head h3 { margin: 0; font-size: 17px; }
 .modal-x { border: none; background: transparent; font-size: 20px; color: var(--muted); cursor: pointer; padding: 4px 8px; border-radius: 7px; line-height: 1; }
+.modal-x svg { width: 18px; height: 18px; display: block; }
 .modal-x:hover { background: #F1F3F8; color: var(--text); }
 .modal-body { padding: 16px 22px 22px; }
 .modal-success { text-align: center; padding: 26px 22px 28px; }
@@ -1297,7 +1312,7 @@ body.modal-open { overflow: hidden; }
 .card3d-controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 6px; flex-wrap: wrap; }
 
 /* ---------- 站内消息与通知 ---------- */
-.messages-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; min-height: 420px; }
+.messages-layout { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 14px; min-height: 420px; }
 .conv-list { display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; padding: 4px; }
 .conv-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 10px; cursor: pointer; transition: all .15s; }
 .conv-row:hover, .conv-row.on { border-color: var(--primary); background: var(--primary-050); }
@@ -1306,10 +1321,19 @@ body.modal-open { overflow: hidden; }
 .conv-info { flex: 1; min-width: 0; }
 .conv-info b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-pane { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px; background: #fff; overflow: hidden; }
-.chat-pane.empty { align-items: center; justify-content: center; color: var(--muted); }
+.chat-pane {
+  display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px;
+  background: #fff; overflow: hidden;
+  /* 固定高度：消息区自己滚，输入区/快捷短语固定在底部，不会被消息顶走 */
+  height: auto; min-height: 620px; max-height: 820px;
+}
+.chat-pane.empty { align-items: center; justify-content: center; color: var(--muted); height: auto; min-height: 220px; }
 .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: #FDFBF4; }
-.chat-msgs { flex: 1; max-height: 360px; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.chat-msgs {
+  flex: 1 1 auto; min-height: 240px; max-height: none;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+}
 .chat-msg { display: flex; }
 .chat-msg.mine { justify-content: flex-end; }
 .chat-bubble { max-width: 78%; padding: 9px 13px; border-radius: 14px; background: #F2EEE2; }
@@ -1336,13 +1360,276 @@ body.modal-open { overflow: hidden; }
 .notif-row b { display: block; font-size: 13px; }
 .notif-row p { margin: 3px 0; font-size: 12px; color: var(--text-2); }
 .notif-panel .btn-block { margin-top: 6px; }
+/* ---------- 地址管理 / 表单记录（2026-10-04） ---------- */
+.addr-tools, .rec-tools { margin: 6px 0 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.addr-tools .input { flex: 1 1 260px; min-width: 0; }
+.addr-list, .rec-list { display: flex; flex-direction: column; gap: 8px; }
+.addr-card, .rec-card { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: #fff; }
+.addr-card[hidden], .rec-card[hidden] { display: none; }
+.addr-card:hover, .rec-card:hover { border-color: #E3D2AE; background: #FFFDF7; }
+.addr-main { flex: 1 1 auto; min-width: 0; }
+.addr-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.addr-title b { font-size: 14px; }
+.addr-line { line-height: 1.6; word-break: break-word; }
+.addr-line .cc { font-size: 10px; font-weight: 800; letter-spacing: .5px; background: #EEF2FA; border-radius: 4px; padding: 0 4px; }
+.addr-ops { display: flex; gap: 6px; flex: 0 0 auto; }
+.addr-src { background: #F1F5FB; color: #3E4A63; border: 1px solid #E1E8F4; font-size: 11px; }
+.addr-src.order { background: #EAF7EE; color: #126A33; border-color: #CBE7D6; }
+.addr-src.inquiry { background: #FFF6E4; color: #8A5A0B; border-color: #F0D8AE; }
+.addr-note { margin-top: 12px; }
+.rec-kinds { display: flex; gap: 6px; flex-wrap: wrap; }
+.rec-filter { border: 1px solid var(--border-2); background: #fff; color: var(--text-2); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.rec-filter.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.rec-card { flex-direction: column; gap: 6px; }
+.rec-card[hidden] { display: none; }
+.rec-head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.rec-head b { flex: 1 1 auto; min-width: 0; font-size: 13.5px; }
+.rec-amount { font-weight: 800; color: #8A5A0B; font-size: 13px; }
+.rec-date { flex: 0 0 auto; }
+.rec-kind { font-size: 11px; background: #F1F5FB; color: #3E4A63; border: 1px solid #E1E8F4; }
+.rec-kind.quote { background: #FFF6E4; color: #8A5A0B; border-color: #F0D8AE; }
+.rec-kind.order { background: #EAF7EE; color: #126A33; border-color: #CBE7D6; }
+.rec-kind.document { background: #F3EEFB; color: #5B3E9B; border-color: #E0D6F5; }
+.rec-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.rec-meta .cc { font-size: 10px; font-weight: 800; background: #EEF2FA; border-radius: 4px; padding: 0 4px; }
+.rec-code { font-family: ui-monospace, Consolas, monospace; color: #8A5A0B; }
+.rec-ref { font-family: ui-monospace, Consolas, monospace; opacity: .7; }
+.rec-fields { list-style: none; margin: 2px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2px 14px; }
+.rec-fields li { display: flex; gap: 8px; font-size: 12px; }
+.rec-fields .k { color: var(--muted); min-width: 74px; flex: 0 0 auto; text-transform: uppercase; font-size: 11px; letter-spacing: .3px; }
+
+/* ==================== 防伪验真页（2026-10-04：真二维码 + 服务端核验） ==================== */
+.verify-page .verify-panel { max-width: 620px; margin: 0 auto; }
+.verify-result:empty { display: none; }
+.verify-result { margin-top: 14px; }
+.verify-result .fake-result { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.verify-result .fake-ico svg { width: 34px; height: 34px; }
+.verify-result .verify-code {
+  font-family: ui-monospace, Consolas, monospace; font-size: 15px; letter-spacing: 1px;
+  background: #FFF6E4; border: 1px solid #F0D8AE; color: #8A5A0B;
+  border-radius: 8px; padding: 4px 10px; margin: 2px 0 6px;
+}
+.verify-qr { background: #fff; padding: 6px; border-radius: 10px; border: 1px solid var(--border-2); }
+.verify-qr svg { width: 108px; height: 108px; display: block; }
+.verify-result .verify-list { width: 100%; text-align: left; max-width: 420px; margin-top: 4px; }
+.verify-note { margin-top: 12px; }
+/* 名片背面的二维码（真码，扫码进官网） */
+.cb-qr svg { width: 74px; height: 74px; display: block; background: #fff; border-radius: 6px; padding: 3px; }
+
+/* ==================== emoji 清理后的收尾（2026-10-03） ====================
+ * 界面里的彩色 emoji/国旗在 Windows 上会渲染成方块（用户反馈两轮），
+ * 已统一换成内联 SVG 或纯文字；这里补齐图标尺寸，并把清空后的空容器隐藏。 */
+.benefit-ico svg { width: 28px; height: 28px; }
+.role-ico svg { width: 28px; height: 28px; }
+.compliance-ico svg { width: 26px; height: 26px; color: var(--primary); }
+.empty-state .ico svg { width: 44px; height: 44px; color: var(--muted); }
+.attach-ico svg { width: 14px; height: 14px; }
+.lang-hint-ico svg { width: 18px; height: 18px; }
+.tip-coins svg { width: 18px; height: 18px; }
+.empty-state .ico:empty, .benefit-ico:empty, .role-ico:empty, .compliance-ico:empty,
+.attach-ico:empty, .tip-coins:empty, .lang-hint-ico:empty { display: none; }
+
+/* ==================== 客服工作台 / 商品卡片（pet0.3，2026-10-03） ==================== */
+/* 会话侧栏：搜索 + 仅未读 + 列表 */
+.conv-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.conv-tools { display: flex; gap: 6px; }
+.conv-search { flex: 1 1 auto; min-width: 0; }
+.conv-filter { border: 1px solid var(--border-2); background: #fff; color: var(--text-2); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.conv-filter.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.conv-row[hidden] { display: none; }
+.conv-top { display: flex; align-items: baseline; gap: 8px; }
+.conv-top b { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-time { flex: 0 0 auto; font-style: normal; font-size: 11px; color: var(--muted); }
+.conv-sub { display: block; font-size: 11px; opacity: .85; }
+.conv-sub .cc {
+  display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .5px;
+  color: var(--text-2); background: #EEF2FA; border-radius: 4px; padding: 0 4px; margin-right: 5px;
+}
+.conv-sub .conv-co { font-style: normal; color: var(--muted); }
+.conv-sub .conv-co::after { content: ' · '; }
+.conv-sub .conv-code { font-style: normal; font-family: ui-monospace, Consolas, monospace; color: #8A5A0B; }
+.ch-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.buyer-tag {
+  display: inline-flex; align-items: center; max-width: 220px;
+  font-size: 11px; padding: 2px 7px; border-radius: 999px;
+  background: #F1F5FB; color: #3E4A63; border: 1px solid #E1E8F4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 消息流：时间分隔 + 对方头像 */
+.chat-sep { display: flex; justify-content: center; margin: 6px 0 2px; }
+.chat-sep span { font-size: 11px; color: var(--muted); background: #F1EEE5; border-radius: 999px; padding: 2px 10px; }
+.chat-msg { align-items: flex-end; gap: 8px; }
+.chat-avatar {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--primary-050); color: var(--primary); font-size: 11px; font-weight: 800;
+}
+/* 往上翻时右下角"回到最新" */
+.chat-jump {
+  position: absolute; right: 18px; bottom: 96px; z-index: 25;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid #F0D8AE; background: #FFF6E4; color: #8A5A0B;
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700;
+  cursor: pointer; box-shadow: var(--shadow-lg); font-family: inherit;
+}
+.chat-jump b { background: var(--accent); color: #3A2A00; border-radius: 999px; padding: 0 6px; font-size: 11px; }
+.chat-jump svg { width: 14px; height: 14px; transform: rotate(90deg); }
+.chat-pane { position: relative; }
+
+/* 客服顶部概览条 */
+.service-strip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+.service-strip .chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: 999px; background: #fff;
+  border: 1px solid var(--border-2); font-size: 12.5px; font-weight: 600; color: var(--text-2);
+  box-shadow: none;
+}
+.service-strip .chip svg { width: 14px; height: 14px; }
+
+/* 会话标题栏：客服要看到买家是谁、在问哪款货 */
+.chat-head .ch-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-head .ch-buyer { font-size: 11.5px; color: var(--muted); }
+.chat-head .ch-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.chat-head .chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; padding: 4px 9px; border-radius: 999px;
+  background: #FFF6E4; color: #8A5A00; border: 1px solid #F0D8AE;
+  font-family: ui-monospace, Consolas, monospace; letter-spacing: .3px;
+}
+.chat-head .chip svg { width: 13px; height: 13px; }
+
+/* 对话里的商品卡片 */
+.chat-prod {
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  width: min(320px, 80vw); margin-top: 6px; padding: 8px;
+  border-radius: 10px; border: 1px solid var(--border-2); background: #fff; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.chat-prod:hover { border-color: var(--primary); box-shadow: var(--shadow-sm); }
+.chat-prod img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; flex: 0 0 auto; background: var(--bg-2); }
+.chat-prod .cp-info { min-width: 0; display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.chat-prod .cp-info b { font-size: 12.5px; }
+.chat-prod .cp-meta { font-size: 11px; color: var(--muted); }
+.chat-prod .cp-eye { margin-left: auto; color: var(--muted); flex: 0 0 auto; }
+.chat-prod .cp-eye svg { width: 16px; height: 16px; }
+.chat-prod.missing { font-size: 12.5px; color: var(--muted); padding: 10px; cursor: default; }
+
+/* 客服快捷短语 / 聊天话术 */
+.qr { border-top: 1px dashed var(--border-2); background: #FDFBF4; }
+.qr { position: relative; }
+.qr-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; }
+.qr-hint { margin-left: auto; }
+.qr-lang-group { display: inline-flex; border: 1px solid var(--border-2); border-radius: 8px; overflow: hidden; background: #fff; }
+.qr-lang { border: 0; background: transparent; padding: 6px 10px; font-size: 12px; font-weight: 700; color: var(--text-2); cursor: pointer; font-family: inherit; }
+.qr-lang + .qr-lang { border-left: 1px solid var(--border-2); }
+.qr-lang.on { background: var(--primary); color: #fff; }
+.qr-buyer { background: #FFF6E4; color: #8A5A00; border: 1px solid #F0D8AE; }
+.qr-direct { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-2); cursor: pointer; user-select: none; }
+.qr-direct input { accent-color: var(--primary); width: 14px; height: 14px; }
+/* 快捷短语面板做成"浮层"：展开时盖在对话上方，不挤压消息区（否则聊久了只剩几行高） */
+.qr-panel {
+  position: absolute; left: 0; right: 0; bottom: 100%; z-index: 30; margin-bottom: 6px;
+  background: #fff; border: 1px solid var(--border-2); border-radius: 12px;
+  box-shadow: var(--shadow-lg); max-height: 320px; overflow-y: auto;
+  padding: 10px 14px 12px;
+}
+.qr-scenes { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.qr-scene { border: 1px solid var(--border-2); background: #fff; color: var(--text-2); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.qr-scene.on { background: var(--primary-050); border-color: var(--primary); color: var(--primary); font-weight: 700; }
+.qr-items { display: flex; gap: 8px; flex-wrap: wrap; }
+.qr-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  border: 1px solid var(--border-2); background: #fff; color: var(--text);
+  border-radius: 8px; padding: 7px 11px; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; font-family: inherit; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.qr-chip:hover { border-color: var(--primary); background: var(--primary-050); }
+.qr-chip.custom { border-color: #E6D3A8; background: #FFFBF1; }
+.qr-chip[hidden] { display: none; }
+.qr-tag { font-style: normal; font-size: 10px; color: #8A5A0B; background: #FFF1D6; border-radius: 999px; padding: 1px 6px; }
+.qr-empty { padding: 4px 2px; }
+.qr-add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.qr-add-grid .qr-wide { grid-column: 1 / -1; }
+.qr-manage-list { display: flex; flex-direction: column; gap: 8px; }
+.qr-manage-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; background: #fff; }
+.qr-manage-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.qr-manage-info b { font-size: 13px; }
+.qr-manage-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) {
+  .qr-add-grid { grid-template-columns: 1fr; }
+  .qr-hint { display: none; }
+}
+
+/* 客服选品抽屉 */
+.prod-picker { border-top: 1px dashed var(--border-2); padding: 10px 14px; background: #FDFBF4; }
+.prod-picker { position: relative; }
+.pk-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pk-search { flex: 1 1 170px; min-width: 0; }
+/* 选品列表同样浮在输入框上方，不占消息区高度 */
+.pk-rows {
+  position: absolute; left: 0; right: 0; bottom: 100%; z-index: 30; margin-bottom: 6px;
+  max-height: 300px; overflow-y: auto; border: 1px solid var(--border-2); border-radius: 10px;
+  background: #fff; box-shadow: var(--shadow-lg);
+}
+.pk-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; background: #fff; border: 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.pk-row[hidden] { display: none; }
+.pk-row:last-child { border-bottom: 0; }
+.pk-row:hover { background: var(--primary-050); }
+.pk-row img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; flex: 0 0 auto; }
+.pk-info { min-width: 0; display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.pk-info b { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-send { margin-left: auto; font-size: 12px; color: var(--primary); font-weight: 700; flex: 0 0 auto; }
+
+/* 商品速览小窗口 */
+.modal.prod-preview { width: min(560px, 94vw); }
+.pp-body { display: flex; gap: 14px; padding: 14px 20px 0; }
+.pp-img { flex: 0 0 190px; }
+.pp-img img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: var(--bg-2); }
+.pp-info { min-width: 0; flex: 1; }
+.pp-info h4 { margin: 0 0 8px; font-size: 15px; line-height: 1.4; }
+.pp-code { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.pp-code b { font-family: ui-monospace, Consolas, monospace; letter-spacing: .4px; }
+.pp-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.pp-list li { display: flex; gap: 10px; font-size: 12.5px; padding: 3px 0; }
+.pp-list .k { color: var(--muted); min-width: 70px; flex: 0 0 auto; }
+.pp-desc { margin: 0; line-height: 1.6; }
+.pp-actions { display: flex; gap: 10px; flex-wrap: wrap; padding: 14px 20px 20px; }
+
+/* 货号胶囊（商品管理表 / 商品详情页） */
+.code-chip {
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px; letter-spacing: .3px;
+  padding: 4px 9px; border-radius: 999px; border: 1px solid #E6D3A8;
+  background: #FFF8E7; color: #8A5A0B; cursor: pointer;
+}
+.code-chip:hover { background: #FFF1D6; }
+
+@media (max-width: 640px) {
+  .pp-body { flex-direction: column; }
+  .pp-img { flex: none; }
+  /* 窄屏把对话顶栏/快捷短语栏压扁：原来顶栏 118px + 短语栏 137px，
+   * 把消息区挤到只剩 58px（用户反馈"对话拉不动"就是这个）。 */
+  .chat-head { padding: 8px 10px; gap: 6px; flex-wrap: nowrap; }
+  .chat-head .ch-actions { width: auto; margin-left: auto; flex-wrap: nowrap; }
+  .chat-head .btn-sm { padding: 4px 8px; font-size: 12px; }
+  .chat-head .ch-buyer { font-size: 11px; }
+  .qr-bar { padding: 8px 10px; gap: 6px; }
+  .qr-bar .btn { padding: 5px 9px; font-size: 12px; }
+  .qr-direct { font-size: 11px; }
+  .pk-hint { display: none; }
+  .prod-picker { padding: 8px 10px; }
+}
+
 /* 无障碍：跳到主内容 */
 .skip-link { position: absolute; top: -120px; left: 0; background: var(--navy-900); color: #fff; padding: 10px 16px; border-radius: 0 0 10px 0; z-index: 200; transition: top .15s; }
 .skip-link:focus { top: 0; }
 @media (max-width: 860px) {
   .messages-layout { grid-template-columns: 1fr; }
   .conv-list { max-height: 220px; }
-  .chat-msgs { max-height: 300px; }
+  /* 窄屏：面板给足高度，消息区至少 200px，控件不够就整体变高、由页面滚动 */
+  .chat-pane { height: auto; min-height: 560px; max-height: 760px; }
+  .chat-msgs { max-height: none; min-height: 200px; }
 }
 
 /* ---------- 视觉打磨：卡片悬浮、焦点态、滚动条 ---------- */
@@ -1689,6 +1976,10 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 /* ==================== 移动端打磨第二轮（用户 2026-09-19） ==================== */
 /* 详情页固定底栏：手机上价格 + 询问常驻底部，拇指可达（桌面隐藏） */
 .sticky-ask { display: none; }
+/* 极窄手机（<400px）隐藏"价格区间"四个字，把宽度让给按钮文案 */
+@media (max-width: 400px) {
+  .sticky-ask .sa-plabel { display: none; }
+}
 @media (max-width: 640px) {
   .sticky-ask {
     display: flex; align-items: center; gap: 10px;
@@ -1698,13 +1989,21 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
     border-top: 1px solid var(--border-2);
     box-shadow: 0 -6px 18px rgba(120, 84, 20, .10);
   }
-  .sticky-ask .sa-price { flex: 1; font-size: 13px; color: var(--text-2); }
+  /* 底栏跨语言不挤压：价格单行省略、按钮文案单行到 44vw 就省略。
+   * 之前价格是 flex:1 的自由文本、按钮又是 nowrap，俄语/日语等长文案下
+   * 按钮把价格挤成两三行，底栏高度乱跳。 */
+  .sticky-ask .sa-price { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sticky-ask .btn { min-height: 44px; flex: 0 0 auto; }
+  .sticky-ask .sa-label { display: block; max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body:has(.sticky-ask) { padding-bottom: 74px; }
 
   /* 手机上适配标签允许换行，不再被裁掉 */
   .fit-row { flex-wrap: wrap; }
   .fit-block-icons { margin-top: 6px; }
+
+  /* 详情页操作区手机竖排：横排时"向豆豆鼠询问/收藏/PayPal"在长语言下会挤破容器 */
+  .detail-actions { flex-direction: column; align-items: stretch; }
+  .detail-actions .btn { width: 100%; }
 
   /* 筛选与排序控件放大到 40px 以上，手指点得准 */
   .radio-row label, .filter-group label, .chip { min-height: 36px; display: inline-flex; align-items: center; }

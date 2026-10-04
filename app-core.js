@@ -95,25 +95,43 @@ function initTrialBanner() {
 function applyViewerLang(root) {
   if (!root) return;
   if (state.lang === 'zh' || state.lang === 'en') return;
+  const tgt = providerLang(state.lang);
+  const jobs = [];
   root.querySelectorAll('[data-l10n]').forEach(el => {
     const parts = (el.dataset.l10n || '').split(':');
     if (parts.length < 3) return;
     const id = parts[0], key = parts[1], srcLang = parts[2];
     const srcText = el.dataset.l10nText || '';
     if (!srcText) return;
-    const tgt = providerLang(state.lang);
     if (tgt === srcLang) return;
     const cacheKey = 'l10n:' + srcLang + '>' + tgt + ':' + id + ':' + key;
     if (contentCache[cacheKey]) { el.textContent = contentCache[cacheKey]; return; }
-    const seq = (el._l10nSeq = (el._l10nSeq || 0) + 1);
-    realTranslate(srcText, state.lang).then(res => {
-      if (res.mode !== 'offline' && res.text && res.text !== srcText) {
-        contentCache[cacheKey] = res.text;
-        saveContentCache();
-      }
-      if (el.isConnected && el._l10nSeq === seq && res.text) el.textContent = res.text;
-    }).catch(() => { /* 保持源语言兜底 */ });
+    jobs.push({ el: el, cacheKey: cacheKey, text: srcText });
   });
+  if (!jobs.length) return;
+  /* 合并成一次批量请求：原来每个文本一次请求，一页 5–8 个文本就是 5–8 次往返，
+   * 用户看到的"点了要等很久"主要是这个。 */
+  const uniq = [];
+  for (const j of jobs) if (uniq.indexOf(j.text) < 0) uniq.push(j.text);
+  api.translate.batch(uniq, tgt, jobs[0].text ? detectSource(jobs[0].text) : null).then(res => {
+    const map = {};
+    const items = (res && res.items) || [];
+    items.forEach((it, i) => {
+      const src = uniq[i];
+      if (!src || !it || !it.text) return;
+      if (it.provider === 'offline' || it.text === src) return;
+      map[src] = it.text;
+    });
+    let dirty = false;
+    for (const j of jobs) {
+      const out = map[j.text];
+      if (!out) continue;
+      contentCache[j.cacheKey] = out;
+      dirty = true;
+      if (j.el.isConnected) j.el.textContent = out;
+    }
+    if (dirty) saveContentCache();
+  }).catch(() => { /* 保持源语言兜底 */ });
 }
 
 /* 线上（http）模式不要把本地演示数据先渲染出来：
@@ -134,6 +152,9 @@ function blankHttpState(prev) {
   base.contracts = [];
   base.afterSales = [];
   base.suggestions = [];
+  base.quickReplies = [];
+  base.addresses = [];
+  base.records = [];
   base.notifications = [];
   base.users = [];
   base.companies = [];
@@ -310,8 +331,12 @@ function fmtPrice(n) {
   return n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 2 : 1 });
 }
 
-function flagEmoji(code) {
-  return String.fromCodePoint(...[...code].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+/* 国家/地区标记：原来返回国旗 emoji（区域指示符对），但 **Windows 没有旗帜字形**，
+ * 两端字母会被画成"方框字母"，用户看到的就是乱码（反馈过两轮）。
+ * 现在统一返回大写两字码（DE / US / JP），任何系统都能正常显示，B2B 场景也更好认。 */
+function countryTag(code) {
+  const c = String(code || '').trim().toUpperCase().replace(/[^A-Z]/g, '');
+  return c.slice(0, 3);
 }
 
 function countryName(code) {
@@ -369,8 +394,15 @@ function addLog(actor, action, target, detail) {
   });
 }
 
+/* 头像文字：中文公司名取前两个字（"豆豆鼠宠物用品"→"豆豆"），英文取前两个词首字母。
+ * 之前按空格切词，"豆豆鼠宠物用品（自营出口）BeanBeanMouse" 会算成"豆B"，看着莫名其妙。 */
 function initialsOf(str) {
-  return String(str || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'BT';
+  const s = String(str || '').trim();
+  if (!s) return 'BT';
+  const cjk = s.match(/[\u4e00-\u9fa5]+/g);
+  if (cjk && cjk[0]) return cjk[0].slice(0, 2);
+  const words = s.split(/[\s·|,，、（）()]+/).filter(Boolean);
+  return words.slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'BT';
 }
 
 /* ---------- 实时翻译：第三方服务 + 本地缓存 + 离线词典兜底 ---------- */
@@ -496,8 +528,22 @@ async function realTranslate(text, target) {
   }
 }
 
-/* 远端翻译：拿到就写缓存，全失败则回落离线词典 */
+/* 远端翻译：拿到就写缓存，全失败则回落离线词典
+ *
+ * 通道顺序很关键：**先走自家 /api/translate**（Cloudflare Workers AI，站内闭环、
+ * 有服务端缓存、不受浏览器跨域限制）。以前这里第一位就是 MyMemory、LibreTranslate
+ * 这类公共接口：线上被限流/要密钥，整页译文静默退回离线词典 → 用户看到的
+ * "我发布的产品翻译不出来"就是这个。公共接口现在只作为自家接口故障时的兜底。 */
 async function translateRemote(s, tgt, key) {
+  try {
+    const r = await api.translate.text(s, tgt, detectSource(s));
+    const out = r && r.text ? String(r.text).trim() : '';
+    if (out && r.provider !== 'offline' && out !== s) {
+      transCache[key] = out;
+      saveTransCache();
+      return { text: out, mode: 'remote' };
+    }
+  } catch (e) { /* 自家接口不可用：退回公共接口 */ }
   try {
     const out = await translateViaMyMemory(s, tgt);
     if (out && out.trim()) { transCache[key] = out.trim(); saveTransCache(); return { text: out.trim(), mode: 'remote' }; }
@@ -546,7 +592,8 @@ async function fillTransBox(box, text) {
     const pill = box.closest('.trans-preview, .trans-msg') ? box.closest('.trans-preview, .trans-msg').querySelector('.trans-pill, .trans-label') : null;
     if (pill) {
       const extra = res.mode === 'offline' ? ' · ' + t('transOffline') : '';
-      pill.textContent = '⚡ ' + t('translateLabel') + extra;
+    /* 这里只能用纯文本（textContent）：不用 emoji，Windows 上部分字体渲染成方块 */
+    pill.textContent = t('translateLabel') + extra;
     }
   }
 }
@@ -579,6 +626,7 @@ function icon(name, extra = '') {
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     sparkle: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    headset: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54Z"/>',
     mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
@@ -678,6 +726,8 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'aftersales-respond-form') p = submitAfterSalesRespond(f);
   else if (f.dataset.form === 'aftersales-arbitrate-form') p = submitAfterSalesArbitrate(f);
   else if (f.dataset.form === 'chat-send') p = sendChatMessage(f);
+  else if (f.dataset.form === 'qr-add') p = submitQuickReply(f);
+  else if (f.dataset.form === 'address-form') p = submitAddress(f);
   else if (f.dataset.form === 'profile-form') p = submitProfile(f);
   else if (f.dataset.form === 'change-password') p = submitChangePassword(f);
   else if (f.dataset.form === 'feedback-form') p = submitFeedback(f);
@@ -759,6 +809,20 @@ function handleAction(el) {
   switch (a) {
     case 'toggle-fav': toggleFav(id); break;
     case 'open-inquiry': openInquiryModal(id); break;
+    case 'preview-product': openProductPreview(id); break;
+    case 'copy-product-code': copyText(productCodeOf(productById(id)), t('productCodeLabel')); break;
+    case 'copy-product-link': copyText(productLinkOf(id), t('copyProductLink')); break;
+    case 'toggle-prod-picker': toggleProdPicker(el); break;
+    case 'send-product': sendProductToConv(el.dataset.conv, id, el); break;
+    case 'toggle-qr': toggleQrPanel(el); break;
+    case 'qr-lang': setQrLang(el); break;
+    case 'qr-scene': setQrScene(el); break;
+    case 'qr-insert': insertQuickReply(el); break;
+    case 'qr-translate': translateChatInput(el); break;
+    case 'qr-manage': openQrManager(); break;
+    case 'qr-delete':
+      if (confirm(t('qrDeleteConfirm'))) deleteQuickReply(id);
+      break;
     case 'open-product': go('/product/' + id); break;
     case 'login-role': loginAs(el.dataset.role); break;
     case 'login-guest': logout(true); break;
@@ -828,7 +892,7 @@ function handleAction(el) {
       const src = img ? img.getAttribute('src') : '';
       if (!src) break;
       showModal('<div class="modal-head"><h3>' + t('businessCard') + '</h3>'
-        + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+        + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
         + '<div class="modal-body"><img class="card-zoom-img" src="' + src + '" alt="' + esc(t('businessCard')) + '">'
         + '<p class="small muted">' + t('cardZoomHint') + '</p></div>');
       break;
@@ -901,9 +965,39 @@ function handleAction(el) {
       }).catch(err => toast((err && err.message) || String(err)));
       break;
     }
-    case 'open-conv': go('/dashboard/messages?conv=' + encodeURIComponent(id)); break;
+    /* 管理员没有独立的"消息"页（对话都在客服工作台），
+     * 以前这里写死 /dashboard/messages，管理员点会话就被带回数据看板。 */
+    case 'open-conv': go(((state.user && state.user.role === 'admin') ? '/dashboard/service' : '/dashboard/messages') + '?conv=' + encodeURIComponent(id)); break;
+    case 'conv-jump-bottom': jumpChatToBottom(el.dataset.conv || id); break;
+    case 'address-add': showModal(addressFormHtml(null)); break;
+    case 'address-edit': {
+      const a = (state.addresses || []).find(x => x.id === id);
+      if (a) showModal(addressFormHtml(a));
+      break;
+    }
+    case 'address-delete':
+      if (confirm(t('addrDeleteConfirm'))) deleteAddress(id);
+      break;
+    case 'address-export': exportAddressesCsv(); break;
+    case 'records-refresh': hydrateRecords(true); break;
+    case 'records-export': exportRecordsCsv(); break;
+    case 'rec-kind': {
+      const list = el.closest('.card') ? el.closest('.card').querySelector('.rec-list') : null;
+      el.parentElement.querySelectorAll('.rec-filter').forEach(b => b.classList.toggle('on', b === el));
+      if (list) { list.dataset.kind = el.dataset.kind || ''; applyRecordFilter(list); }
+      break;
+    }
+    case 'conv-unread-toggle': {
+      const list = el.closest('.conv-side') ? el.closest('.conv-side').querySelector('[data-conv-list]') : null;
+      if (!list) break;
+      list.dataset.unreadOnly = list.dataset.unreadOnly === '1' ? '0' : '1';
+      el.classList.toggle('on', list.dataset.unreadOnly === '1');
+      applyConvFilter(list);
+      break;
+    }
     case 'export-orders': exportOrdersCsv(); break;
     case 'export-inquiries': exportInquiriesCsv(); break;
+    case 'export-products': exportProductsCsv(); break;
     case 'pay-open': {
       const o = (state.orders || []).find(x => x.id === id);
       if (o) openPayModal(o);
@@ -1058,26 +1152,20 @@ function handleAction(el) {
     case 'close-help': closeHelp(); break;
     case 'verify-product': {
       const p = productById(id);
-      if (p) showFakeResult(p, fakeCodeOf(p));
+      if (p) {
+        /* 点"验真"→ 打开核验弹窗并自动核验（以前只在前端本地比对，页面码与服务端不一致时必然"查不到"） */
+        openFakeCheck();
+        const input = $('#fakeCodeInput');
+        if (input) input.value = fakeCodeOf(p);
+        runFakeVerify(fakeCodeOf(p));
+      }
       break;
     }
     case 'fake-verify': {
-      const input = $('#fakeCodeInput');
+      const input = $('#fakeCodeInput') || $('#verifyCodeInput');
       const code = (input ? input.value : '').trim().toUpperCase();
       if (!code) { toast(t('fakeEnter')); return; }
-      const p = productByFakeCode(code);
-      if (p) showFakeResult(p, code);
-      else {
-        closeModal();
-        showModal(
-          '<div class="modal-head"><h3>🔍 ' + t('fakeCheck') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
-          + '<div class="modal-body fake-result"><div class="fake-ico fake-ico--bad">✕</div>'
-          + '<p class="fake-genuine" style="color:var(--danger)">' + t('fakeNotFound') + '</p>'
-          + '<p class="small muted" style="text-align:center">' + t('fakeHint') + '</p>'
-          + '<button type="button" class="btn btn-primary" data-action="fake-check" style="margin-top:12px">' + t('fakeVerify') + '</button>'
-          + '</div>'
-        );
-      }
+      runFakeVerify(code);
       break;
     }
     case 'set-lang':
@@ -1238,7 +1326,7 @@ function renderHeader() {
         ? notifRows.map(n => '<div class="notif-row' + (n.read ? ' read' : '') + '" data-action="notif-open" data-id="' + esc(n.id) + '"' + (n.link ? ' data-nav="' + esc(n.link) + '"' : '') + '>'
           + '<b>' + esc(n.title) + '</b><p>' + esc(n.body) + '</p>'
           + '<span class="small muted">' + fmtDate(n.createdAt) + '</span>'
-          + '<button type="button" class="notif-x" data-action="notif-dismiss" data-id="' + esc(n.id) + '" aria-label="' + t('close') + '">✕</button></div>').join('')
+          + '<button type="button" class="notif-x" data-action="notif-dismiss" data-id="' + esc(n.id) + '" aria-label="' + t('close') + '">' + icon('x') + '</button></div>').join('')
         : '<p class="small muted">' + t('notificationsEmpty') + '</p>')
       + '<button type="button" class="btn btn-sm btn-block" data-action="notif-read-all">' + t('markAllRead') + '</button>'
       + '</div></div>';
@@ -1274,7 +1362,7 @@ function renderFirstVisitHint() {
   bar.id = 'langHint';
   bar.className = 'lang-hint';
   bar.innerHTML = '<div class="lang-hint-inner">'
-    + '<span class="lang-hint-ico">🌐</span>'
+    + '<span class="lang-hint-ico">' + icon('globe') + '</span>'
     + '<div class="lang-hint-txt"><b>' + esc(t('firstVisitTitle')) + '</b> ' + esc(t('firstVisitDesc')) + '</div>'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="lang-more">' + esc(t('chooseLang')) + '</button>'
     + '<button type="button" class="btn btn-sm" data-action="dismiss-lang-hint">' + esc(t('gotIt')) + '</button>'
@@ -1286,14 +1374,14 @@ function renderFirstVisitHint() {
 function openLangModal() {
   const items = LANG_META.map(m =>
     '<button type="button" class="lang-opt' + (state.lang === m.code ? ' on' : '') + '" data-action="set-lang" data-lang="' + m.code + '">'
-    + '<span class="lang-flag">' + flagEmoji(m.flag) + '</span>'
+    + '<span class="lang-flag">' + countryTag(m.flag) + '</span>'
     + '<span class="lang-name">' + esc(m.local) + '</span>'
     + '<span class="lang-code">' + m.code.toUpperCase() + '</span>'
     + '</button>').join('');
   showModal(
-    '<div class="modal-head"><h3>🌐 ' + t('chooseLang') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">✕</button></div>'
+    '<div class="modal-head"><h3>' + icon('globe') + ' ' + t('chooseLang') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
-    + '<button type="button" class="lang-auto" data-action="lang-auto">🖥 ' + t('langAuto') + '<span class="lang-code">' + esc(detectBrowserLang().toUpperCase()) + '</span></button>'
+    + '<button type="button" class="lang-auto" data-action="lang-auto">' + icon('globe') + ' ' + t('langAuto') + '<span class="lang-code">' + esc(detectBrowserLang().toUpperCase()) + '</span></button>'
     + '<div class="lang-grid">' + items + '</div>'
     + '<p class="small muted lang-note">' + t('langNote') + '</p>'
     + '</div>'

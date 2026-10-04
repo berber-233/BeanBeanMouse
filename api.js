@@ -253,6 +253,7 @@ function toServerProduct(p = {}) {
     srcLang: p.srcLang || 'en',
     status: p.status,
     paypalUrl: p.paypalUrl || p.paypal_url || '',
+    code: p.code || '',
     translations: {
       en: { title: en.title || '', description: en.desc || en.description || '', features: en.features || [] },
       zh: { title: zh.title || '', description: zh.desc || zh.description || '', features: zh.features || [] }
@@ -881,6 +882,14 @@ api.translate = {
     if (api.config.mode === 'http') return apiRequest('/translate', { method: 'POST', body: { text, target, source } });
     await apiDelay();
     return { text: String(text || ''), target: target, source: source || null, mode: 'mock', note: '演示：真实翻译由服务端代理' };
+  },
+  /* 批量：一次请求翻多段（页面自动翻译、商品发布表单都用它） */
+  async batch(texts, target, source) {
+    const list = Array.isArray(texts) ? texts : [];
+    if (!list.length) return { items: [] };
+    if (api.config.mode === 'http') return apiRequest('/translate/batch', { method: 'POST', body: { texts: list, target, source } });
+    await apiDelay();
+    return { items: list.map(x => ({ text: String(x || ''), provider: 'mock' })), target: target, source: source || null, mode: 'mock' };
   }
 };
 
@@ -1475,6 +1484,95 @@ api.logistics = {
 /* ============================================================
  * 服务：优化建议收集（公开提交 -> 管理员跟进）
  * ============================================================ */
+/* ============================================================
+ * 服务：客服快捷短语 / 聊天话术（每个账号自己的一套，随账号同步）
+ * ============================================================ */
+/* ============================================================
+ * 服务：地址管理 / 表单记录（pet0.3）
+ * ============================================================ */
+api.addresses = {
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/addresses');
+      return r.items || [];
+    }
+    await apiDelay();
+    return apiClone(mockState().addresses || []);
+  },
+  async create(fields = {}) {
+    if (api.config.mode === 'http') return apiRequest('/addresses', { method: 'POST', body: fields });
+    await apiDelay();
+    const st = mockState();
+    st.addresses = st.addresses || [];
+    const rec = Object.assign({ id: 'ad' + Date.now(), source: 'manual', use_count: 0, created_at: Date.now(), updated_at: Date.now() }, fields);
+    st.addresses.unshift(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async update(id, fields = {}) {
+    if (api.config.mode === 'http') return apiRequest('/addresses/' + encodeURIComponent(id), { method: 'PUT', body: fields });
+    await apiDelay();
+    const st = mockState();
+    st.addresses = (st.addresses || []).map(x => x.id === id ? Object.assign({}, x, fields, { updated_at: Date.now() }) : x);
+    mockSave(st);
+    return apiClone((st.addresses || []).find(x => x.id === id));
+  },
+  async remove(id) {
+    if (api.config.mode === 'http') return apiRequest('/addresses/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.addresses = (st.addresses || []).filter(x => x.id !== id);
+    mockSave(st);
+    return { ok: true, id: id };
+  }
+};
+api.records = {
+  async list({ kw, kind } = {}) {
+    if (api.config.mode === 'http') {
+      const qs = new URLSearchParams({ kw: kw || '', kind: kind || '' });
+      const r = await apiRequest('/records?' + qs.toString());
+      return r.items || [];
+    }
+    await apiDelay();
+    return [];
+  }
+};
+
+api.quickReplies = {
+  async list() {
+    if (api.config.mode === 'http') {
+      const r = await apiRequest('/quick-replies');
+      return r.items || [];
+    }
+    await apiDelay();
+    return apiClone(mockState().quickReplies || []);
+  },
+  async create({ scene, title, body, lang, sort } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/quick-replies', { method: 'POST', body: { scene, title, body, lang, sort } });
+    await apiDelay();
+    if (!String(title || '').trim() || !String(body || '').trim()) throw new Error('VALIDATION');
+    const st = mockState();
+    const rec = {
+      id: 'qr' + Date.now(), userId: st.user ? st.user.id : null,
+      scene: String(scene || 'custom'), title: String(title).trim(), body: String(body).trim(),
+      lang: lang === 'en' ? 'en' : 'zh', sort: Number(sort) || 0,
+      created_at: Date.now(), updated_at: Date.now()
+    };
+    st.quickReplies = st.quickReplies || [];
+    st.quickReplies.push(rec);
+    mockSave(st);
+    return apiClone(rec);
+  },
+  async remove(id) {
+    if (api.config.mode === 'http') return apiRequest('/quick-replies/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    const st = mockState();
+    st.quickReplies = (st.quickReplies || []).filter(x => x.id !== id);
+    mockSave(st);
+    return { ok: true, id };
+  }
+};
+
 api.suggestions = {
   async create({ type, content, contact } = {}) {
     if (api.config.mode === 'http') return apiRequest('/suggestions', { method: 'POST', body: { type, content, contact } });

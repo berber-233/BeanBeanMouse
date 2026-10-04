@@ -1949,7 +1949,7 @@ const PORT_CHARGES = [
 /* 合规中心：管制与合规清单（演示参考） */
 const COMPLIANCE_RULES = [
   {
-    id: 'export-control', icon: '🛃',
+    id: 'export-control', icon: 'file',
     zh: { name: '出口管制与两用物项', items: [
       '中国《出口管制法》与两用物项出口管制清单',
       '美国 EAR（出口管理条例）与实体清单',
@@ -1966,7 +1966,7 @@ const COMPLIANCE_RULES = [
     ] }
   },
   {
-    id: 'sanctions', icon: '🚫',
+    id: 'sanctions', icon: 'shield',
     zh: { name: '制裁与名单筛查', items: [
       'OFAC SDN（特别指定国民名单）',
       '美国商务部实体清单（Entity List）',
@@ -1983,7 +1983,7 @@ const COMPLIANCE_RULES = [
     ] }
   },
   {
-    id: 'trade-remedies', icon: '⚖️',
+    id: 'trade-remedies', icon: 'shield',
     zh: { name: '贸易救济（反倾销 / 反补贴 / 关税）', items: [
       '美国 Section 301 对华关税（按 HTS 核实）',
       '欧盟对华反倾销 / 反补贴税（如电动汽车、铝材等）',
@@ -1998,7 +1998,7 @@ const COMPLIANCE_RULES = [
     ] }
   },
   {
-    id: 'product-rules', icon: '🧪',
+    id: 'product-rules', icon: 'box',
     zh: { name: '产品合规与环保法规', items: [
       '欧盟 CE / RoHS / REACH / WEEE',
       '美国 FCC / UL / FDA / CPSC',
@@ -2042,6 +2042,103 @@ const CARD_TEMPLATES = [
   { id: 'oriental-ink', zh: '东方雅韵', en: 'Oriental Ink', swatch: 'linear-gradient(135deg,#F7F1E3,#EAE0C8)' }
 ];
 
+/* ============================================================
+ * 客服话术库（内置，中英双语，pet0.3）
+ * 场景分组 + 常用话术。占位符在插入时自动替换：
+ *   {{name}} 买家称呼 · {{code}} 货号 · {{price}} 价格区间
+ *   {{moq}} 起订量 · {{lead}} 交期天数 · {{me}} 客服名
+ * 自建/改过的话术存服务器（quick_replies 表），内置的随版本升级。
+ * ============================================================ */
+const QUICK_REPLY_SCENES = [
+  { id: 'greeting', zh: '开场接待', en: 'Opening' },
+  { id: 'qualify', zh: '问清需求', en: 'Qualify' },
+  { id: 'quote', zh: '报价', en: 'Quotation' },
+  { id: 'sample', zh: '样品', en: 'Sample' },
+  { id: 'lead', zh: '交期产能', en: 'Lead time' },
+  { id: 'payment', zh: '付款方式', en: 'Payment' },
+  { id: 'shipping', zh: '物流运费', en: 'Shipping' },
+  { id: 'cert', zh: '认证资质', en: 'Certifications' },
+  { id: 'oem', zh: '定制 OEM', en: 'OEM / custom' },
+  { id: 'followup', zh: '跟进催复', en: 'Follow-up' },
+  { id: 'after', zh: '售后处理', en: 'After-sales' },
+  { id: 'handoff', zh: '转邮件 / 联络', en: 'Switch to email' },
+  { id: 'sourcing', zh: '没上架的货', en: 'Not listed yet' },
+  { id: 'hold', zh: '锁价锁产能', en: 'Hold price' }
+];
+
+const QUICK_REPLY_LIB = [
+  {
+    scene: 'greeting', titleZh: '开场接待', titleEn: 'Opening reply',
+    zh: '您好 {{name}}，我是豆豆鼠的外贸客服 {{me}}，很高兴收到你的询盘。我们直接对接工厂，今天内给你明确答复。为了一次问清、少来回，麻烦先告诉我：① 货号或款式 ② 数量与目标市场 ③ 包装或认证上的特殊要求。',
+    en: 'Hello {{name}}, this is {{me}} from BeanBeanMouse. Thank you for your inquiry. We work directly with the factory, so you will get a firm answer today. To save us both a round trip, could you confirm: (1) the item code or model, (2) quantity and target market, (3) any packing or certification requirements?'
+  },
+  {
+    scene: 'qualify', titleZh: '问清需求（四要素）', titleEn: 'Qualify the request',
+    zh: '为了给你准确报价，我需要四个信息：① 目的国/地区 ② 数量、拼柜还是整柜 ③ 希望用的贸易术语（FOB / CIF / DDP）④ 包装与唛头要求。这四点给我，我今天就能出正式报价单。',
+    en: 'To quote accurately I need four things: (1) destination country or region, (2) quantity and whether you ship LCL or FCL, (3) the Incoterm you prefer (FOB / CIF / DDP), (4) packing and shipping-mark requirements. Send me these four and I will issue the formal quotation today.'
+  },
+  {
+    scene: 'quote', titleZh: '报价口径', titleEn: 'Quotation details',
+    zh: '报价如下（货号 {{code}}）：{{price}}，起订量 {{moq}}，交期约 {{lead}} 天，价格有效期 15 天。含中性包装；彩盒或定制唛头请把设计稿发我，差价单独报。需要我把 FOB 和 CIF 两个口径都算一遍吗？',
+    en: 'Quotation for item {{code}}: {{price}}, MOQ {{moq}}, lead time about {{lead}} days, valid for 15 days. It includes neutral packing; for colour boxes or custom shipping marks please send the artwork and I will quote the difference. Would you like both FOB and CIF figures?'
+  },
+  {
+    scene: 'sample', titleZh: '样品安排', titleEn: 'Sample arrangement',
+    zh: '样品可以提供：现货样品 2–3 天发出，样品费可在大货订单里抵扣；定制样品约 7–10 天，需要你先确认图案或规格。快递运费到付或先付都行，你更方便哪种？',
+    en: 'Samples are available: stock samples ship in 2 to 3 days and the sample fee is deductible from your bulk order. Customised samples take about 7 to 10 days and need your artwork or spec confirmed first. Courier charges can be collect or prepaid, whichever is easier for you.'
+  },
+  {
+    scene: 'lead', titleZh: '交期与产能', titleEn: 'Lead time and capacity',
+    zh: '常规款 {{lead}} 天左右出货，旺季会多 3–5 天；量大的订单我们可以先锁产能再排产。你计划什么时候上架？我按你的时间倒排一个排产表给你。',
+    en: 'Standard items ship in about {{lead}} days; add 3 to 5 days in peak season. For larger volumes we can reserve capacity before production starts. When do you plan to launch? I will work a production schedule backwards from your date.'
+  },
+  {
+    scene: 'payment', titleZh: '付款方式', titleEn: 'Payment terms',
+    zh: '付款方式支持三种：① PayPal（商品页有付款链接，适合样品和小额）② 电汇 T/T（30% 定金 + 尾款见提单副本，适合大货）③ 信用证 L/C（大额可谈）。你倾向哪种？我把对应的收款信息发给你。',
+    en: 'We accept three payment options: (1) PayPal, with a payment link on the product page, best for samples and small amounts; (2) T/T, 30 percent deposit and the balance against B/L copy, best for bulk; (3) L/C, negotiable for large orders. Which one suits you? I will send the matching payment details.'
+  },
+  {
+    scene: 'shipping', titleZh: '物流与运费', titleEn: 'Shipping and freight',
+    zh: '运费要按体积重/毛重加目的港才能算准。麻烦给我：① 目的港或邮编 ② 件数与外箱尺寸（没有的话我按常规箱规估）③ 是否接受拼箱。我一般当天给你快递、空运、海运三个方案，含时效和大致费用。',
+    en: 'Freight depends on volumetric and actual weight plus the destination. Please send: (1) destination port or postcode, (2) carton count and dimensions, or I estimate with our standard carton, (3) whether LCL is acceptable. I usually come back the same day with three options: courier, air and sea, with transit time and indicative cost.'
+  },
+  {
+    scene: 'cert', titleZh: '认证与资质', titleEn: 'Certifications',
+    zh: '货号 {{code}} 可以提供检测报告、材质说明，CE / FDA 等按市场要求办理。发欧盟需要 CE 加欧代信息，发美国需要 FDA / CPSC 相关文件。你那边清关具体要哪些？我先把能提供的发你核对。',
+    en: 'For item {{code}} we can provide test reports and material statements, and arrange CE / FDA documentation as your market requires. EU shipments need CE plus an authorised representative; US shipments need FDA / CPSC documents. Tell me what your customs broker asks for and I will send what we have for review.'
+  },
+  {
+    scene: 'oem', titleZh: '定制 / OEM', titleEn: 'OEM and customisation',
+    zh: 'OEM 可以做：起订量按品类不同，一般 {{moq}} 起；需要你提供 logo 源文件或设计稿、颜色和包装要求。我们先出样确认再量产，样品确认到出货约 20–30 天。要不要我先发你一份定制清单？',
+    en: 'OEM is available: MOQ starts from {{moq}} depending on the item. I need your logo source file or artwork, plus colour and packing requirements. We produce a sample for approval before mass production, and it is about 20 to 30 days from sample approval to shipment. Shall I send you a customisation checklist?'
+  },
+  {
+    scene: 'followup', titleZh: '跟进催复', titleEn: 'Follow-up',
+    zh: '{{name}} 你好，跟进一下上一条报价（货号 {{code}}）。价格和交期都给你留着；如果还在比价，把目标价告诉我，我再看工厂能不能优化一版。如果暂时不需要，也回我一句，我就不打扰你了。',
+    en: 'Hi {{name}}, following up on the quotation for item {{code}}. The price and lead time are still held for you. If you are still comparing offers, share your target price and I will see what we can do with the factory. If the timing is not right, just say so and I will not chase you.'
+  },
+  {
+    scene: 'after', titleZh: '售后处理', titleEn: 'After-sales handling',
+    zh: '收到，抱歉给你添麻烦了。麻烦发我：① 订单号或货号 ② 问题照片/短视频 ③ 受影响数量与到货时间，我先核实批次。确认是我们的问题，我们按约定补发、换货或退款，这部分损失不会让你承担。',
+    en: 'Noted, and sorry for the trouble. Please send me: (1) order or item code, (2) photos or a short video of the issue, (3) the quantity affected and the arrival date, so I can check the batch. If it is our fault we will reship, replace or refund as agreed, and you will not carry the loss.'
+  },
+  {
+    scene: 'handoff', titleZh: '转邮件对细节', titleEn: 'Switch to email',
+    zh: '细节比较多，用邮件对一遍更清楚：beanbeanmouse.trade@outlook.com（微信同号：beanbeanmouse）。你把公司名、收货地址和需要的文件列一下，我把报价单和资料一并回你邮箱。',
+    en: 'There is a lot of detail, so email is easier to keep straight: beanbeanmouse.trade@outlook.com. Send your company name, delivery address and the documents you need, and I will reply to your mailbox with the quotation and files.'
+  },
+  {
+    scene: 'sourcing', titleZh: '要的货没上架', titleEn: 'Item not listed yet',
+    zh: '你要的这款我们库里可能有、也可能可以定做。麻烦给我：产品照片或链接、用途、目标数量；有实拍图最好，我拿图直接问工厂，24 小时内回你能不能做、什么价。',
+    en: 'The item you need may be in our stock or available as a custom run. Send me a photo or a link, the intended use, and your target quantity. A real photo helps most. I will check with the factory and come back within 24 hours with feasibility and price.'
+  },
+  {
+    scene: 'hold', titleZh: '锁价锁产能', titleEn: 'Hold price and capacity',
+    zh: '为了不耽误你的排期，我可以先把货号 {{code}} 和这个价格给你锁定 7 天（同行里我们算锁得久的）。你回一句确认，我就让工厂留产能，到期前不涨价。',
+    en: 'So your schedule is not held up, I can lock item {{code}} and this price for 7 days, which is longer than most suppliers hold. Reply to confirm and I will reserve the capacity, with no price increase before it expires.'
+  }
+];
+
 const I18N = {
   zh: {
     home: '首页', marketplace: '产品市场', dashboard: '工作台', login: '登录', logout: '退出登录',
@@ -2069,6 +2166,20 @@ const I18N = {
     responseRate: '回复率', responseTime: '平均响应', since: '成立年份', orders: '累计订单', unitLabel: '单位',
     productDetail: '产品详情', features: '产品特性', aboutSeller: '关于供应商', days: '天',
     favorite: '收藏', favorited: '已收藏', inquiryTitle: '向豆豆鼠询问', quantity: '订购数量', message: '询盘内容',
+    serviceTab: '客服工作台', serviceConvs: '个会话', serviceHint: '买家问哪款货，直接在对话里发商品卡片；对方点开就是商品速览。',
+    sendProduct: '发送商品', sendProductSearch: '搜索商品名 / 货号', sendProductHint: '按货号或名称找到商品，一键发进对话',
+    productSent: '商品已发送', productPreview: '商品速览', productCodeLabel: '货号', exportWarehouse: '导出仓库清单',
+    copy: '复制', copyProductLink: '复制商品链接', openProductPage: '打开商品页', productGone: '该商品已下架或被删除',
+    qrTitle: '快捷短语', qrLibrary: '话术库', qrManage: '管理话术', qrTranslate: '译成对方语言',
+    qrHint: '点短语填入输入框，改完再发', qrSceneAll: '全部场景', qrCustomTag: '自建', qrBuiltinTag: '内置',
+    qrAdd: '新增短语', qrName: '短语名称', qrBody: '正文（真正发出去的内容）', qrLangField: '正文语言',
+    qrDeleteConfirm: '删除这条短语？', qrEmpty: '还没有自建短语', qrAdded: '短语已保存', qrDeleted: '短语已删除',
+    qrInserted: '已填入输入框', qrTranslated: '已译成对方语言', qrTransFail: '翻译通道暂时不可用', qrNeedText: '输入框还是空的',
+    qrBuyerLang: '对方语言', qrSceneField: '场景',
+    qrDirect: '点一下直接发', qrSent: '已发送', qrDirectOn: '已开启「点一下直接发」', qrDirectOff: '已改为「先填入、再发送」',
+    convSearchPlaceholder: '搜索买家 / 邮箱 / 货号', convUnreadOnly: '仅未读',
+    dayToday: '今天', dayYesterday: '昨天', jumpLatest: '回到最新',
+    qrPlaceholderNote: '正文里可用占位符：{{name}} 买家称呼、{{code}} 货号、{{price}} 价格、{{moq}} 起订量、{{lead}} 交期、{{me}} 你的名字，插入时自动替换。',
     messagePlaceholder: '请填写您需要的数量、目标价格、包装要求等，供应商将尽快回复您。',
     contactName: '联系人', contactEmail: '邮箱', companyName: '公司名称', countryLabel: '国家/地区',
     send: '发送询盘', cancel: '取消', close: '关闭', required: '请填写必填项', invalidEmail: '邮箱格式不正确',
@@ -2131,7 +2242,7 @@ const I18N = {
     companyPending: '企业认证审核中', companyApproved: '企业已认证 ✓', companyRejected: '企业认证未通过', companyApply: '提交企业资料',
     companyResubmit: '重新提交', companyReason: '驳回原因', companyTip: '为保障买家权益，平台仅允许真实可查证的公司/工厂通过认证后发布产品。',
     myOrders: '我的订单', orders: '订单', noOrders: '暂无订单', orderTotal: '订单金额', orderStatusCreated: '待确认签收',
-    orderStatusComplete: '交易达成', orderStatusCancelled: '已取消', confirmReceipt: '确认签收（交易达成）', dealDone: '🎉 交易达成！感谢双方信任',
+    orderStatusComplete: '交易达成', orderStatusCancelled: '已取消', confirmReceipt: '确认签收（交易达成）', dealDone: ' 交易达成！感谢双方信任',
     tipTitle: '给小费表达感谢', tipHint: '自愿打赏，双方可见，不强制；未结算前可取消', tipAmount: '金额（USD）', tipNote: '留言（选填）',
     tipSend: '发送小费', tipCancel: '取消打赏', tipList: '小费记录', tipCancelled: '（已取消）', tipReceived: '收到打赏',
     tipSkip: '跳过，不用了', tipLater: '以后再说', tipSkipped: '好的，之后仍可在订单中打赏',
@@ -2261,6 +2372,25 @@ const I18N = {
     fakeOkTitle: '验证通过 · 正品', fakeInfo: '该防伪码对应平台已备案产品，产品信息与认证供应商一致，可放心联系交易。',
     fakeProduct: '产品', fakeSeller: '认证供应商', fakeIssued: '平台签发', fakeVerifiedAt: '验证时间',
     fakeScan: '扫码验真（演示）', fakeScanNote: '正式版将接入权威验真服务与区块链存证。',
+    verifyPageTitle: '防伪验真', verifyPageSub: '输入或扫描商品包装上的防伪码，核对是否由 BeanBeanMouse 签发',
+    verifyPlaceholder: '输入防伪码，如 BBM-7K3F-Q9M2', verifyBtn: '验证', verifyChecking: '正在核验…',
+    verifyOk: '正品 · 已验证', verifyFail: '未查到该防伪码',
+    verifyFailNote: '请核对是否输错（区分 0/O、1/I）；若确认无误，该商品可能不是由本平台签发，欢迎把照片发我们核查。',
+    verifyNote: '防伪码由平台在商品入库时随机签发，不可预测；扫码或点链接都会打开本页自动核验。',
+    verifyProduct: '对应商品', verifyBatch: '批次', verifyTimes: '累计验证次数', verifyLast: '本次验证', verifyViewProduct: '查看商品',
+    addressBook: '地址管理', addrAdd: '新增地址', addrEdit: '编辑地址', addrSave: '保存地址',
+    profileContactPlaceholder: '电话 / WhatsApp / 微信',
+    addrCount: '条地址', addrUsed: '已用', addrDeleteConfirm: '删除这条地址记录？',
+    addrSaved: '地址已保存', addrDeleted: '地址已删除',
+    addrSrcOrder: '订单客户', addrSrcInquiry: '询盘客户', addrSrcManual: '手动录入',
+    addrSearchPlaceholder: '搜索公司 / 联系人 / 国家 / 邮箱 / 电话',
+    addrEmpty: '还没有地址记录：客户下单或发询盘后会自动收录，也可以点右上角手动新增',
+    addrNote: '订单/询盘带来的客户会自动收录（同公司+邮箱+国家只留一条并累计使用次数）；导出 CSV 可直接给仓库/货代。',
+    addrLine1: '地址（第一行）', addrLine2: '地址（第二行）', addrZip: '邮编', addrPhone: '电话', addrNoteField: '备注（唛头、收货习惯等）',
+    cityLabel: '城市',
+    recordsTab: '表单记录', recordsCount: '条记录', recordsEmpty: '暂无表单记录（客户发询盘或产生报价/订单后会自动出现）',
+    recordsSearchPlaceholder: '搜索商品 / 货号 / 客户 / 公司 / 单号',
+    recordsNote: '每笔交易的询盘表单、报价、订单与生成单据都在这里，可按类型筛选、搜索并导出 CSV 存档。',
     fakeSiteTitle: '官方平台认证', fakeSiteDesc: '本网站为豆豆鼠（BeanBeanMouse）官方平台。请认准官方域名与平台验真码，谨防仿冒钓鱼网站。',
     fakeDomain: '官方域名',
     fakeSiteCode: '平台验真码', verifySite: '验证本站真伪',
@@ -2556,6 +2686,20 @@ const I18N = {
     responseRate: 'Response rate', responseTime: 'Avg. response', since: 'Since', orders: 'Total orders', unitLabel: 'Unit',
     productDetail: 'Product details', features: 'Key features', aboutSeller: 'About the supplier', days: 'days',
     favorite: 'Favorite', favorited: 'Favorited', inquiryTitle: 'Ask BeanBeanMouse', quantity: 'Order quantity', message: 'Inquiry message',
+    serviceTab: 'Customer service', serviceConvs: 'conversations', serviceHint: 'Send a product card right inside the chat — buyers tap it to see a quick product preview.',
+    sendProduct: 'Send product', sendProductSearch: 'Search by title or item code', sendProductHint: 'Find a product by code or title, then send it into the chat',
+    productSent: 'Product sent', productPreview: 'Product preview', productCodeLabel: 'Item code', exportWarehouse: 'Export warehouse list',
+    copy: 'Copy', copyProductLink: 'Copy product link', openProductPage: 'Open product page', productGone: 'This product is no longer available',
+    qrTitle: 'Quick replies', qrLibrary: 'Script library', qrManage: 'Manage scripts', qrTranslate: 'Translate to buyer language',
+    qrHint: 'Click a phrase to fill the box, edit, then send', qrSceneAll: 'All scenes', qrCustomTag: 'Custom', qrBuiltinTag: 'Built-in',
+    qrAdd: 'New phrase', qrName: 'Phrase name', qrBody: 'Body (what the buyer receives)', qrLangField: 'Body language',
+    qrDeleteConfirm: 'Delete this phrase?', qrEmpty: 'No custom phrases yet', qrAdded: 'Phrase saved', qrDeleted: 'Phrase deleted',
+    qrInserted: 'Inserted into the message box', qrTranslated: 'Translated into the buyer language', qrTransFail: 'Translation is unavailable right now', qrNeedText: 'The message box is empty',
+    qrBuyerLang: 'Buyer language', qrSceneField: 'Scene',
+    qrDirect: 'Send on click', qrSent: 'Sent', qrDirectOn: 'Send-on-click is ON', qrDirectOff: 'Switched to fill-then-send',
+    convSearchPlaceholder: 'Search buyer / email / item code', convUnreadOnly: 'Unread only',
+    dayToday: 'Today', dayYesterday: 'Yesterday', jumpLatest: 'Back to latest',
+    qrPlaceholderNote: 'Placeholders: {{name}}, {{code}}, {{price}}, {{moq}}, {{lead}}, {{me}} — replaced automatically when inserted.',
     messagePlaceholder: 'Tell the supplier your quantity, target price, packaging requirements, etc.',
     contactName: 'Contact name', contactEmail: 'Email', companyName: 'Company', countryLabel: 'Country',
     send: 'Send inquiry', cancel: 'Cancel', close: 'Close', required: 'Please fill in required fields', invalidEmail: 'Invalid email format',
@@ -2618,7 +2762,7 @@ const I18N = {
     companyPending: 'Verification in review', companyApproved: 'Company verified ✓', companyRejected: 'Verification rejected', companyApply: 'Submit company info',
     companyResubmit: 'Re-submit', companyReason: 'Reason', companyTip: 'To protect buyers, only real and verifiable companies/factories can publish after review.',
     myOrders: 'My orders', orders: 'Orders', noOrders: 'No orders yet', orderTotal: 'Order total', orderStatusCreated: 'Awaiting receipt confirmation',
-    orderStatusComplete: 'Deal completed', orderStatusCancelled: 'Cancelled', confirmReceipt: 'Confirm receipt (complete deal)', dealDone: '🎉 Deal completed! Thank you for the trust',
+    orderStatusComplete: 'Deal completed', orderStatusCancelled: 'Cancelled', confirmReceipt: 'Confirm receipt (complete deal)', dealDone: ' Deal completed! Thank you for the trust',
     tipTitle: 'Send a tip', tipHint: 'Optional, visible to both parties, cancellable before settlement', tipAmount: 'Amount (USD)', tipNote: 'Message (optional)',
     tipSend: 'Send tip', tipCancel: 'Cancel tip', tipList: 'Tips', tipCancelled: '(cancelled)', tipReceived: 'Tip received',
     categoryRequestBtn: "Can't find a category? Tell us", categoryRequestTitle: 'Request a category', catName: 'Category you need', catDesc: 'Details (optional)',
@@ -2710,6 +2854,25 @@ const I18N = {
     fakeOkTitle: 'Verification passed · Genuine', fakeInfo: 'This code matches a registered product on the platform and its certified supplier. Safe to contact.',
     fakeProduct: 'Product', fakeSeller: 'Certified supplier', fakeIssued: 'Issued by platform', fakeVerifiedAt: 'Verified at',
     fakeScan: 'Scan to verify (demo)', fakeScanNote: 'The release version will integrate authoritative verification services and blockchain records.',
+    verifyPageTitle: 'Verify authenticity', verifyPageSub: 'Enter or scan the anti-counterfeit code on the packaging to check it was issued by BeanBeanMouse',
+    verifyPlaceholder: 'Enter the code, e.g. BBM-7K3F-Q9M2', verifyBtn: 'Verify', verifyChecking: 'Checking…',
+    verifyOk: 'Genuine · Verified', verifyFail: 'Code not found',
+    verifyFailNote: 'Please check for typos (0 vs O, 1 vs I). If the code is correct, the item may not have been issued by us — send us a photo and we will look into it.',
+    verifyNote: 'Codes are issued randomly at goods-in and cannot be predicted. Scanning the QR or opening the link lands on this page and verifies automatically.',
+    verifyProduct: 'Product', verifyBatch: 'Batch', verifyTimes: 'Total verifications', verifyLast: 'Verified at', verifyViewProduct: 'View product',
+    addressBook: 'Address book', addrAdd: 'New address', addrEdit: 'Edit address', addrSave: 'Save address',
+    profileContactPlaceholder: 'Phone / WhatsApp / WeChat',
+    addrCount: 'addresses', addrUsed: 'used', addrDeleteConfirm: 'Delete this address record?',
+    addrSaved: 'Address saved', addrDeleted: 'Address deleted',
+    addrSrcOrder: 'Order customer', addrSrcInquiry: 'Inquiry customer', addrSrcManual: 'Manual',
+    addrSearchPlaceholder: 'Search company / contact / country / email / phone',
+    addrEmpty: 'No addresses yet. Customers are collected automatically from inquiries and orders, or add one manually.',
+    addrNote: 'Customer addresses are collected automatically from inquiries and orders (one record per company + email + country, with a usage counter). Export CSV for your warehouse or forwarder.',
+    addrLine1: 'Address line 1', addrLine2: 'Address line 2', addrZip: 'Postcode', addrPhone: 'Phone', addrNoteField: 'Notes (marks, delivery habits…)',
+    cityLabel: 'City',
+    recordsTab: 'Form records', recordsCount: 'records', recordsEmpty: 'No records yet — they appear automatically once an inquiry, quotation or order exists',
+    recordsSearchPlaceholder: 'Search product / item code / customer / company / reference',
+    recordsNote: 'Every transaction form, quotation, order and generated document is listed here, filterable, searchable and exportable to CSV.',
     fakeSiteTitle: 'Official platform certification', fakeSiteDesc: 'This is the official BeanBeanMouse platform. Check the official domain and platform code to avoid phishing sites.',
     fakeDomain: 'Official domain',
     fakeSiteCode: 'Platform verification code', verifySite: 'Verify this site',

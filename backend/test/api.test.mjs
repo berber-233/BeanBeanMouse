@@ -184,6 +184,8 @@ let newSellerToken, newSellerUserId;
   });
   check('seller create product -> 201 pending', r.status === 201 && r.data.status === 'pending' && !!r.data.antiFakeCode);
   createdProductId = r.data.id;
+  /* 货号（SKU）：BBM-<品类码>-<4 位序号>，客服/仓库按货号找货 */
+  check('新商品自动分配货号 BBM-XXX-0001', /^BBM-[A-Z]+-\d{4}$/.test(r.data.code || ''));
 }
 {
   const r = await req('/products', { method: 'POST', token: buyerToken, body: { category: 'auto', country: 'CN', translations: { en: { title: 'X' }, zh: { title: 'X' } } } });
@@ -469,6 +471,28 @@ let catReqId;
 }
 
 /* ---- 翻译 / 资讯 / 通知 / 管理 / 安全头 ---- */
+/* ---- 只填一种语言也能发布：另一种由服务端补齐（"发布后客户看不懂/搜不到"的根因修复） ---- */
+let oneLangProductId = null, oneLangCode = '';
+{
+  const r = await req('/products', {
+    method: 'POST', token: adminToken,
+    body: { category: 'pet', sub: 'pet-hamster', country: 'CN', priceMin: 3, priceMax: 5, moq: 100, unit: 'pcs', leadTime: 15, srcLang: 'zh', translations: { zh: { title: '仓鼠静音跑轮 21cm', description: '静音轴承，直径 21cm。' } } }
+  });
+  check('只填中文也能发布 -> 201', r.status === 201 && r.data.id);
+  oneLangProductId = r.data.id;
+  oneLangCode = r.data.code || '';
+  check('另一种语言被自动补齐（英文标题非空）', !!(r.data.translations && r.data.translations.en && r.data.translations.en.title));
+  check('细分类推导出货号前缀 HAM', /^BBM-HAM-\d{4}$/.test(r.data.code || ''));
+}
+{
+  /* 新商品默认待审核，前台只列已上架：这里带管理员令牌看全部 */
+  const r = await req('/products?status=all&kw=' + encodeURIComponent(oneLangCode), { token: adminToken });
+  check('按货号能搜到商品', r.status === 200 && (r.data.items || []).some(p => p.id === oneLangProductId));
+}
+{
+  const r = await req('/products', { method: 'POST', token: adminToken, body: { category: 'pet', country: 'CN', translations: {} } });
+  check('两种语言都没填 -> 400', r.status === 400 && r.data.error === 'VALIDATION');
+}
 {
   const r = await req('/translate', { method: 'POST', body: { text: 'Hello', target: 'zh' } });
   check('translate proxy -> 200', r.status === 200 && r.data.target === 'zh' && r.data.provider === 'offline');
@@ -724,6 +748,55 @@ let catReqId;
 
   const meOld = await req('/auth/me', { token: oldToken });
   check('改密前签发的旧令牌立即失效', meOld.status === 401, 'status=' + meOld.status);
+}
+
+/* ---- 客服快捷短语 / 聊天话术 ---- */
+{
+  const r = await req('/quick-replies', { method: 'POST', token: adminToken, body: { scene: 'quote', title: '报价口径', body: '报价：{{price}}' } });
+  check('快捷短语新建 -> 201', r.status === 201 && !!r.data.id && r.data.scene === 'quote');
+  const id = r.data && r.data.id;
+  const list = await req('/quick-replies', { token: adminToken });
+  check('快捷短语列表（含刚建的）', list.status === 200 && (list.data.items || []).some(x => x.id === id));
+  const other = await req('/quick-replies', { token: buyerToken });
+  check('快捷短语按账号隔离（买家看不到管理员的）', other.status === 200 && !(other.data.items || []).some(x => x.id === id));
+  const bad = await req('/quick-replies', { method: 'POST', token: adminToken, body: { title: '', body: '' } });
+  check('快捷短语缺字段 -> 400', bad.status === 400 && bad.data.error === 'VALIDATION');
+  const upd = await req('/quick-replies/' + id, { method: 'PUT', token: adminToken, body: { body: '更新后的报价' } });
+  check('快捷短语修改 -> 200', upd.status === 200 && upd.data.body === '更新后的报价');
+  const steal = await req('/quick-replies/' + id, { method: 'DELETE', token: buyerToken });
+  check('别人的短语不能删 -> 403', steal.status === 403);
+  const del = await req('/quick-replies/' + id, { method: 'DELETE', token: adminToken });
+  check('快捷短语删除 -> 200', del.status === 200 && del.data.ok === true);
+  const anon = await req('/quick-replies');
+  check('未登录访问快捷短语 -> 401', anon.status === 401);
+}
+
+/* ---- 地址管理 / 表单记录（pet0.3） ---- */
+{
+  const auto = await req('/addresses', { token: adminToken });
+  check('地址簿：询盘后自动收录客户', auto.status === 200 && (auto.data.items || []).length >= 1);
+
+  const created = await req('/addresses', { method: 'POST', token: adminToken, body: { name: '测试联系人', company: 'Unit Test Co', country: 'DE', city: 'Berlin', phone: '+49 30 0000' } });
+  check('地址簿：手动新增 -> 201', created.status === 201 && !!created.data.id);
+  const addrId = created.data && created.data.id;
+
+  const upd = await req('/addresses/' + addrId, { method: 'PUT', token: adminToken, body: { note: '唛头按客户版' } });
+  check('地址簿：修改 -> 200', upd.status === 200 && upd.data.note === '唛头按客户版');
+
+  const buyerList = await req('/addresses', { token: buyerToken });
+  check('地址簿：买家看不到平台地址', buyerList.status === 200 && !(buyerList.data.items || []).some(x => x.id === addrId));
+
+  const del = await req('/addresses/' + addrId, { method: 'DELETE', token: adminToken });
+  check('地址簿：删除 -> 200', del.status === 200 && del.data.ok === true);
+
+  const anon = await req('/addresses');
+  check('地址簿：未登录 -> 401', anon.status === 401);
+
+  const rec = await req('/records', { token: adminToken });
+  check('表单记录：有询盘/报价/订单记录', rec.status === 200 && (rec.data.items || []).length >= 1);
+  check('表单记录：每条都带类型与关联单号', (rec.data.items || []).every(x => !!x.kind && !!x.refId));
+  const recKw = await req('/records?kw=' + encodeURIComponent('zzz-不存在-zzz'), { token: adminToken });
+  check('表单记录：关键词过滤生效', recKw.status === 200 && (recKw.data.items || []).length === 0);
 }
 
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));

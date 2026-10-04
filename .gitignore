@@ -2,6 +2,7 @@
 work/
 dist/
 outputs/
+exports/
 .pnpm-store/
 pnpm-workspace.yaml
 

@@ -10,6 +10,23 @@ export function antiFakeCode(id, sellerId, enTitle) {
   return 'TB-' + String(id).toUpperCase().replace(/[^A-Z0-9]/g, '') + '-' + String(s).padStart(2, '0');
 }
 
+/* 正式防伪码：**随机、不可预测**。
+ * 旧的 antiFakeCode() 是按 id+卖家+标题算哈希，任何人拿到商品 id 就能推算出码，
+ * 等于没有防伪能力（自查时发现的）。新码形如 BBM-7K3F-Q9M2。
+ * 老码继续留在库里、继续可验，不影响存量商品。 */
+const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 去掉 0/O/1/I 等易混字符
+export function newAntiFakeCode() {
+  const bytes = new Uint8Array(8);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  let out = 'BBM-';
+  for (let i = 0; i < 8; i++) {
+    if (i === 4) out += '-';
+    out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  }
+  return out;
+}
+
 export async function seedIfEmpty() {
   const row = (await all('SELECT COUNT(*) AS c FROM users'))[0];
   if (row && row.c > 0) return false;
