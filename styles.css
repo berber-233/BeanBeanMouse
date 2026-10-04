@@ -315,8 +315,15 @@ button { font-family: inherit; }
 .chip.cert { background: var(--primary-050); color: var(--primary); }
 .product-card .foot {
   display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap;
   border-top: 1px solid #EFF2F8; padding: 10px 14px; background: #FBFCFE;
 }
+/* 长语言（俄/日/德）下供应商名 + 询问按钮不再互相顶出卡片：
+ * 名字可缩并可省略，按钮放不下就换到下一行右对齐。 */
+.product-card .foot .seller-mini { flex: 1 1 120px; min-width: 0; overflow: hidden; }
+.product-card .foot .seller-mini .sm-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-card .foot .btn { flex: 0 1 auto; margin-left: auto; max-width: 100%; min-width: 0; }
+.btn-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .seller-mini { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
 /* 国家码标记（替代国旗 emoji：Windows 无旗帜字形，会显示成方框字母） */
 .flag {

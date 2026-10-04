@@ -927,6 +927,34 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('mobile: no overflow at 320px', await noOverflow());
 
+  /* 回归：长语言（俄语）下商品橱窗卡片底栏不能把"向豆豆鼠询问"顶出卡片
+   * （实测修复前 390px 宽时按钮右边缘超出卡片 55px） */
+  await page.setViewportSize({ width: 390, height: 820 });
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1') || '{}');
+    s.lang = 'ru';
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.evaluate(() => { location.hash = '#/products'; });
+  await page.waitForTimeout(600);
+  const footBad = await page.evaluate(() => Array.from(document.querySelectorAll('.product-card .foot')).filter(f => {
+    const r = f.getBoundingClientRect();
+    return Array.from(f.children).some(k => {
+      const q = k.getBoundingClientRect();
+      return q.right > r.right + 1 || q.left < r.left - 1;
+    });
+  }).length);
+  check('i18n: ru 商品卡底栏不溢出卡片', footBad === 0, 'bad=' + footBad);
+  const pageOverflow389 = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check('i18n: ru 390px 无横向溢出', pageOverflow389 <= 0, 'overflow=' + pageOverflow389);
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('bridgetrade_v1') || '{}');
+    s.lang = 'zh';
+    localStorage.setItem('bridgetrade_v1', JSON.stringify(s));
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
   /* 回归：页面上不能把 data:image/... 数据 URI 当文字显示
    * （曾经会话列表的 .conv-ico 直接输出 productImg() 的返回值，
    *   用户看到一长串 "data:image/svg+xml;charset=utf-8,%3Csvg…"） */

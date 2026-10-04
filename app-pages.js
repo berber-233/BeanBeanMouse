@@ -541,8 +541,11 @@ function productCard(p) {
     + '</div>'
     + '</div>'
     + '<div class="foot">'
-    + '<span class="seller-mini"><span class="avatar" style="width:22px;height:22px;font-size:10px">' + esc(initialsOf(langObj(seller).company)) + '</span>' + esc(langObj(seller).company) + '</span>'
-    + '<button type="button" class="btn btn-sm btn-primary" data-action="open-inquiry" data-id="' + p.id + '">' + icon('message') + t('sendInquiry') + '</button>'
+    /* 卡片底部：供应商名与"向豆豆鼠询问"挤在一行。俄语/日语等长文案下，
+     * 两边都不肯缩 → 整行被顶出卡片（用户反馈的"切换语言后 UI 卡出去"）。
+     * 处理：允许换行 + 供应商名省略号 + 按钮文字省略号，放不下就把按钮挪到下一行右对齐。 */
+    + '<span class="seller-mini"><span class="avatar" style="width:22px;height:22px;font-size:10px">' + esc(initialsOf(langObj(seller).company)) + '</span><span class="sm-name">' + esc(langObj(seller).company) + '</span></span>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="open-inquiry" data-id="' + p.id + '">' + icon('message') + '<span class="btn-label">' + t('sendInquiry') + '</span></button>'
     + '</div>'
     + '</article>';
 }
