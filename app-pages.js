@@ -890,7 +890,7 @@ function renderProducts(params) {
     + '<div class="filter-group"><h4>' + t('moq') + '</h4><input class="input" type="number" min="0" id="moqFilter" placeholder="' + t('anyMoq') + '" value="' + (moqMin != null ? moqMin : '') + '"></div>'
     + '<div class="filter-group"><h4>' + t('origin') + '</h4><select class="select" id="originFilter">'
     + '<option value="">' + t('allCountries') + '</option>'
-    + origins.map(o => '<option value="' + o + '" ' + (origin === o ? 'selected' : '') + '>' + countryTag(o) + ' ' + countryName(o) + '</option>').join('')
+    + origins.map(o => '<option value="' + o + '" ' + (origin === o ? 'selected' : '') + '>' + countryLabel(o) + '</option>').join('')
     + '</select></div>'
     + '<div class="filter-group"><h4>' + t('certs') + '</h4><div class="check-group">'
     + CERT_LIST.map(c => '<label class="check-pill"><input type="checkbox" value="' + c + '" data-cert="' + c + '" ' + (certs.includes(c) ? 'checked' : '') + '>' + c + '</label>').join('')
@@ -1083,7 +1083,7 @@ function renderSellerPage(sid) {
     + '<span class="sp-logo">' + esc(initialsOf(companyName)) + '</span>'
     + '<div class="sp-main"><div class="sp-title">' + esc(companyName) + ' ' + statusPill + '</div>'
     + '<div class="sp-en">' + esc(companyEn) + '</div>'
-    + '<div class="sp-meta">' + countryTag(seller.country) + ' ' + countryName(seller.country) + ' · ' + esc(langObj(seller).city) + ' · ' + t('since') + ' ' + seller.since + '</div>'
+    + '<div class="sp-meta">' + countryLabel(seller.country) + ' · ' + esc(langObj(seller).city) + ' · ' + t('since') + ' ' + seller.since + '</div>'
     + (company && company.businessScope ? '<div class="sp-scope">' + esc(company.businessScope) + '</div>' : '')
     + '</div>'
     + '<div class="sp-stats">'
@@ -1144,7 +1144,7 @@ function renderDetail(pid) {
     + '<div class="detail-meta">'
     + '<span class="chip recommend" title="' + esc(t('recommendNote')) + '">' + t('recommendLabel') + ' ' + recStars(p) + '</span>'
     + (p.code ? '<button type="button" class="code-chip" data-action="copy-product-code" data-id="' + esc(p.id) + '" title="' + t('copy') + '">' + t('productCodeLabel') + ' ' + esc(p.code) + '</button>' : '')
-    + '<span>' + countryTag(p.country) + ' ' + countryName(p.country) + '</span>'
+    + '<span>' + countryLabel(p.country) + '</span>'
     + '<span>' + t('orders') + ': ' + p.orders.toLocaleString() + '</span>'
     + (p.hot ? '<span class="badge verified" style="background:var(--accent-050);color:#B45309;border-color:#F3D9A4"> ' + t('hot') + '</span>' : '')
     + '</div>'
@@ -1162,7 +1162,7 @@ function renderDetail(pid) {
     + '<li><span class="k">' + t('terms') + '</span><span class="v">' + (p.terms || []).join(' / ') + '</span></li>'
     + '<li><span class="k">' + t('hsCode') + '</span><span class="v">' + esc(p.hsCode || t('noHsCode')) + '</span></li>'
     + '<li><span class="k">' + t('certs') + '</span><span class="v">' + ((p.certs || []).join(', ') || '—') + '</span></li>'
-    + '<li><span class="k">' + t('originLabel') + '</span><span class="v">' + countryTag(p.country) + ' ' + countryName(p.country) + '</span></li>'
+    + '<li><span class="k">' + t('originLabel') + '</span><span class="v">' + countryLabel(p.country) + '</span></li>'
     + '</ul>'
     + '<details class="term-legend"><summary>' + icon('file') + ' ' + t('incotermsLegend') + '</summary>'
     + INCOTERMS.map(x => '<div class="term-row"><b>' + x.code + '</b><span>' + esc(langObj(x)) + '</span></div>').join('')
@@ -1609,6 +1609,8 @@ function openInquiryModal(pid) {
   const defaultMsg = state.lang === 'zh'
     ? '您好，我对「' + p.zh.title + '」很感兴趣。请报价 ' + p.moq + ' ' + p.unit + ' 的最佳价格（' + (p.terms || ['FOB'])[0] + '），并告知包装与交期。'
     : 'Hello, we are interested in "' + p.en.title + '". Please quote your best price for ' + p.moq + ' ' + p.unit + ' (' + (p.terms || ['FOB'])[0] + ') including packaging and lead time.';
+  /* 国家预填：优先注册/资料里填过的国家，减少"未填写"（看板国家分布全靠这个字段） */
+  const myCountry = (u && (u.buyerCountry || ((state.profiles || {})[u.id] || {}).country)) || '';
   showModal(
     '<div class="modal-head"><h3>' + icon('send') + ' ' + t('inquiryTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
@@ -1632,7 +1634,7 @@ function openInquiryModal(pid) {
     + '<div class="field"><label>' + t('contactName') + ' *</label><input class="input" name="name" value="' + esc(u && u.role === 'buyer' ? u.name : '') + '" required></div>'
     + '<div class="field"><label>' + t('contactEmail') + ' *</label><input class="input" type="email" name="email" value="' + esc(u && u.role === 'buyer' ? u.email : '') + '" required></div>'
     + '<div class="field"><label>' + t('companyName') + '</label><input class="input" name="company" value="' + esc(u && u.role === 'buyer' ? (u.buyerCompany || '') : '') + '"></div>'
-    + '<div class="field"><label>' + t('countryLabel') + '</label><select class="select" name="country"><option value="">—</option>' + buyerCountries.map(c => '<option value="' + c[0] + '" ' + (u && u.buyerCountry === c[0] ? 'selected' : '') + '>' + c[1] + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('countryLabel') + '</label><select class="select" name="country"><option value="">—</option>' + buyerCountries.map(c => '<option value="' + c[0] + '" ' + (myCountry === c[0] ? 'selected' : '') + '>' + c[1] + '</option>').join('') + '</select></div>'
     + '</div>'
     + '<button type="submit" class="btn btn-primary btn-lg btn-block">' + icon('send') + t('send') + '</button>'
     + '</form></div>'
@@ -2086,7 +2088,7 @@ function renderProfileBody() {
   const accentVal = opts.accent || '#8F5E0A';
   const fontVal = opts.font || 'kai';
   const logoName = opts.logoName || '';
-  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (f.country === c ? 'selected' : '') + '>' + countryTag(c) + ' ' + countryName(c) + '</option>').join('');
+  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (f.country === c ? 'selected' : '') + '>' + countryLabel(c) + '</option>').join('');
   const card = businessCardOf();
   const cardPreviewHtml = card
     ? '<div class="card-preview-box"><button type="button" class="card-zoom-btn" data-action="zoom-card" aria-label="' + t('cardZoomHint') + '"><img src="' + card + '" alt="' + esc(t('cardPreviewLabel')) + '"></button>'
@@ -5337,12 +5339,29 @@ function adminOverviewBody() {
   const pending = state.products.filter(p => p.status === 'pending').length;
   const monthAgo = Date.now() - 30 * 864e5;
   const monthInq = state.inquiries.filter(i => i.createdAt > monthAgo).length;
+  /* 自营之后只有一个大类（宠物用品），按大类统计永远只有一根柱 —— 没有信息量。
+   * 改按**细分品类**（仓鼠/猫/小型犬/大型犬/食品/美容/玩具/出行）统计。 */
   const catCount = {};
-  state.inquiries.forEach(i => { const p = productById(i.productId); if (p) catCount[p.cat] = (catCount[p.cat] || 0) + 1; });
+  state.inquiries.forEach(i => {
+    const p = productById(i.productId);
+    if (!p) return;
+    const key = (p.sub && subOf(p)) ? p.sub : p.cat;
+    catCount[key] = (catCount[key] || 0) + 1;
+  });
   const catRows = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
   const maxCat = Math.max(1, ...catRows.map(r => r[1]));
+  const subLabelOf = key => {
+    const s = (CATEGORIES[0].subs || []).find(x => x.id === key);
+    return s ? langObj(s) : langObj(catById(key));   /* barRows 会统一 esc，这里给原始文本 */
+  };
+  /* 国家：询盘表单里是选填，缺了先看买家资料，再缺就归到"未填写"
+   * （原来直接显示一个"—"，看不出是什么意思）。 */
   const cntCount = {};
-  state.inquiries.forEach(i => { const c = i.country || '—'; cntCount[c] = (cntCount[c] || 0) + 1; });
+  state.inquiries.forEach(i => {
+    const u = (state.users || []).find(x => x.id === i.buyerId);
+    const c = i.country || (u && u.country) || '—';
+    cntCount[c] = (cntCount[c] || 0) + 1;
+  });
   const cntRows = Object.entries(cntCount).sort((a, b) => b[1] - a[1]);
   const maxCnt = Math.max(1, ...cntRows.map(r => r[1]));
   const barRows = (rows, max, labelFn) => rows.length
@@ -5357,8 +5376,10 @@ function adminOverviewBody() {
     + adminStatCard('ico-purple', 'message', monthInq, t('statInquiries'))
     + '</div>'
     + '<div class="stat-grid stat-grid--two">'
-    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCategory') + '</h2></div><div class="chart-bars">' + barRows(catRows, maxCat, k => langObj(catById(k))) + '</div></div>'
-    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCountry') + '</h2></div><div class="chart-bars">' + barRows(cntRows, maxCnt, k => k === '—' ? '—' : countryTag(k) + ' ' + countryName(k)) + '</div></div>'
+    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCategory') + '</h2><span class="small muted">' + t('inqByCategoryHint') + '</span></div>'
+    + '<div class="chart-bars">' + barRows(catRows, maxCat, k => subLabelOf(k)) + '</div></div>'
+    + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCountry') + '</h2><span class="small muted">' + t('inqByCountryHint') + '</span></div>'
+    + '<div class="chart-bars">' + barRows(cntRows, maxCnt, k => k === '—' ? t('unknownCountry') : countryLabel(k)) + '</div></div>'
     + '</div>'
     + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('latestActivity') + '</h2><a class="btn btn-sm" href="#/dashboard/logs" data-nav="/dashboard/logs">' + t('viewAll') + ' →</a></div>'
     + (logs.length
@@ -5394,7 +5415,7 @@ function adminReviewCard(p, st) {
     + '<img class="thumb" src="' + productMainImg(p, 240, 180) + '" alt="' + esc(langObj(p).title) + '">'
     + '<div class="info">'
     + '<div class="head"><b>' + esc(langObj(p).title) + '</b><span class="status-pill ' + stCls + '">' + stLabel + '</span></div>'
-    + '<div class="meta small muted">' + esc(langObj(seller).company) + ' · ' + countryTag(p.country) + ' ' + countryName(p.country) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div>'
+    + '<div class="meta small muted">' + esc(langObj(seller).company) + ' · ' + countryLabel(p.country) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' · ' + t('moqLabel') + ' ' + p.moq + ' ' + p.unit + '</div>'
     + '<div class="meta">' + (p.certs || []).map(c => '<span class="chip cert">' + esc(c) + '</span>').join('') + '</div>'
     + ((p.markets || []).length ? '<div class="meta">' + p.markets.map(m => '<span class="chip">' + esc(MARKET_COMPLIANCE[m] ? langObj(MARKET_COMPLIANCE[m]) : m) + '</span>').join('') + '</div>' : '')
     + (st === 'pending'
@@ -5598,7 +5619,7 @@ function realUsersBody() {
           + '<td>' + roleLabel + '</td>'
           + '<td>' + esc(u.email) + '</td>'
           + '<td>' + esc(u.company || '—') + '</td>'
-          + '<td>' + (u.country ? countryTag(u.country) + ' ' + countryName(u.country) : '—') + '</td>'
+          + '<td>' + (u.country ? countryLabel(u.country) : '—') + '</td>'
           + '<td>' + fmtDate(u.joinedAt) + '</td>'
           + '<td><span class="status-pill ' + (frozen ? 'rej' : 'live') + '">' + (frozen ? t('frozenStatus') : t('activeStatus')) + '</span></td>'
           + '<td><div class="row-actions">' + (u.role === 'admin' ? '<span class="small muted">—</span>' : '<button type="button" class="btn btn-sm ' + (frozen ? '' : 'btn-danger-ghost') + '" data-action="freeze-user" data-id="' + u.id + '">' + (frozen ? t('unfreeze') : t('freeze')) + '</button>') + '</div></td>'
@@ -5653,7 +5674,7 @@ function addressesBody() {
 }
 function addressFormHtml(a) {
   const v = a || {};
-  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '"' + (v.country === c ? ' selected' : '') + '>' + countryTag(c) + ' ' + countryName(c) + '</option>').join('');
+  const countries = Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '"' + (v.country === c ? ' selected' : '') + '>' + countryLabel(c) + '</option>').join('');
   return '<div class="modal-head"><h3>' + icon('users') + ' ' + (v.id ? t('addrEdit') : t('addrAdd')) + '</h3>'
     + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + esc(t('close')) + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body"><form data-form="address-form" data-id="' + esc(v.id || '') + '" novalidate>'
@@ -6062,7 +6083,7 @@ function renderPublishForm() {
     + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
     + '<div class="field"><label>' + t('moqField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="moq" value="' + (p ? p.moq : '') + '" required><select class="select" name="unit" style="width:100px">' + UNITS.map(u => '<option value="' + u + '" ' + (p && p.unit === u ? 'selected' : '') + '>' + u + '</option>').join('') + '</select></div></div>'
     + '<div class="field"><label>' + t('leadTimeField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '') + '" required><span class="sep">' + t('days') + '</span></div></div>'
-    + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + countryTag(c) + ' ' + countryName(c) + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + countryLabel(c) + '</option>').join('') + '</select></div>'
     + '<div class="field"><label>' + t('hsCode') + ' <span class="hint">' + t('hsHint') + '</span></label><input class="input" name="hsCode" value="' + esc(p ? (p.hsCode || '') : '') + '" placeholder="8456.11"></div>'
     + '<div class="field full"><label>' + t('paypalField') + ' <span class="hint">' + t('paypalHint') + '</span></label><input class="input" name="paypalUrl" value="' + esc(p ? (p.paypalUrl || '') : '') + '" placeholder="https://www.paypal.com/invoice/p/#XXXX 或 https://paypal.me/xxx/123"></div>'
     + '<div class="form-section-title full">' + t('formSecTerms') + '</div>'

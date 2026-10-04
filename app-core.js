@@ -343,6 +343,15 @@ function countryName(code) {
   const c = COUNTRY_NAMES[code];
   return c ? langObj(c) : code;
 }
+/* 国家显示：有本地化名字就"码 + 名字"（DE 德国），名字本身等于码时只显示一次
+ * （避免出现 "US US" 这种）；没有码就返回空。 */
+function countryLabel(code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return '';
+  const name = countryName(c);
+  const tag = countryTag(c);
+  return (name && name !== tag && name !== c) ? (tag + ' ' + name) : (name || tag);
+}
 
 function catById(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[0]; }
 function subOf(p) {
