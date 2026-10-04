@@ -955,6 +955,33 @@ function resolveBrowser() {
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
 
+  /* 回归：静态 HTML 里不能残留 JS 拼接片段
+   * （曾有 ' + icon('x') + ' 被直接写进 index.html，帮助面板/试运营条显示这串乱码） */
+  const jsLeak = await page.evaluate(() => {
+    const re = /'\s*\+\s*icon\(|\+\s*icon\('|'\s*\+\s*t\('|'\s*\+\s*esc\(/;
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n, hit = [];
+    while ((n = w.nextNode())) {
+      const s = (n.nodeValue || '').trim();
+      if (re.test(s)) hit.push(s.slice(0, 60));
+    }
+    return hit;
+  });
+  check('no JS concat leaked into rendered text', jsLeak.length === 0, jsLeak.join(' | '));
+
+  /* 帮助面板的关闭按钮必须是图形（曾经显示成 ' + icon('x') + '） */
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.waitForTimeout(300);
+  if (await page.locator('[data-action="toggle-help"]').count()) await page.locator('[data-action="toggle-help"]').first().click();
+  await page.waitForTimeout(300);
+  const helpCloseText = await page.evaluate(() => {
+    const el = document.querySelector('.help-close');
+    return el ? (el.textContent || '').trim() : '(no help close)';
+  });
+  check('help: close button is an icon, not leaked code', helpCloseText === '' || helpCloseText.length <= 1, 'text=' + helpCloseText);
+  check('help: close button renders an svg', await page.locator('.help-close svg').count() === 1);
+  if (await page.locator('[data-action="close-help"]').count()) await page.locator('[data-action="close-help"]').first().click().catch(() => {});
+
   /* 回归：页面上不能把 data:image/... 数据 URI 当文字显示
    * （曾经会话列表的 .conv-ico 直接输出 productImg() 的返回值，
    *   用户看到一长串 "data:image/svg+xml;charset=utf-8,%3Csvg…"） */
