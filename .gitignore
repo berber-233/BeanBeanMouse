@@ -5,6 +5,8 @@ outputs/
 exports/
 # 数据库导出备份（含客户邮箱等，只留本地，绝不入库）
 backups/
+# 待上传的商品原图（体积大，只留本地；上传后由对象存储托管）
+incoming/
 .pnpm-store/
 pnpm-workspace.yaml
 
