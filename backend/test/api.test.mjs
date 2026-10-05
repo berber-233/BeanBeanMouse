@@ -223,6 +223,9 @@ let newSellerToken, newSellerUserId;
   check('seller inquiry list contains received', r.status === 200 && r.data.some(i => i.id === inquiryId));
   const notif = await req('/notifications', { token: sellerToken });
   check('seller notified on new inquiry', notif.status === 200 && notif.data.some(n => n.type === 'inquiry'));
+  /* 买家回执：外贸询盘最怕"发出去没回音"，新询盘要给买家发一封确认信 */
+  const ack = get("SELECT * FROM mail_outbox WHERE recipient = ? AND subject LIKE ? ORDER BY created_at DESC LIMIT 1", 'buyer@demo.com', '%询盘%');
+  check('询盘后给买家发回执邮件', !!ack && /We received your inquiry/.test(ack.subject || ''));
 }
 {
   const r = await req('/inquiries/' + inquiryId + '/quote', {

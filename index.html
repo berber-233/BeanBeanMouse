@@ -19,6 +19,32 @@
   <meta name="twitter:image" content="https://beanbeanmouse.com/assets/mascot-main.jpg">
   <link rel="icon" href="assets/mascot-icon.png">
   <link rel="apple-touch-icon" href="assets/mascot-icon.png">
+  <!-- 结构化数据：让搜索引擎知道"这是谁、卖什么"（商品页另有各自的 Product 结构化数据，见 /p/<id>） -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "BeanBeanMouse 豆豆鼠",
+    "alternateName": "豆豆鼠宠物用品",
+    "url": "https://beanbeanmouse.com/",
+    "logo": "https://beanbeanmouse.com/assets/mascot-icon.png",
+    "image": "https://beanbeanmouse.com/assets/mascot-main.jpg",
+    "email": "beanbeanmouse.trade@outlook.com",
+    "description": "宠物用品自营出口：猫、狗、仓鼠与小宠的笼具、用品、食品与智能设备，支持整柜出口与 OEM/ODM 定制。",
+    "knowsAbout": ["pet supplies", "pet cages", "cat litter", "dog harness", "hamster cage", "OEM pet products"],
+    "address": { "@type": "PostalAddress", "addressCountry": "CN" }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "BeanBeanMouse",
+    "url": "https://beanbeanmouse.com/",
+    "inLanguage": ["en", "zh"],
+    "publisher": { "@type": "Organization", "name": "BeanBeanMouse 豆豆鼠" }
+  }
+  </script>
   <!-- 版本号用于避免"新 HTML + 旧 CSS/JS"的错配（浏览器缓存导致样式错乱） -->
   <link rel="stylesheet" href="styles.css?v=pet0.2.5">
   <!-- Cloudflare Turnstile 人机验证（CSP 已放行 challenges.cloudflare.com） -->

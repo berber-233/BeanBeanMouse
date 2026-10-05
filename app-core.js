@@ -450,50 +450,11 @@ function detectSource(text) {
   return /[\u4e00-\u9fff]/.test(text) ? 'zh-CN' : 'en';
 }
 
-/* 带超时的 fetch，避免网络异常时一直转圈 */
-async function fetchTimeout(url, opts, ms) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function translateViaMyMemory(text, target) {
-  const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text.slice(0, 500))
-    + '&langpair=' + detectSource(text) + '|' + target;
-  const r = await fetchTimeout(url, null, 4000);
-  if (!r.ok) throw new Error('MyMemory HTTP ' + r.status);
-  const j = await r.json();
-  const out = j && j.responseData && j.responseData.translatedText;
-  if (!out || j.responseStatus !== 200) throw new Error('MyMemory empty');
-  return out;
-}
-
-/* 备用 LibreTranslate 实例。原先第一位是 libretranslate.com，但该站点已要求
-   API key 且不返回 CORS 头，从浏览器必然预检失败（实测每次都浪费一个往返），
-   故只保留无需密钥的公共实例。 */
-async function translateViaLibre(text, target) {
-  const instances = [
-    'https://translate.argosopentech.com/translate'
-  ];
-  let lastErr;
-  for (const base of instances) {
-    try {
-      const r = await fetchTimeout(base, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text.slice(0, 1000), source: detectSource(text), target: target, format: 'text' })
-      }, 3000);
-      if (!r.ok) { lastErr = new Error('LibreTranslate HTTP ' + r.status); continue; }
-      const j = await r.json();
-      if (j && j.translatedText) return j.translatedText;
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error('LibreTranslate failed');
-}
+/* 说明（2026-10-05）：这里原来还留了 MyMemory / LibreTranslate 两个"公共接口兜底"，
+ * 但它们线上要么被限流、要么要密钥，从浏览器打过去只会失败并在控制台刷
+ * net::ERR_NAME_NOT_RESOLVED / CORS 报错，还白白拖 3–4 秒。
+ * 页面翻译现在只走自家 /api/translate（Workers AI），失败就用本地离线词典，
+ * 不再直连第三方。fetchTimeout 也一并移除，避免死代码。 */
 
 /* 并发闸门 + 同文本合并：一页可能有几十个 [data-l10n]，不设限会同时打第三方
    公共接口，触发大面积 429（实测如此）。这里限制同时最多 3 个请求，
@@ -552,15 +513,7 @@ async function translateRemote(s, tgt, key) {
       saveTransCache();
       return { text: out, mode: 'remote' };
     }
-  } catch (e) { /* 自家接口不可用：退回公共接口 */ }
-  try {
-    const out = await translateViaMyMemory(s, tgt);
-    if (out && out.trim()) { transCache[key] = out.trim(); saveTransCache(); return { text: out.trim(), mode: 'remote' }; }
-  } catch (e) { /* 尝试下一个服务 */ }
-  try {
-    const out = await translateViaLibre(s, tgt);
-    if (out && out.trim()) { transCache[key] = out.trim(); saveTransCache(); return { text: out.trim(), mode: 'remote' }; }
-  } catch (e) { /* 使用离线词典 */ }
+  } catch (e) { /* 自家接口不可用：直接走离线词典，不再打第三方公共接口 */ }
   const out = demoTranslate(s, tgt === 'zh-CN' ? 'zh' : tgt);
   return { text: out, mode: 'offline' };
 }
@@ -820,7 +773,7 @@ function handleAction(el) {
     case 'open-inquiry': openInquiryModal(id); break;
     case 'preview-product': openProductPreview(id); break;
     case 'copy-product-code': copyText(productCodeOf(productById(id)), t('productCodeLabel')); break;
-    case 'copy-product-link': copyText(productLinkOf(id), t('copyProductLink')); break;
+    case 'copy-product-link': copyText(productShareLinkOf(id), t('copyProductLink')); break;
     case 'toggle-prod-picker': toggleProdPicker(el); break;
     case 'send-product': sendProductToConv(el.dataset.conv, id, el); break;
     case 'toggle-qr': toggleQrPanel(el); break;

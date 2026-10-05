@@ -1327,6 +1327,32 @@ async function route(m, segs, q, req, res) {
         if (seller && a.id === seller.id) continue;
         await notifyUser(a.id, 'inquiry', '收到新询盘', '产品 ' + (body.productId) + ' 收到新询盘：' + String(body.message).slice(0, 120));
       }
+      /* 给买家一封回执：外贸询盘最怕"发出去没回音"，一封回执能降低焦虑和重复询盘。
+       * 发信失败不影响询盘落库（邮件通道故障时静默跳过）。 */
+      if (contactEmail) {
+        try {
+          const enTr = await get('SELECT title FROM product_translations WHERE product_id = ? AND lang = ?', p.id, 'en')
+            || await get('SELECT title FROM product_translations WHERE product_id = ? AND lang = ?', p.id, 'zh') || {};
+          const pCode = (await get('SELECT code FROM products WHERE id = ?', p.id) || {}).code || '';
+          await sendMail({
+            to: contactEmail,
+            subject: '[BeanBeanMouse] 已收到您的询盘 / We received your inquiry',
+            body: (contactName ? contactName + ' 您好，' : '您好，') + '\n\n'
+              + '我们已收到您对「' + (enTr.title || p.id) + '」' + (pCode ? '（货号 ' + pCode + '）' : '') + '的询盘：'
+              + (body.qty || '') + ' ' + (body.unit || 'pcs') + '。\n'
+              + '外贸客服会在 1 个工作日内回复报价（含包装、交期与运费口径）。\n'
+              + '参考号：' + id + '；如需补充，直接回复本邮件即可。\n\n'
+              + 'Hello' + (contactName ? ' ' + contactName : '') + ',\n\n'
+              + 'We have received your inquiry for "' + (enTr.title || p.id) + '"'
+              + (pCode ? ' (item ' + pCode + ')' : '') + ', quantity ' + (body.qty || '') + ' ' + (body.unit || 'pcs') + '.\n'
+              + 'Our export team will come back with a quotation (packaging, lead time and freight basis) within one business day.\n'
+              + 'Reference: ' + id + '. Just reply to this email if you need to add anything.\n\n'
+              + 'BeanBeanMouse 豆豆鼠 · beanbeanmouse.com'
+          });
+        } catch (e) {
+          console.error('买家回执邮件发送失败（不影响询盘）:', e && e.message);
+        }
+      }
       return send(res, 201, await get('SELECT * FROM inquiries WHERE id = ?', id));
     }
     if (b && c === 'quote' && m === 'POST') {

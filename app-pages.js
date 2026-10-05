@@ -1130,7 +1130,8 @@ function renderDetail(pid) {
   const galleryN = imgs.length ? imgs.length : 3;
   const mainSrc = imgs.length ? productImgUrl(p, variant) : productImg(p, 800, 600, variant);
   const thumbs = Array.from({ length: galleryN }, (_, v) =>
-    '<img src="' + (imgs.length ? productImgUrl(p, v) : productImg(p, 640, 480, v)) + '" alt="' + (v + 1) + '" class="' + (v === variant ? 'on' : '') + '" data-action="gallery" data-id="' + p.id + '" data-v="' + v + '">'
+    /* alt 用"商品名 + 第几张"，比纯数字对无障碍和 SEO 都有用 */
+    '<img src="' + (imgs.length ? productImgUrl(p, v) : productImg(p, 640, 480, v)) + '" alt="' + esc(langObj(p).title + ' · ' + (v + 1)) + '" class="' + (v === variant ? 'on' : '') + '" data-action="gallery" data-id="' + p.id + '" data-v="' + v + '">'
   ).join('');
   return '<div class="container page">'
     + '<nav class="breadcrumb"><a href="#/" data-nav="/">' + t('home') + '</a> / <a href="#/products" data-nav="/products">' + t('marketplace') + '</a> / <a href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + esc(langObj(cat)) + '</a> / <span>' + esc(langObj(p).title) + '</span></nav>'
@@ -4188,6 +4189,12 @@ function openProductPreview(pid) {
 }
 function productLinkOf(pid) {
   return location.origin + location.pathname + '#/product/' + encodeURIComponent(pid);
+}
+/* 分享/收录用地址：构建时每个商品都会生成静态落地页 /p/<id>
+ * （可被搜索引擎收录、可直接发 WhatsApp/邮件；页面上有按钮进站内详情页询价）。
+ * 站内跳转仍用 #/product/<id>，这里只用于"复制链接"对外分享。 */
+function productShareLinkOf(pid) {
+  return location.origin + '/p/' + encodeURIComponent(pid);
 }
 async function copyText(text, okMsg) {
   const s = String(text || '');
