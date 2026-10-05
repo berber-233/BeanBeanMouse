@@ -38,7 +38,9 @@ ensureColumns('users', {
   signup_ip: 'TEXT',
   signup_ua: 'TEXT',
   email_flag: 'TEXT',
-  token_version: 'INTEGER DEFAULT 0'
+  token_version: 'INTEGER DEFAULT 0',
+  permissions: 'TEXT',
+  perm_note: 'TEXT'
 });
 ensureColumns('inquiries', {
   contact_name: 'TEXT',

@@ -123,6 +123,11 @@
 ## 2026-10-05 自主完善一轮（SEO 落地页 / 买家回执）
 
 ### 已完成
+- **管理端权限细分（2026-10-06）**：`users.permissions`（JSON 数组，NULL=全权兼容老管理员）+
+  7 类权限（products.publish / products.review / service / orders / customers / marketing / system）。
+  **接口层强制校验**（`requirePerm` / `denyAdminWrite`，越权返回 403 FORBIDDEN_PERM），
+  前端按权限隐藏菜单 + 越权访问显示"没有这个权限"；新增「权限管理」页（新建管理员、改权限、取消管理员），
+  带"最后一个 system 管理员"安全阀；后端新增 18 项权限测试、UI 探针 13 项、线上验收 15 项全过。
 - **路径化路由（2026-10-05）**：`#/product/x` → `/product/x`。全站 95 处 `href="#/…"` 改成真实路径，
   路由读取 `location.pathname`（hash 形式保留为兼容别名，老链接/老书签照常打开并被规整成路径）；
   站内点击改为 `pushState`（不再整页刷新），前进/后退用 `popstate`；每个路径写 canonical，商品页指向静态页 `/p/<id>`。

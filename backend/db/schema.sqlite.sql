@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   signup_ua TEXT,
   email_flag TEXT,
   token_version INTEGER NOT NULL DEFAULT 0,
+  permissions TEXT,               -- 管理端权限（JSON 数组；NULL = 全权，见 0014 迁移）
+  perm_note TEXT,
   created_at INTEGER NOT NULL
 );
 

@@ -802,6 +802,58 @@ let oneLangProductId = null, oneLangCode = '';
   check('表单记录：关键词过滤生效', recKw.status === 200 && (recKw.data.items || []).length === 0);
 }
 
+/* ---- 管理端权限细分（2026-10-06） ---- */
+let restrictedToken = null, restrictedId = null;
+{
+  const list = await req('/admin/permissions', { token: adminToken });
+  check('权限：全权管理员能读权限列表', list.status === 200 && Array.isArray(list.data.items) && Array.isArray(list.data.keys) && list.data.keys.length >= 6);
+  check('权限：列表里现有管理员标记为全权', (list.data.items || []).some(x => x.full === true));
+
+  const created = await req('/admin/users', {
+    method: 'POST', token: adminToken,
+    body: { email: 'limited-admin@test.com', password: 'Limited2026', name: '客服小李', permissions: ['service'], note: '只做客服' }
+  });
+  check('权限：新建受限管理员 -> 201', created.status === 201 && created.data.permissions.length === 1);
+  restrictedId = created.data.id;
+
+  const login = await req('/auth/login', { method: 'POST', body: { email: 'limited-admin@test.com', password: 'Limited2026' } });
+  check('权限：受限管理员能登录', login.status === 200 && !!login.data.token);
+  restrictedToken = login.data.token;
+  check('权限：/auth/me 带出权限数组', Array.isArray(login.data.user.permissions) && login.data.user.permissions.join() === 'service');
+
+  const meInq = await req('/inquiries', { token: restrictedToken });
+  check('权限：有 service 权限能看询盘', meInq.status === 200);
+
+  const allProducts = await req('/products?status=all', { token: restrictedToken });
+  check('权限：无商品权限看全部商品 -> 403', allProducts.status === 403 && allProducts.data.error === 'FORBIDDEN_PERM');
+  const publish = await req('/products', { method: 'POST', token: restrictedToken, body: { category: 'pet', country: 'CN', translations: { zh: { title: '越权测试' } } } });
+  check('权限：无 products.publish 发布商品 -> 403', publish.status === 403 && publish.data.error === 'FORBIDDEN_PERM');
+  const review = await req('/products/' + createdProductId + '/review', { method: 'POST', token: restrictedToken, body: { action: 'approve' } });
+  check('权限：无 products.review 审核商品 -> 403', review.status === 403);
+  const sysCheck = await req('/admin/system-check', { token: restrictedToken });
+  check('权限：无 system 访问系统自检 -> 403', sysCheck.status === 403);
+  const users = await req('/admin/users', { token: restrictedToken });
+  check('权限：无 customers 访问用户列表 -> 403', users.status === 403);
+  const perms = await req('/admin/permissions', { token: restrictedToken });
+  check('权限：无 system 读权限列表 -> 403', perms.status === 403);
+  const grant = await req('/admin/users/' + restrictedId + '/permissions', { method: 'PUT', token: restrictedToken, body: { permissions: ['system'] } });
+  check('权限：无 system 不能给自己提权 -> 403', grant.status === 403);
+
+  const upgrade = await req('/admin/users/' + restrictedId + '/permissions', { method: 'PUT', token: adminToken, body: { permissions: ['service', 'orders'], note: '加订单' } });
+  check('权限：全权管理员可改权限 -> 200', upgrade.status === 200 && upgrade.data.permissions.join() === 'service,orders');
+
+  const lockout = await req('/admin/users/u-admin/permissions', { method: 'PUT', token: adminToken, body: { permissions: ['service'] } });
+  check('权限：摘掉最后一个 system 被拦 -> 400 LOCKOUT_RISK', lockout.status === 400 && lockout.data.error === 'LOCKOUT_RISK');
+
+  const buyerPeek = await req('/admin/permissions', { token: buyerToken });
+  check('权限：买家读权限列表 -> 403/401', buyerPeek.status === 403 || buyerPeek.status === 401);
+
+  const demote = await req('/admin/users/' + restrictedId, { method: 'DELETE', token: adminToken });
+  check('权限：取消管理员身份 -> 200', demote.status === 200 && demote.data.role === 'buyer');
+  const afterDemote = await req('/inquiries', { token: restrictedToken });
+  check('权限：降级后旧令牌立即失效', afterDemote.status === 401, 'status=' + afterDemote.status);
+}
+
 console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
 const failed = results.filter(([, ok]) => !ok).length;
 console.log(failed === 0 ? 'ALL BACKEND TESTS PASSED (' + results.length + ')' : failed + ' CHECKS FAILED');

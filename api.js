@@ -1526,6 +1526,36 @@ api.addresses = {
     return { ok: true, id: id };
   }
 };
+/* ============================================================
+ * 服务：管理端权限细分（只有具备 system 权限的管理员能读写）
+ * ============================================================ */
+api.adminPermissions = {
+  async list() {
+    if (api.config.mode === 'http') return apiRequest('/admin/permissions');
+    await apiDelay();
+    const u = (mockState() || {}).user;
+    return {
+      keys: ['products.publish', 'products.review', 'service', 'orders', 'customers', 'marketing', 'system'],
+      items: u && u.role === 'admin' ? [{ id: u.id, email: u.email, name: u.name, full: true, permissions: [], note: '', isSelf: true, createdAt: Date.now(), lastLoginAt: Date.now() }] : []
+    };
+  },
+  async update(id, permissions, note) {
+    if (api.config.mode === 'http') return apiRequest('/admin/users/' + encodeURIComponent(id) + '/permissions', { method: 'PUT', body: { permissions, note } });
+    await apiDelay();
+    return { ok: true, id, permissions };
+  },
+  async create({ email, password, name, permissions, note } = {}) {
+    if (api.config.mode === 'http') return apiRequest('/admin/users', { method: 'POST', body: { email, password, name, permissions, note } });
+    await apiDelay();
+    throw new Error('演示模式不支持新建管理员（需连接真实后端）');
+  },
+  async demote(id) {
+    if (api.config.mode === 'http') return apiRequest('/admin/users/' + encodeURIComponent(id), { method: 'DELETE' });
+    await apiDelay();
+    throw new Error('演示模式不支持取消管理员（需连接真实后端）');
+  }
+};
+
 api.records = {
   async list({ kw, kind } = {}) {
     if (api.config.mode === 'http') {

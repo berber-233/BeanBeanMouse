@@ -155,6 +155,8 @@ function blankHttpState(prev) {
   base.quickReplies = [];
   base.addresses = [];
   base.records = [];
+  base.adminPerms = [];
+  base.adminPermsLoaded = false;
   base.notifications = [];
   base.users = [];
   base.companies = [];
@@ -727,6 +729,7 @@ document.addEventListener('submit', e => {
   else if (f.dataset.form === 'chat-send') p = sendChatMessage(f);
   else if (f.dataset.form === 'qr-add') p = submitQuickReply(f);
   else if (f.dataset.form === 'address-form') p = submitAddress(f);
+  else if (f.dataset.form === 'perm-form') p = submitPermForm(f);
   else if (f.dataset.form === 'profile-form') p = submitProfile(f);
   else if (f.dataset.form === 'change-password') p = submitChangePassword(f);
   else if (f.dataset.form === 'feedback-form') p = submitFeedback(f);
@@ -979,6 +982,16 @@ function handleAction(el) {
       break;
     case 'address-export': exportAddressesCsv(); break;
     case 'records-refresh': hydrateRecords(true); break;
+    case 'perm-new': showModal(permFormHtml(null)); break;
+    case 'perm-edit': {
+      const a = (state.adminPerms || []).find(x => x.id === id);
+      if (a) showModal(permFormHtml(a));
+      break;
+    }
+    case 'perm-refresh': hydrateAdminPerms(true); break;
+    case 'perm-demote':
+      if (confirm(t('permDemoteConfirm'))) demoteAdmin(id);
+      break;
     case 'records-export': exportRecordsCsv(); break;
     case 'rec-kind': {
       const list = el.closest('.card') ? el.closest('.card').querySelector('.rec-list') : null;

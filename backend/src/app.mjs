@@ -393,7 +393,10 @@ function publicUser(u) {
    * 前端卖家工作台拿不到这个字段就会"一条自己的商品和询盘都看不到"。 */
   return u ? {
     id: u.id, email: u.email, role: u.role, name: u.name, status: u.status,
-    sellerId: u.role === 'seller' ? u.id : undefined
+    sellerId: u.role === 'seller' ? u.id : undefined,
+    /* 管理端权限：前端据此隐藏没有权限的菜单（真正的拦截在接口层） */
+    permissions: u.role === 'admin' ? adminPermsOf(u) : undefined,
+    permissionsFull: u.role === 'admin' ? (u.permissions === null || u.permissions === undefined || u.permissions === '') : undefined
   } : null;
 }
 async function audit(actor, action, targetType, targetId, detail) {
@@ -409,6 +412,40 @@ function safeJson(s, fallback) {
 function toNum(v, dft) {
   const n = Number(v);
   return Number.isFinite(n) ? n : dft;
+}
+
+/* ================= 管理端权限细分（2026-10-06） =================
+ * 设计：role 仍是 'admin'（既有代码与既有管理员不动），权限放在 users.permissions。
+ *   NULL / '' → 全权（老管理员兼容，如 admin@beanbeanmouse.com）
+ *   JSON 数组 → 只拥有列出的权限，例如 ["products.review","service"]
+ * 关键点：**接口层真的校验**。前端隐藏菜单只是体验，越权请求必须被 403 拦下，
+ *        所以每个管理端接口都用 requirePerm()/denyAdminWrite() 过一遍。 */
+const ADMIN_PERMS = ['products.publish', 'products.review', 'service', 'orders', 'customers', 'marketing', 'system'];
+function adminPermsOf(u) {
+  if (!u || u.role !== 'admin') return [];
+  const raw = u.permissions;
+  if (raw === null || raw === undefined || raw === '') return ADMIN_PERMS.slice();   /* 老管理员 = 全权 */
+  const arr = safeJson(raw, []);
+  return Array.isArray(arr) ? arr.filter(k => ADMIN_PERMS.indexOf(k) >= 0) : [];
+}
+function hasPerm(u, key) { return adminPermsOf(u).indexOf(key) >= 0; }
+/* 管理端专用接口：要求管理员身份 + 指定权限 */
+async function requirePerm(res, req, key) {
+  const u = await requireAuth(res, req, ['admin']);
+  if (!u) return null;
+  if (!hasPerm(u, key)) {
+    fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「' + key + '」权限，请联系有系统权限的管理员开通');
+    return null;
+  }
+  return u;
+}
+/* 卖家/管理员共用的写接口：管理员需要额外具备该权限（卖家保持原有行为） */
+function denyAdminWrite(res, u, key) {
+  if (u && u.role === 'admin' && !hasPerm(u, key)) {
+    fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「' + key + '」权限，请联系有系统权限的管理员开通');
+    return true;
+  }
+  return false;
 }
 
 /* ---------------- 商品货号（SKU） ----------------
@@ -943,7 +980,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, await get('SELECT * FROM companies WHERE user_id = ?', u.id) || null);
     }
     if (!b && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'customers');
       if (!u) return;
       const status = q.get('status') || '';
       let rows = await all('SELECT * FROM companies ORDER BY created_at DESC');
@@ -951,7 +988,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, paginate(rows, q));
     }
     if (b && c === 'verify' && m === 'PUT') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'customers');
       if (!u) return;
       const body = await readBody(req);
       const co = await get('SELECT * FROM companies WHERE user_id = ?', b);
@@ -988,7 +1025,13 @@ async function route(m, segs, q, req, res) {
        * 没有这个，刚发布的商品在"商品管理/审核"里根本看不到（发布完像消失了一样）。 */
       if (String(q.get('status') || '') === 'all') {
         const u = await currentUser(req);
-        if (u && u.role === 'admin') list = await all('SELECT * FROM products');
+        if (u && u.role === 'admin') {
+          /* 管商品的两种权限之一即可看全部（含待审核/已下架）：发布权或审核权 */
+          if (!hasPerm(u, 'products.publish') && !hasPerm(u, 'products.review')) {
+            return fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「products.publish / products.review」权限');
+          }
+          list = await all('SELECT * FROM products');
+        }
         else if (u && u.role === 'seller') list = await all('SELECT * FROM products WHERE seller_id = ?', u.id);
       }
       if (cat) list = list.filter(p => p.category === cat);
@@ -1021,6 +1064,7 @@ async function route(m, segs, q, req, res) {
     }
     if (m === 'POST' && !b) {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'products.publish')) return;
       if (!u) return;
       if (u.role === 'seller') {
         const co = await get('SELECT * FROM companies WHERE user_id = ?', u.id);
@@ -1078,6 +1122,7 @@ async function route(m, segs, q, req, res) {
     /* 编辑商品：卖家改完重新走审核；管理员直接生效（自营） */
     if (b && m === 'PUT') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'products.publish')) return;
       if (!u) return;
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
@@ -1125,6 +1170,7 @@ async function route(m, segs, q, req, res) {
     /* 上架 / 下架 */
     if (b && c === 'status' && m === 'POST') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'products.publish')) return;
       if (!u) return;
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
@@ -1142,6 +1188,7 @@ async function route(m, segs, q, req, res) {
     /* 商品图片：把已上传的文件挂到商品上（文件先走 /files 上传） */
     if (b && c === 'images' && m === 'POST') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'products.publish')) return;
       if (!u) return;
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
@@ -1163,6 +1210,7 @@ async function route(m, segs, q, req, res) {
     }
     if (b && c === 'images' && d && m === 'DELETE') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'products.publish')) return;
       if (!u) return;
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
@@ -1174,6 +1222,7 @@ async function route(m, segs, q, req, res) {
     /* 删除商品：已经被询盘引用的不能删（会让历史询盘对不上），提示改下架 */
     if (b && m === 'DELETE') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'products.publish')) return;
       if (!u) return;
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
@@ -1188,7 +1237,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, { ok: true, id: p.id });
     }
     if (b && c === 'review' && m === 'POST') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'products.review');
       if (!u) return;
       const body = await readBody(req);
       const p = await get('SELECT * FROM products WHERE id = ?', b);
@@ -1264,6 +1313,7 @@ async function route(m, segs, q, req, res) {
       if (u.role === 'seller') {
         rows = await all('SELECT i.*, p.seller_id AS seller_id FROM inquiries i JOIN products p ON p.id = i.product_id WHERE p.seller_id = ? ORDER BY i.created_at DESC', u.id);
       } else if (u.role === 'admin') {
+        if (!hasPerm(u, 'service')) return fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「service」权限（客服/询盘）');
         rows = await all('SELECT i.*, p.seller_id AS seller_id FROM inquiries i LEFT JOIN products p ON p.id = i.product_id ORDER BY i.created_at DESC');
       } else {
         rows = await all('SELECT i.*, p.seller_id AS seller_id FROM inquiries i LEFT JOIN products p ON p.id = i.product_id WHERE i.buyer_id = ? ORDER BY i.created_at DESC', u.id);
@@ -1511,6 +1561,7 @@ async function route(m, segs, q, req, res) {
     /* 货物物流：卖家创建物流单，买卖双方实时可见 */
     if (b && c === 'shipments' && !d && m === 'POST') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'orders')) return;
       if (!u) return;
       const o = await get('SELECT * FROM orders WHERE id = ?', b);
       if (!o) return fail(res, 404, 'NOT_FOUND', '订单不存在');
@@ -1549,6 +1600,7 @@ async function route(m, segs, q, req, res) {
     /* 物流事件：卖家/管理员更新，自动触发存证 */
     if (b && c === 'shipments' && d && e === 'events' && m === 'POST') {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'orders')) return;
       if (!u) return;
       const s = await get('SELECT * FROM shipments WHERE id = ?', d);
       if (!s) return fail(res, 404, 'NOT_FOUND', '物流单不存在');
@@ -1576,6 +1628,8 @@ async function route(m, segs, q, req, res) {
     if (m === 'GET') {
       const u = await requireAuth(res, req);
       if (!u) return;
+      /* 管理员看别人会话 = 客服权限；没有该权限只能看自己的会话 */
+      if (u.role === 'admin' && !hasPerm(u, 'service')) return fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「service」权限（客服会话）');
       const conv = await get('SELECT * FROM conversations WHERE id = ?', b);
       if (conv && conv.buyer_id !== u.id && conv.seller_id !== u.id && u.role !== 'admin') {
         return fail(res, 403, 'FORBIDDEN', '无权查看该会话');
@@ -1585,6 +1639,7 @@ async function route(m, segs, q, req, res) {
     if (m === 'POST') {
       const u = await requireAuth(res, req);
       if (!u) return;
+      if (u.role === 'admin' && !hasPerm(u, 'service')) return fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「service」权限（客服会话）');
       const body = await readBody(req);
       if (!body.text) return fail(res, 400, 'VALIDATION', 'text 为必填');
       let conv = await get('SELECT * FROM conversations WHERE id = ?', b);
@@ -1734,7 +1789,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, await all('SELECT * FROM news_sources WHERE enabled = 1'));
     }
     if (m === 'POST' && !b) {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'marketing');
       if (!u) return;
       const body = await readBody(req);
       const title = String(body.title || '').trim();
@@ -1761,12 +1816,12 @@ async function route(m, segs, q, req, res) {
       return send(res, 201, await get('SELECT * FROM news_items WHERE id = ?', id));
     }
     if (b === 'auto' && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'marketing');
       if (!u) return;
       return send(res, 200, newsAutoState);
     }
     if (b === 'refresh' && m === 'POST') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'marketing');
       if (!u) return;
       return send(res, 200, await refreshNewsFeeds(u.id));
     }
@@ -1931,7 +1986,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, paginate(rows, q));
     }
     if (b && c === 'status' && m === 'POST') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'marketing');
       if (!u) return;
       const body = await readBody(req);
       const r = await get('SELECT * FROM category_requests WHERE id = ?', b);
@@ -2053,6 +2108,7 @@ async function route(m, segs, q, req, res) {
   if (a === 'promotions') {
     if (m === 'POST' && !b) {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'marketing')) return;
       if (!u) return;
       const body = await readBody(req);
       const p = await get('SELECT * FROM products WHERE id = ?', body.productId);
@@ -2069,6 +2125,7 @@ async function route(m, segs, q, req, res) {
     }
     if (m === 'GET' && !b) {
       const u = await requireAuth(res, req, ['seller', 'admin']);
+      if (denyAdminWrite(res, u, 'marketing')) return;
       if (!u) return;
       const rows = u.role === 'admin'
         ? await all('SELECT * FROM promotion_requests ORDER BY created_at DESC')
@@ -2076,7 +2133,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, paginate(rows, q));
     }
     if (b && c === 'review' && m === 'POST') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'marketing');
       if (!u) return;
       const body = await readBody(req);
       const pr = await get('SELECT * FROM promotion_requests WHERE id = ?', b);
@@ -2096,9 +2153,92 @@ async function route(m, segs, q, req, res) {
 
   /* 管理后台 */
   if (a === 'admin') {
+    /* ===== 权限细分（2026-10-06）=====
+     * 只有具备 system 权限的管理员能看/改权限；并且有"最后一个 system 管理员"保护，
+     * 避免把自己或所有人关在权限管理之外。 */
+    if (b === 'permissions' && m === 'GET') {
+      const u = await requirePerm(res, req, 'system');
+      if (!u) return;
+      const rows = await all("SELECT id, email, name, role, status, permissions, perm_note, created_at, last_login_at FROM users WHERE role = 'admin' ORDER BY created_at ASC");
+      return send(res, 200, {
+        keys: ADMIN_PERMS,
+        items: rows.map(r => ({
+          id: r.id, email: r.email, name: r.name, status: r.status,
+          full: (r.permissions === null || r.permissions === undefined || r.permissions === ''),
+          permissions: adminPermsOf(r),
+          note: r.perm_note || '',
+          createdAt: r.created_at, lastLoginAt: r.last_login_at,
+          isSelf: r.id === u.id
+        }))
+      });
+    }
+    /* 新建管理员账号（只有 system 权限能开），权限直接指定 */
+    if (b === 'users' && !c && m === 'POST') {
+      const u = await requirePerm(res, req, 'system');
+      if (!u) return;
+      const body = await readBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      const name = String(body.name || '').trim() || '管理员';
+      if (!EMAIL_RE.test(email)) return fail(res, 400, 'VALIDATION', '邮箱格式不正确');
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+        return fail(res, 400, 'VALIDATION', '密码至少 8 位，且需同时包含字母和数字');
+      }
+      if (await get('SELECT id FROM users WHERE lower(email) = ?', email)) return fail(res, 409, 'EMAIL_EXISTS', '邮箱已存在');
+      const perms = Array.isArray(body.permissions) ? body.permissions.filter(k => ADMIN_PERMS.indexOf(k) >= 0) : [];
+      const id = randomUUID();
+      await run(
+        'INSERT INTO users (id, email, password_hash, role, name, status, email_verified, review_state, permissions, perm_note, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        id, email, await hashPassword(password), 'admin', name.slice(0, 80), 'active', 1, 'approved',
+        JSON.stringify(perms), String(body.note || '').slice(0, 200), Date.now()
+      );
+      await audit(u.id, 'admin.user.create', 'user', id, email + ' perms=' + perms.join(','));
+      return send(res, 201, { ok: true, id: id, email: email, permissions: perms });
+    }
+    /* 修改某个管理员的权限 */
+    if (b === 'users' && c && d === 'permissions' && m === 'PUT') {
+      const u = await requirePerm(res, req, 'system');
+      if (!u) return;
+      const target = await get('SELECT * FROM users WHERE id = ?', c);
+      if (!target) return fail(res, 404, 'NOT_FOUND', '账号不存在');
+      if (target.role !== 'admin') return fail(res, 400, 'INVALID_TARGET', '只能给管理员账号设置权限');
+      const body = await readBody(req);
+      if (!Array.isArray(body.permissions)) return fail(res, 400, 'VALIDATION', 'permissions 必须是数组');
+      const perms = body.permissions.filter(k => ADMIN_PERMS.indexOf(k) >= 0);
+      /* 安全阀：摘掉 system 前确认还有别的 system 管理员 */
+      if (perms.indexOf('system') < 0) {
+        let others = 0;
+        for (const row of await all("SELECT * FROM users WHERE role = 'admin' AND id <> ?", c)) {
+          if (hasPerm(row, 'system')) others++;
+        }
+        if (!others) return fail(res, 400, 'LOCKOUT_RISK', '这是最后一个有「system」权限的管理员：摘掉后没人能再进入权限管理');
+      }
+      await run('UPDATE users SET permissions = ?, perm_note = ? WHERE id = ?', JSON.stringify(perms), String(body.note || '').slice(0, 200), c);
+      await audit(u.id, 'admin.user.permissions', 'user', c, target.email + ' → ' + perms.join(','));
+      return send(res, 200, { ok: true, id: c, permissions: perms });
+    }
+    /* 取消管理员身份（降级为普通买家）；最后一个 system 管理员不能取消 */
+    if (b === 'users' && c && m === 'DELETE') {
+      const u = await requirePerm(res, req, 'system');
+      if (!u) return;
+      const target = await get('SELECT * FROM users WHERE id = ?', c);
+      if (!target) return fail(res, 404, 'NOT_FOUND', '账号不存在');
+      if (target.role !== 'admin') return fail(res, 400, 'INVALID_TARGET', '该账号不是管理员');
+      if (target.id === u.id) return fail(res, 400, 'INVALID_TARGET', '不能取消自己的管理员身份');
+      if (hasPerm(target, 'system')) {
+        let others = 0;
+        for (const row of await all("SELECT * FROM users WHERE role = 'admin' AND id <> ?", c)) {
+          if (hasPerm(row, 'system')) others++;
+        }
+        if (!others) return fail(res, 400, 'LOCKOUT_RISK', '这是最后一个有「system」权限的管理员，不能取消');
+      }
+      await run("UPDATE users SET role = 'buyer', permissions = NULL, perm_note = NULL, token_version = COALESCE(token_version,0) + 1 WHERE id = ?", c);
+      await audit(u.id, 'admin.user.demote', 'user', c, target.email || '');
+      return send(res, 200, { ok: true, id: c, role: 'buyer' });
+    }
     /* 账号审核：列出待审核/全部账号，通过或拒绝 */
     if (b === 'users' && m === 'GET') {
-      const admin = await requireAuth(res, req, ['admin']);
+      const admin = await requirePerm(res, req, 'customers');
       if (!admin) return;
       const status = q.get('status') ? String(q.get('status')) : '';
       const cols = 'id, email, name, role, status, review_state, email_verified, created_at, last_login_at, signup_ip, signup_ua, email_flag';
@@ -2114,7 +2254,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, { items: rows, counts });
     }
     if (b === 'users' && c && (d === 'approve' || d === 'reject') && m === 'POST') {
-      const admin = await requireAuth(res, req, ['admin']);
+      const admin = await requirePerm(res, req, 'customers');
       if (!admin) return;
       const body = await readBody(req);
       const nextReview = d === 'approve' ? 'approved' : 'rejected';
@@ -2129,7 +2269,7 @@ async function route(m, segs, q, req, res) {
     /* 冻结 / 解冻：管理员在用户列表里直接操作，且立即生效（旧令牌也会被 requireAuth 拦下）。
      * 管理员账号本身不允许被冻结，避免把自己关在门外。 */
     if (b === 'users' && c && (d === 'freeze' || d === 'unfreeze') && m === 'POST') {
-      const admin = await requireAuth(res, req, ['admin']);
+      const admin = await requirePerm(res, req, 'customers');
       if (!admin) return;
       const target = await get('SELECT id, email, role FROM users WHERE id = ?', c);
       if (!target) return fail(res, 404, 'NOT_FOUND', '账号不存在');
@@ -2162,7 +2302,7 @@ async function route(m, segs, q, req, res) {
       });
     }
     if (b === 'logs' && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'system');
       if (!u) return;
       return send(res, 200, paginate(await all('SELECT * FROM audit_logs ORDER BY created_at DESC'), q));
     }
@@ -2170,7 +2310,7 @@ async function route(m, segs, q, req, res) {
     /* 注册/登录策略自检：一眼看到当前是"邮箱验证"还是"人工审核"在把关 */
     /* 系统自检：把"邮件通道 / 注册策略 / 对象存储 / 待处理事项"汇总给管理端 */
     if (b === 'system-check' && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'system');
       if (!u) return;
       const st = storageInfo();
       return send(res, 200, {
@@ -2193,7 +2333,7 @@ async function route(m, segs, q, req, res) {
       });
     }
     if (b === 'auth-policy' && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'system');
       if (!u) return;
       return send(res, 200, {
         requireEmailVerify: REQUIRE_EMAIL_VERIFY,
@@ -2203,7 +2343,7 @@ async function route(m, segs, q, req, res) {
       });
     }
     if (b === 'mail-status' && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'system');
       if (!u) return;
       const info = mailerInfo();
       const recent = await all('SELECT id, recipient, subject, status, error, sent_at FROM mail_outbox ORDER BY sent_at DESC LIMIT 20');
@@ -2213,7 +2353,7 @@ async function route(m, segs, q, req, res) {
     /* 邮件凭据自检：只回长度和哈希前缀，不回明文——用来确认"存进去的 Secret 没被加料"。
      * 踩过的坑：用管道写 Cloudflare Secret 时可能带上换行，症状是阿里云回 SignatureDoesNotMatch。 */
     if (b === 'mail-config-check' && m === 'GET') {
-      const u = await requireAuth(res, req, ['admin']);
+      const u = await requirePerm(res, req, 'system');
       if (!u) return;
       const ak = String(ENV.ALIYUN_DM_ACCESS_KEY_ID || '');
       const sk = String(ENV.ALIYUN_DM_ACCESS_KEY_SECRET || '');
@@ -2308,7 +2448,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 201, await get('SELECT * FROM suggestions WHERE id = ?', id));
     }
     if (b && c === 'status' && m === 'POST') {
-      const admin = await requireAuth(res, req, ['admin']);
+      const admin = await requirePerm(res, req, 'marketing');
       if (!admin) return;
       const rec = await get('SELECT * FROM suggestions WHERE id = ?', b);
       if (!rec) return fail(res, 404, 'NOT_FOUND', '建议不存在');
@@ -2319,7 +2459,7 @@ async function route(m, segs, q, req, res) {
     }
     /* 删除建议（已读/不采纳的堆着影响观感，管理员可直接删掉） */
     if (b && m === 'DELETE') {
-      const admin = await requireAuth(res, req, ['admin']);
+      const admin = await requirePerm(res, req, 'marketing');
       if (!admin) return;
       const rec = await get('SELECT * FROM suggestions WHERE id = ?', b);
       if (!rec) return fail(res, 404, 'NOT_FOUND', '建议不存在');
@@ -2335,6 +2475,7 @@ async function route(m, segs, q, req, res) {
   if (a === 'records' && !b && m === 'GET') {
     const u = await requireAuth(res, req);
     if (!u) return;
+    if (u.role === 'admin' && !hasPerm(u, 'orders')) return fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「orders」权限（订单/表单记录）');
     const isAdmin = u.role === 'admin';
     const kw = String(q.get('kw') || '').trim().toLowerCase();
     const kind = String(q.get('kind') || '').trim();
@@ -2425,6 +2566,7 @@ async function route(m, segs, q, req, res) {
   if (a === 'addresses') {
     const u = await requireAuth(res, req);
     if (!u) return;
+    if (u.role === 'admin' && !hasPerm(u, 'customers')) return fail(res, 403, 'FORBIDDEN_PERM', '当前管理员账号没有「customers」权限（客户与地址）');
     const ownerKeyOf = b => [String(b.company || '').trim().toLowerCase(), String(b.email || '').trim().toLowerCase(), String(b.country || '').trim().toUpperCase()].filter(Boolean).join('|');
     if (b === undefined && m === 'GET') {
       const rows = u.role === 'admin'
@@ -2606,7 +2748,7 @@ async function route(m, segs, q, req, res) {
       return send(res, 200, await get('SELECT * FROM after_sales WHERE id = ?', b));
     }
     if (b && c === 'arbitrate' && m === 'POST') {
-      const admin = await requireAuth(res, req, ['admin']);
+      const admin = await requirePerm(res, req, 'orders');
       if (!admin) return;
       const rec = await get('SELECT * FROM after_sales WHERE id = ?', b);
       if (!rec) return fail(res, 404, 'NOT_FOUND', '售后记录不存在');

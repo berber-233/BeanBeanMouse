@@ -5285,6 +5285,134 @@ function renderSellerDash(path) {
 }
 
 /* ---------- 平台管理员后台 ---------- */
+/* ================= 管理端权限细分（2026-10-06） =================
+ * 前端只负责"按权限显示"：菜单过滤 + 越权访问给明确提示。
+ * 真正的拦截在后端（requirePerm / denyAdminWrite），改了前端也拿不到数据。 */
+function isFullAdmin() {
+  const u = state.user;
+  return !!(u && u.role === 'admin' && (u.permissionsFull === true || u.permissions === undefined));
+}
+function canDo(perm) {
+  const u = state.user;
+  if (!u || u.role !== 'admin') return false;
+  if (u.permissionsFull === true) return true;
+  /* 老会话（登录时还没这个字段）按全权处理，避免菜单突然全空 */
+  if (!Array.isArray(u.permissions)) return true;
+  return u.permissions.indexOf(perm) >= 0;
+}
+const PERM_I18N = {
+  'products.publish': 'permProductsPublish',
+  'products.review': 'permProductsReview',
+  service: 'permService',
+  orders: 'permOrders',
+  customers: 'permCustomers',
+  marketing: 'permMarketing',
+  system: 'permSystem'
+};
+function permLabel(key) { return t(PERM_I18N[key] || key); }
+function noPermHtml(meta) {
+  return '<div class="card panel"><div class="empty-state" style="padding:40px"><div class="ico">' + icon('shield') + '</div>'
+    + '<h3>' + t('permDeniedTitle') + '</h3>'
+    + '<p class="muted">' + t('permDeniedText') + '<br><b>' + esc(meta.label) + '</b> · <code>' + esc(meta.perm) + '</code></p>'
+    + '<a class="btn btn-sm" href="/dashboard" data-nav="/dashboard">' + t('backToOverview') + '</a></div></div>';
+}
+/* 权限管理页数据 */
+async function hydrateAdminPerms(force) {
+  if (typeof api === 'undefined' || !api.config) return;
+  if (state.adminPermsLoaded && !force) return;
+  try {
+    const r = await api.adminPermissions.list();
+    state.adminPerms = (r && r.items) || [];
+    state.adminPermKeys = (r && r.keys) || [];
+    state.adminPermsLoaded = true;
+  } catch (e) {
+    state.adminPermError = (e && e.message) || String(e);
+    state.adminPerms = state.adminPerms || [];
+  }
+  renderPage();
+}
+function permKeysOf() {
+  return (state.adminPermKeys && state.adminPermKeys.length) ? state.adminPermKeys
+    : ['products.publish', 'products.review', 'service', 'orders', 'customers', 'marketing', 'system'];
+}
+function permBody() {
+  const rows = state.adminPerms || [];
+  return '<div class="card panel"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('permTab') + '</h2>'
+    + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('permAdminCount') + '</span>'
+    + '<button type="button" class="btn btn-sm" data-action="perm-refresh">' + icon('refresh') + ' ' + t('refresh') + '</button>'
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="perm-new">' + icon('plus') + ' ' + t('permNewBtn') + '</button></span></div>'
+    + '<p class="small muted">' + t('permIntro') + '</p>'
+    + (state.adminPermError ? '<p class="small" style="color:var(--danger)">' + esc(state.adminPermError) + '</p>' : '')
+    + (rows.length
+      ? '<div class="perm-list">' + rows.map(a => {
+        const chips = a.full
+          ? '<span class="chip perm-chip full">' + t('permFull') + '</span>'
+          : (a.permissions || []).map(k => '<span class="chip perm-chip">' + esc(permLabel(k)) + '</span>').join('') || '<span class="chip perm-chip none">' + t('permNone') + '</span>';
+        return '<div class="perm-row' + (a.isSelf ? ' self' : '') + '">'
+          + '<div class="perm-main"><div class="perm-title"><b>' + esc(a.name || '—') + '</b>'
+          + (a.isSelf ? '<span class="chip perm-chip self">' + t('permSelf') + '</span>' : '')
+          + '<span class="small muted">' + esc(a.email) + '</span></div>'
+          + '<div class="perm-chips">' + chips + '</div>'
+          + (a.note ? '<p class="small muted" style="margin:4px 0 0">' + esc(a.note) + '</p>' : '')
+          + '<p class="small muted" style="margin:2px 0 0">' + t('permLastLogin') + '：' + (a.lastLoginAt ? esc(fmtDate(a.lastLoginAt)) : '—') + '</p>'
+          + '</div>'
+          + '<div class="perm-ops">'
+          + '<button type="button" class="btn btn-sm" data-action="perm-edit" data-id="' + esc(a.id) + '">' + t('permEditBtn') + '</button>'
+          + (!a.isSelf ? '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="perm-demote" data-id="' + esc(a.id) + '">' + t('permDemoteBtn') + '</button>' : '')
+          + '</div></div>';
+      }).join('') + '</div>'
+      : '<div class="empty-state" style="padding:30px"><p>' + t('loading') + '</p></div>')
+    + '</div>';
+}
+function permFormHtml(admin) {
+  const a = admin || null;
+  const keys = permKeysOf();
+  const cur = a ? (a.full ? keys.slice() : (a.permissions || [])) : ['service'];
+  return '<div class="modal-head"><h3>' + icon('shield') + ' ' + (a ? t('permEditTitle') : t('permNewTitle')) + '</h3>'
+    + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + esc(t('close')) + '">' + icon('x') + '</button></div>'
+    + '<div class="modal-body">'
+    + '<form data-form="perm-form" data-id="' + esc(a ? a.id : '') + '" novalidate>'
+    + (a
+      ? '<p class="small muted" style="margin-top:0">' + esc(a.name || '') + ' · ' + esc(a.email) + '</p>'
+      : '<div class="form-grid">'
+        + '<div class="field"><label>' + t('contactName') + '</label><input class="input" name="name" maxlength="80" placeholder="' + esc(t('permNewNamePh')) + '"></div>'
+        + '<div class="field"><label>' + t('contactEmail') + ' *</label><input class="input" type="email" name="email" required></div>'
+        + '<div class="field"><label>' + t('pwdNew') + ' *</label><input class="input" type="password" name="password" required placeholder="' + esc(t('pwdRule')) + '"></div>'
+        + '</div>')
+    + '<div class="perm-grid">' + keys.map(k => '<label class="perm-opt"><input type="checkbox" name="perm" value="' + esc(k) + '"' + (cur.indexOf(k) >= 0 ? ' checked' : '') + '>'
+      + '<span><b>' + esc(permLabel(k)) + '</b><i>' + esc(t(PERM_I18N[k] + 'Desc')) + '</i></span></label>').join('') + '</div>'
+    + '<div class="field"><label>' + t('permNoteField') + '</label><input class="input" name="note" maxlength="200" value="' + esc(a ? (a.note || '') : '') + '" placeholder="' + esc(t('permNotePh')) + '"></div>'
+    + '<p class="small muted">' + t('permSafetyNote') + '</p>'
+    + '<button type="submit" class="btn btn-primary">' + t('permSaveBtn') + '</button>'
+    + '</form></div>';
+}
+async function submitPermForm(form) {
+  const id = form.dataset.id || '';
+  const fd = new FormData(form);
+  const permissions = Array.from(form.querySelectorAll('input[name="perm"]:checked')).map(x => x.value);
+  const note = String(fd.get('note') || '').trim();
+  try {
+    if (id) await api.adminPermissions.update(id, permissions, note);
+    else await api.adminPermissions.create({
+      email: String(fd.get('email') || '').trim(),
+      password: String(fd.get('password') || ''),
+      name: String(fd.get('name') || '').trim(),
+      permissions: permissions,
+      note: note
+    });
+    closeModal();
+    toast(t('permSaved') + ' ✓');
+    await hydrateAdminPerms(true);
+  } catch (e) { toast(e.message || String(e)); }
+}
+async function demoteAdmin(id) {
+  try {
+    await api.adminPermissions.demote(id);
+    toast(t('permDemoted') + ' ✓');
+    await hydrateAdminPerms(true);
+  } catch (e) { toast(e.message || String(e)); }
+}
+
 function renderAdminDash(path) {
   document.title = t('adminPanel') + ' · BeanBeanMouse';
   const activeTab = path.split('/')[2] || 'overview';
@@ -5292,24 +5420,29 @@ function renderAdminDash(path) {
   const verifyCount = (state.companies || []).filter(c => c.status === 'pending').length;
   const tabs = [
     { tab: 'overview', icon: 'chart', label: t('adminOverview') },
-    { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), count: (state.inquiries || []).filter(i => i.status === 'new').length || null },
-    { tab: 'service', icon: 'headset', label: t('serviceTab'), count: totalUnread() || null },
-    { tab: 'products', icon: 'box', label: t('productManage') },
-    { tab: 'publish', icon: 'plus', label: t('publish') },
-    { tab: 'review', icon: 'eye', label: t('productReview'), count: pendingCount || null },
-    { tab: 'verify', icon: 'building', label: t('companyVerify'), count: verifyCount || null },
-    { tab: 'promo', icon: 'sparkle', label: t('promoAdmin'), count: (state.promotions || []).filter(r => r.status === 'pending').length || null },
-    { tab: 'catreqs', icon: 'sparkle', label: t('catRequests'), count: (state.categoryRequests || []).filter(r => r.status === 'new').length || null },
-    { tab: 'aftersales', icon: 'shield', label: t('adminAfterSales'), count: (state.afterSales || []).filter(c => c.status === 'arbitrating').length || null },
-    { tab: 'feedback', icon: 'mail', label: t('adminFeedback'), count: (state.suggestions || []).filter(s => s.status === 'new').length || null },
-    { tab: 'users', icon: 'users', label: t('userManage') },
-    { tab: 'addresses', icon: 'users', label: t('addressBook') },
-    { tab: 'records', icon: 'file', label: t('recordsTab') },
+    { tab: 'inquiries', icon: 'message', label: t('inquiryManage'), perm: 'service', count: (state.inquiries || []).filter(i => i.status === 'new').length || null },
+    { tab: 'service', icon: 'headset', label: t('serviceTab'), perm: 'service', count: totalUnread() || null },
+    { tab: 'products', icon: 'box', label: t('productManage'), perm: 'products.publish' },
+    { tab: 'publish', icon: 'plus', label: t('publish'), perm: 'products.publish' },
+    { tab: 'review', icon: 'eye', label: t('productReview'), perm: 'products.review', count: pendingCount || null },
+    { tab: 'verify', icon: 'building', label: t('companyVerify'), perm: 'customers', count: verifyCount || null },
+    { tab: 'promo', icon: 'sparkle', label: t('promoAdmin'), perm: 'marketing', count: (state.promotions || []).filter(r => r.status === 'pending').length || null },
+    { tab: 'catreqs', icon: 'sparkle', label: t('catRequests'), perm: 'marketing', count: (state.categoryRequests || []).filter(r => r.status === 'new').length || null },
+    { tab: 'aftersales', icon: 'shield', label: t('adminAfterSales'), perm: 'orders', count: (state.afterSales || []).filter(c => c.status === 'arbitrating').length || null },
+    { tab: 'feedback', icon: 'mail', label: t('adminFeedback'), perm: 'marketing', count: (state.suggestions || []).filter(s => s.status === 'new').length || null },
+    { tab: 'users', icon: 'users', label: t('userManage'), perm: 'customers' },
+    { tab: 'addresses', icon: 'users', label: t('addressBook'), perm: 'customers' },
+    { tab: 'records', icon: 'file', label: t('recordsTab'), perm: 'orders' },
+    { tab: 'permissions', icon: 'shield', label: t('permTab'), perm: 'system' },
     { tab: 'profile', icon: 'users', label: t('profileTab') },
-    { tab: 'logs', icon: 'clock', label: t('auditLog') }
+    { tab: 'logs', icon: 'clock', label: t('auditLog'), perm: 'system' }
   ];
+  /* 按权限显示菜单：没有权限的模块直接不出现（越权访问另有 noPermHtml 兜底） */
+  const myTabs = tabs.filter(x => !x.perm || canDo(x.perm));
+  const activeMeta = tabs.find(x => x.tab === activeTab);
   let body = '';
-  if (activeTab === 'inquiries') body = adminInquiriesBody();
+  if (activeMeta && activeMeta.perm && !canDo(activeMeta.perm)) body = noPermHtml(activeMeta);
+  else if (activeTab === 'inquiries') body = adminInquiriesBody();
   else if (activeTab === 'service') body = renderServiceBody(parseHash().params.get('conv') || '');
   else if (activeTab === 'products') body = adminProductsBody();
   else if (activeTab === 'publish') body = renderPublishForm();
@@ -5322,6 +5455,7 @@ function renderAdminDash(path) {
   else if (activeTab === 'users') body = adminUsersBody();
   else if (activeTab === 'addresses') body = addressesBody();
   else if (activeTab === 'records') { if (!state.recordsLoaded) hydrateRecords(); body = recordsBody(); }
+  else if (activeTab === 'permissions') { if (!state.adminPermsLoaded) hydrateAdminPerms(); body = permBody(); }
   else if (activeTab === 'profile') body = renderProfileBody();
   else if (activeTab === 'logs') body = adminLogsBody();
   else body = adminOverviewBody();
@@ -5336,7 +5470,7 @@ function renderAdminDash(path) {
     + '<div class="admin-summary">' + summary.map(([label, n, cls]) =>
       '<span class="admin-summary-chip"><b>' + n + '</b> ' + esc(label) + (n ? ' <i class="dot ' + cls + '"></i>' : '') + '</span>').join('') + '</div>'
     + '</div>'
-    + '<div class="dash-layout">' + sideNav(tabs, activeTab) + '<div>' + body + '</div></div></div>';
+    + '<div class="dash-layout">' + sideNav(myTabs, activeTab) + '<div>' + body + '</div></div></div>';
 }
 
 function adminStatCard(cls, iconName, n, label) {
