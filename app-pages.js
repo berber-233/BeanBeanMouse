@@ -761,7 +761,7 @@ function renderAbout() {
     { k: 'aboutContactWechat', v: 'beanbeanmouse', href: '' },
     { k: 'aboutContactPhone', v: '13725078850', href: 'tel:13725078850' },
     { k: 'aboutContactWhatsapp', v: '+86 137 2507 8850', href: 'https://wa.me/8613725078850' },
-    { k: 'aboutContactAddress', v: t('aboutPending'), href: '' }
+    { k: 'aboutContactAddress', v: t('aboutAddressValue'), href: '' }
   ];
   return '<div class="container page">'
     + '<section class="section about-hero">'
@@ -779,9 +779,11 @@ function renderAbout() {
     + (siteEntityFilled()
       ? '<ul class="contact-list">'
         + '<li><span class="contact-k">' + t('aboutEntityName') + '</span><span>' + esc(siteEntityDisplayName(state.lang)) + '</span></li>'
+        + '<li><span class="contact-k">' + t('aboutEntityType') + '</span><span>' + esc(siteEntityTypeLabel(state.lang)) + '</span></li>'
         + (SITE_ENTITY.city ? '<li><span class="contact-k">' + t('aboutContactAddress') + '</span><span>' + esc([SITE_ENTITY.city, SITE_ENTITY.address].filter(Boolean).join(' ')) + '</span></li>' : '')
         + (SITE_ENTITY.taxId ? '<li><span class="contact-k">' + t('aboutEntityTaxId') + '</span><span>' + esc(SITE_ENTITY.taxId) + '</span></li>' : '')
         + '</ul>'
+        + '<p class="small muted">' + t('aboutEntityNote') + '</p>'
       : '<p class="small muted">' + t('aboutEntityPending') + '</p>')
     + '</div></section>'
     + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
@@ -5984,11 +5986,14 @@ function buildDoc(i, type) {
   /* 开单据的一方：有营业执照就用执照名称，没有就写品牌名 + "主体信息待补充"，
    * 绝不套用演示数据里的"某公司 / 杭州"这种编造信息。 */
   const issuerName = siteEntityDisplayName(state.lang);
+  const lang = state.lang;
   const issuerSub = siteEntityFilled()
-    ? [SITE_ENTITY.city, countryName(SITE_ENTITY.country)].filter(Boolean).join(', ')
+    /* 个人主体没有城市/地址可写 —— 那就写主体类型（"个人主体（自然人经营）"），
+     * 不要留一个孤零零的 ", CN"，也不要编地址。 */
+    ? ([SITE_ENTITY.city, countryName(SITE_ENTITY.country)].filter(Boolean).join(', ')
+       + (SITE_ENTITY.city ? ' · ' : '') + siteEntityTypeLabel(lang))
     : t('docIssuerPending');
   const q = i.quote;
-  const lang = state.lang;
   const title = type === 'proforma' ? t('docProforma') : t('docQuotation');
   const amountN = i.qty * q.price;
   const dateFmt = ts => new Date(ts).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });

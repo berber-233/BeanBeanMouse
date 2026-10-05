@@ -242,7 +242,7 @@ function resolveBrowser() {
   /* 2026-10-01：平台转为自营+面向买家，页脚去掉"招商入驻"入口（页面本身保留） */
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
-  check('footer: version 0.2 shown', /0\.2/.test(await page.locator('.version-line').textContent()));
+  check('footer: version 0.3 shown', /0\.3/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 

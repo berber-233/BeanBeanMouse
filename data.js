@@ -40,22 +40,31 @@ const SELLERS = [
 ];
 
 /* 运营主体信息（唯一配置点）
- * 为什么留空：没注册公司/个体户也能先把网站跑起来——但页面与单据上
- * 绝不能编一个公司名和地址（编了才是真正的风险）。留空时前台会显示
- * "主体信息待补充"，办好营业执照后只改这一处即可全站生效。 */
+ * 当前口径：**个人主体**（自然人经营），未注册公司/个体户。
+ * 原则：绝不编公司名、注册号、地址 —— 个人主体就如实写个人主体，
+ * 只公示真实可用的联系方式；将来办好营业执照，只改这一处即可全站生效。 */
 const SITE_ENTITY = {
-  type: '',                       // 'company'（有限公司）/ 'sole'（个体户）/ ''（尚未注册）
-  name: '',                       // 营业执照名称（中文）
-  nameEn: '',                     // 英文名（单据用，如 NOT REGISTERED YET 则留空）
-  city: '',                       // 城市（英文单据说拼音，如 Ningbo）
-  address: '',                    // 详细地址
-  taxId: '',                      // 统一社会信用代码
+  type: 'individual',             // 'company'（有限公司）/ 'sole'（个体户）/ 'individual'（个人主体）
+  name: '豆豆鼠 BeanBeanMouse（个人主体）',   // 展示名称（个人主体不摊开个人姓名）
+  nameEn: 'BeanBeanMouse (individual operator)',
+  city: '',                       // 个人主体不公示城市/详细地址（隐私）
+  address: '',
+  taxId: '',                      // 个人主体无统一社会信用代码
   country: 'CN',
-  contact: '',                    // 对外联系人姓名
+  contact: '',                    // 不公示个人姓名
   phone: '13725078850',
+  wechat: 'beanbeanmouse',
   email: 'beanbeanmouse.trade@outlook.com'
 };
 function siteEntityFilled() { return !!(SITE_ENTITY.name || SITE_ENTITY.nameEn); }
+/* 主体类型标签：公司 / 个体户 / 个人主体 */
+function siteEntityTypeLabel(lang) {
+  const zh = lang === 'zh';
+  if (SITE_ENTITY.type === 'company') return zh ? '公司（有限公司）' : 'Company (limited liability)';
+  if (SITE_ENTITY.type === 'sole') return zh ? '个体工商户' : 'Sole proprietorship';
+  if (SITE_ENTITY.type === 'individual') return zh ? '个人主体（自然人经营）' : 'Individual operator';
+  return zh ? '尚未注册（个人身份运营）' : 'Not registered yet (operating as an individual)';
+}
 function siteEntityDisplayName(lang) {
   if (!siteEntityFilled()) return lang === 'zh' ? '豆豆鼠 BeanBeanMouse' : 'BeanBeanMouse';
   return lang === 'zh' ? (SITE_ENTITY.name || SITE_ENTITY.nameEn) : (SITE_ENTITY.nameEn || SITE_ENTITY.name);
@@ -120,7 +129,8 @@ const LEGAL_DOCS = {
       title: '隐私政策',
       sections: [
         { h: '1. 我们收集哪些信息', ps: [
-          '你主动提供：注册邮箱、姓名、密码（仅保存不可逆哈希，不保存明文）、身份类型（客户 / 商家）、公司名称与职务（选填）、国家、联系电话或社交账号、询盘内容与数量、上传的名片图片。',
+          '你主动提供：注册邮箱、姓名、密码（仅保存不可逆哈希，不保存明文）、账号类型（目前仅客户/买家注册）、公司名称与职务（选填）、国家、联系电话或社交账号、询盘内容与数量、上传的名片图片。',
+          '运营者身份：本网站由「豆豆鼠 BeanBeanMouse（个人主体）」运营，未注册公司或个体户；如需核对运营者身份、签署文件或行使个人信息权利，请通过页脚的邮箱与我们联系。',
           '系统自动记录：注册时的来源 IP 与浏览器标识（User-Agent）、邮箱域名类型标记（免费邮箱 / 企业域名）、邮箱验证状态、最后登录时间、账号审核与冻结记录、关键操作审计日志。'
         ] },
         { h: '2. 用途', ps: ['用于创建与保护账号、回复询盘、完成报价与履约沟通、识别与拦截机器人/垃圾注册、安全审计与合规留痕，以及向你发送与账号相关的通知邮件。'] },
@@ -140,7 +150,8 @@ const LEGAL_DOCS = {
       title: 'Privacy Policy',
       sections: [
         { h: '1. What we collect', ps: [
-          'Provided by you: registration email, name, password (stored only as an irreversible hash), account type (buyer/seller), company and job title (optional), country, phone or social contact, enquiry content and quantity, uploaded business card image.',
+          'Provided by you: registration email, name, password (stored only as an irreversible hash), account type (currently buyers/customers only), company and job title (optional), country, phone or social contact, enquiry content and quantity, uploaded business card image.',
+          'Who we are: this site is operated by “BeanBeanMouse 豆豆鼠” as an individual operator (natural person), without a registered company or sole proprietorship. To verify the operator, sign documents, or exercise your data rights, contact us at the email in the footer.',
           'Collected automatically: signup source IP and browser user agent, email domain category (free mailbox / corporate domain), email verification state, last login time, account review/freeze records and audit logs.'
         ] },
         { h: '2. Why we use it', ps: ['To create and protect accounts, answer enquiries, quote and fulfil orders, detect and block bot or spam registrations, keep security and compliance records, and send account-related notifications.'] },
@@ -2155,7 +2166,7 @@ const I18N = {
     trust2Title: '询盘直达', trust2Desc: '站内询盘 + 邮件双通道通知，时差不再是障碍。',
     trust3Title: '多语言支持', trust3Desc: '中英双语界面与产品信息，服务全球买家。',
     sellerCtaTitle: '成为供应商，免费入驻', sellerCtaDesc: '发布产品立即获得全球买家询盘，按效果付费，前期零成本。', sellerCtaBtn: '进入卖家工作台',
-    footerTagline: '宠物用品自营出口 · 豆豆鼠 BeanBeanMouse（演示版）', rights: '© 2026 BeanBeanMouse 演示原型 · 仅用于设计演示',
+    footerTagline: '宠物用品自营出口 · 豆豆鼠 BeanBeanMouse', rights: '© 2026 BeanBeanMouse 豆豆鼠 · 个人主体经营 · beanbeanmouse.trade@outlook.com',
     resultsCount: '个结果', filters: '筛选', category: '品类', priceRange: '价格区间 (USD)', minPrice: '最低价', maxPrice: '最高价',
     moq: '最小起订量', origin: '产地', certs: '认证', clearFilters: '清除筛选', sort: '排序',
   sortRecommended: '综合推荐', sortNewest: '最新上架', sortPriceAsc: '价格从低到高', sortPriceDesc: '价格从高到低',
@@ -2474,7 +2485,9 @@ const I18N = {
   aboutEntityName: '主体名称',
   aboutEntityTaxId: '统一社会信用代码',
   aboutEntityPending: '主体信息待补充：目前以个人身份提供展示与询盘服务，营业执照（公司或个体户）办下来后我们会在这里公示名称、地址与统一社会信用代码。在此之前，正式合同、发票与收款均以双方另行确认的主体为准。',
-  docIssuerPending: '主体信息待补充（正式合同/发票以最终主体为准）',
+  aboutEntityType: '主体类型', aboutEntityNote: '目前以个人主体（自然人经营）开展业务，未注册公司或个体户，因此不公示营业执照与统一社会信用代码。如需正式合同、发票或对公收款，请先与我们确认主体与单据口径，我们据实出具。',
+  aboutAddressValue: '中国 · 个人主体（详细地址按需提供）',
+  docIssuerPending: '个人主体（正式合同/发票以双方确认的主体为准）',
   aboutContactEmail: '邮箱',
   aboutContactWechat: '微信',
   aboutContactWhatsapp: 'WhatsApp',
@@ -2484,7 +2497,7 @@ const I18N = {
   contactWhatsappBtn: 'WhatsApp 联系',
   aboutContactPhone: '电话',
   aboutContactAddress: '地址',
-  aboutContactNote: '微信 / 电话 / 地址待补充，当前可先通过邮箱联系，我们 1 个工作日内回复。',
+  aboutContactNote: '微信与电话均为工作号，我们通常 1 个工作日内回复；未接听请留言，或直接发邮件。',
   legalUpdated: '最后更新',
   legalDraftTitle: '草案 · 待法务审定',
   legalDraftNote: '本文按网站当前的实际做法编写，正式上线前会交由专业人士复核并替换为正式版本；如与双方签署的合同冲突，以合同为准。',
@@ -2532,8 +2545,8 @@ const I18N = {
   petsLabel: '适用宠物',
   petSizeLabel: '适用体型',
   materialLabel: '材质',
-  versionLabel: '版本 pet0.2（演示）',
-  demoNote: '演示版本说明：站内商品图片、价格、企业与订单等均为示例数据，正式上线前会替换为真实信息；请勿据此下单或对外引用。',
+  versionLabel: '版本 pet0.3',
+  demoNote: '图片与价格说明：部分商品图暂为概念图（真实拍摄图会陆续替换），站内价格为指导性 FOB 价；实际以询盘确认的正式报价单为准。',
   askTitle: '向豆豆鼠询价（批发 / OEM）', askQ1: '你要面向哪类宠物市场？', askQ2: '要采购哪一类用品？', askQ3: '采购量、目的国与联系方式',
   askCountry: '目的国 / 收货地', askCountryPh: '例如：德国 · 汉堡', askNote: '还想补充什么？', askNotePh: '例如：需要印我们的 logo，包装要英文',
   askPet: '目标市场', askNext: '下一步', askBack: '上一步', askSubmit: '提交询价', askSummary: '采购需求',
@@ -2677,7 +2690,7 @@ const I18N = {
     trust2Title: 'Inquiry delivery', trust2Desc: 'In-app + email notifications bridge time zones.',
     trust3Title: 'Multilingual', trust3Desc: 'Bilingual UI and product data serve global buyers.',
     sellerCtaTitle: 'Become a supplier — free to join', sellerCtaDesc: 'Get inquiries from global buyers with zero upfront cost.', sellerCtaBtn: 'Open seller dashboard',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse demo prototype · For design demonstration only',
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com',
     resultsCount: 'results', filters: 'Filters', category: 'Category', priceRange: 'Price range (USD)', minPrice: 'Min', maxPrice: 'Max',
     moq: 'Min. order', origin: 'Origin', certs: 'Certifications', clearFilters: 'Clear filters', sort: 'Sort',
   sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price low → high', sortPriceDesc: 'Price high → low',
@@ -2996,8 +3009,10 @@ const I18N = {
   aboutEntityTitle: 'Legal entity',
   aboutEntityName: 'Registered name',
   aboutEntityTaxId: 'Unified social credit code',
-  aboutEntityPending: 'Entity details to be added: we currently provide the showcase and enquiry service as an individual. Once a business licence (company or sole proprietorship) is in place, the registered name, address and credit code will be published here. Until then, formal contracts, invoices and payments are subject to the entity confirmed by both parties.',
-  docIssuerPending: 'Issuer details to be added (final contract / invoice issued by the registered entity)',
+  aboutEntityPending: 'Entity details to be added.',
+  aboutEntityType: 'Operator type', aboutEntityNote: 'We currently trade as an individual operator (natural person), without a registered company or sole proprietorship, so no business licence or credit code is published. If you need a formal contract, invoice or corporate bank transfer, confirm the entity and document basis with us first and we will issue accordingly.',
+  aboutAddressValue: 'China · individual operator (full address on request)',
+  docIssuerPending: 'Individual operator (final contract / invoice per the entity confirmed by both parties)',
   aboutContactEmail: 'Email',
   aboutContactWechat: 'WeChat',
   aboutContactWhatsapp: 'WhatsApp',
@@ -3007,7 +3022,7 @@ const I18N = {
   contactWhatsappBtn: 'Chat on WhatsApp',
   aboutContactPhone: 'Phone',
   aboutContactAddress: 'Address',
-  aboutContactNote: 'WeChat, phone and address will be added later. Email works today — we reply within one business day.',
+  aboutContactNote: 'WeChat and phone are our working contacts. We normally reply within one business day — leave a message if we miss your call, or email us.',
   legalUpdated: 'Last updated',
   legalDraftTitle: 'Draft · pending legal review',
   legalDraftNote: 'This document reflects how the site currently operates. It will be reviewed by a qualified professional and replaced with a final version before launch. Where it conflicts with a signed contract, the contract prevails.',
@@ -3055,8 +3070,8 @@ const I18N = {
   petsLabel: 'Suitable for',
   petSizeLabel: 'Pet size',
   materialLabel: 'Material',
-  versionLabel: 'Version pet0.2 (demo)',
-  demoNote: 'Demo build: product images, prices, company profiles and orders on this site are sample data and will be replaced before launch. Do not place orders or cite them.',
+  versionLabel: 'Version pet0.3',
+  demoNote: 'Images & pricing: some product images are concept visuals for now (real photos are being added), and listed prices are indicative FOB prices. The formal quotation confirmed by enquiry prevails.',
   askTitle: 'Wholesale / OEM enquiry', askQ1: 'Which pet market are you buying for?', askQ2: 'Which product category do you need?', askQ3: 'Order quantity, destination and contact',
   askCountry: 'Destination', askCountryPh: 'e.g. Hamburg, Germany', askNote: 'Anything else?', askNotePh: 'e.g. need our logo printed, English packaging',
   askPet: 'Target market', askNext: 'Next', askBack: 'Back', askSubmit: 'Send enquiry', askSummary: 'Sourcing request',
@@ -3229,7 +3244,7 @@ Object.assign(I18N, {
     sendInquiry: '見積依頼を送信', moqLabel: '最小注文数量', verified: '認証済みサプライヤー',
     favorite: 'お気に入り', favorited: 'お気に入り済み', filters: 'フィルター', clearFilters: 'フィルターをクリア',
     noResults: '該当する製品が見つかりません', noResultsHint: '条件を変えてお試しください',
-    footerTagline: 'Pet supplies exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse デモ版・デザイン確認用'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   },
   ko: {
     home: '홈', marketplace: '제품 시장', navNews: '무역 정보', dashboard: '대시보드',
@@ -3242,7 +3257,7 @@ Object.assign(I18N, {
     sendInquiry: '견적 문의 보내기', moqLabel: '최소 주문량', verified: '인증된 공급업체',
     favorite: '즐겨찾기', favorited: '즐겨찾기됨', filters: '필터', clearFilters: '필터 지우기',
     noResults: '일치하는 제품이 없습니다', noResultsHint: '조건을 조정해 보세요',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse 데모 · 디자인 확인용'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   },
   es: {
     home: 'Inicio', marketplace: 'Mercado', navNews: 'Noticias', dashboard: 'Panel',
@@ -3255,7 +3270,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Cantidad mínima', verified: 'Proveedor verificado',
     favorite: 'Favorito', favorited: 'Favorito añadido', filters: 'Filtros', clearFilters: 'Limpiar filtros',
     noResults: 'No se encontraron productos', noResultsHint: 'Ajusta los filtros e inténtalo de nuevo',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse demo · solo para diseño'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   },
   fr: {
     home: 'Accueil', marketplace: 'Marché', navNews: 'Actualités', dashboard: 'Tableau de bord',
@@ -3268,7 +3283,7 @@ Object.assign(I18N, {
     sendInquiry: 'Envoyer une demande', moqLabel: 'Quantité minimale', verified: 'Fournisseur vérifié',
     favorite: 'Favori', favorited: 'Déjà favori', filters: 'Filtres', clearFilters: 'Effacer les filtres',
     noResults: 'Aucun produit trouvé', noResultsHint: 'Essayez d’ajuster les filtres',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse démo · démonstration de design'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   },
   de: {
     home: 'Startseite', marketplace: 'Marktplatz', navNews: 'Handelsnachrichten', dashboard: 'Dashboard',
@@ -3281,7 +3296,7 @@ Object.assign(I18N, {
     sendInquiry: 'Anfrage senden', moqLabel: 'Mindestbestellmenge', verified: 'Verifizierter Lieferant',
     favorite: 'Favorit', favorited: 'Als Favorit gespeichert', filters: 'Filter', clearFilters: 'Filter zurücksetzen',
     noResults: 'Keine passenden Produkte', noResultsHint: 'Passen Sie die Filter an',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse Demo · nur zur Designprüfung'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   },
   pt: {
     home: 'Início', marketplace: 'Mercado', navNews: 'Notícias', dashboard: 'Painel',
@@ -3294,7 +3309,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Quantidade mínima', verified: 'Fornecedor verificado',
     favorite: 'Favorito', favorited: 'Favoritado', filters: 'Filtros', clearFilters: 'Limpar filtros',
     noResults: 'Nenhum produto encontrado', noResultsHint: 'Ajuste os filtros e tente novamente',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse demo · apenas para design'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   },
   ru: {
     home: 'Главная', marketplace: 'Рынок', navNews: 'Новости', dashboard: 'Панель',
@@ -3307,7 +3322,7 @@ Object.assign(I18N, {
     sendInquiry: 'Отправить запрос', moqLabel: 'Мин. объём заказа', verified: 'Проверенный поставщик',
     favorite: 'Избранное', favorited: 'В избранном', filters: 'Фильтры', clearFilters: 'Сбросить фильтры',
     noResults: 'Товары не найдены', noResultsHint: 'Измените условия фильтра',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse (demo)', rights: '© 2026 BeanBeanMouse демо · только для дизайна'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
   }
 });
 
