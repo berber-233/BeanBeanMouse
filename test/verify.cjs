@@ -230,7 +230,7 @@ function resolveBrowser() {
   check('customs: country cards >= 10', await page.locator('.customs-card').count() >= 10);
   check('customs: document checklist shown', await page.locator('.customs-main .guide-list li').count() >= 3);
   check('customs: official sources shown', await page.locator('.customs-main .source-card').count() >= 2);
-  await safeClick('.customs-card[href="#/customs?country=JP"]');
+  await safeClick('.customs-card[href="/customs?country=JP"]');
   await page.waitForTimeout(300);
   check('customs: country switch works', /Japan|日本/.test(await page.locator('.customs-side h3').textContent()));
 

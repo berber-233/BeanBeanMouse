@@ -123,6 +123,13 @@
 ## 2026-10-05 自主完善一轮（SEO 落地页 / 买家回执）
 
 ### 已完成
+- **路径化路由（2026-10-05）**：`#/product/x` → `/product/x`。全站 95 处 `href="#/…"` 改成真实路径，
+  路由读取 `location.pathname`（hash 形式保留为兼容别名，老链接/老书签照常打开并被规整成路径）；
+  站内点击改为 `pushState`（不再整页刷新），前进/后退用 `popstate`；每个路径写 canonical，商品页指向静态页 `/p/<id>`。
+  **踩坑记录**：Pages 的 `_redirects` 里 `200` 代理**不能指向 `/index.html`** —— 它会被规范化成根路径，
+  规则退化成"308 跳回首页"；改成构建时复制一份 `/spa.html` 再代理就正常了。
+  另外 SPA 外壳里的资源引用必须是绝对路径（`/data.js`），否则 `/product/p25` 会去找 `/product/data.js`；
+  源码保持相对路径（本地 file:// 回归需要），构建时自动转绝对。
 - **商品静态落地页 `/p/<id>`**：站点是 hash 路由，搜索引擎只看得到一个首页 URL，
   而外贸站的自然流量几乎全在商品页。现在构建时从线上接口拉商品，为每个在售商品生成
   真正可索引的静态页（title/description/canonical/OG/Product+Breadcrumb JSON-LD/价格/参数/CTA），

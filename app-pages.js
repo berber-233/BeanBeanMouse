@@ -135,7 +135,7 @@ function renderVerifyResult(target, code, r, ok) {
     + '<li><span class="k">' + t('verifyTimes') + '</span><span class="v">' + (r.verifyCount || 1) + '</span></li>'
     + '<li><span class="k">' + t('verifyLast') + '</span><span class="v">' + esc(fmtDate(Date.parse(r.verifiedAt) || Date.now())) + '</span></li>'
     + '</ul>'
-    + (r.productId ? '<a class="btn btn-sm" href="#/product/' + esc(r.productId) + '" data-nav="/product/' + esc(r.productId) + '" data-action="close-modal">' + t('verifyViewProduct') + ' →</a>' : '')
+    + (r.productId ? '<a class="btn btn-sm" href="/product/' + esc(r.productId) + '" data-nav="/product/' + esc(r.productId) + '" data-action="close-modal">' + t('verifyViewProduct') + ' →</a>' : '')
     + '</div>';
 }
 
@@ -272,7 +272,7 @@ function loginFieldsHtml(opts) {
   return '<div class="field"><label>' + t('regEmail') + '</label>'
     + '<input class="input" type="email" name="email" required autocomplete="username" placeholder="' + esc(o.emailPlaceholder || 'you@example.com') + '"></div>'
     + '<div class="field"><div class="label-row"><label>' + t('regPassword') + '</label>'
-    + (showForgot ? '<a class="label-link" href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a>' : '')
+    + (showForgot ? '<a class="label-link" href="/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a>' : '')
     + '</div><input class="input" type="password" name="password" required autocomplete="current-password"></div>';
 }
 /* 表单内提示区：错误直接显示在按钮下面，带"忘记密码"链接 */
@@ -336,9 +336,9 @@ function loginModalHtml() {
     + '</form>'
     + '<div class="lm-links">'
     + '<button type="button" class="btn btn-sm" data-action="show-register">' + icon('edit') + ' ' + t('registerTab') + '</button>'
-    + '<a class="btn btn-sm" href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + '</a>'
+    + '<a class="btn btn-sm" href="/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + '</a>'
     + '</div>'
-    + (state.mailReady ? '<p class="lm-forgot"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
+    + (state.mailReady ? '<p class="lm-forgot"><a href="/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
     + '<div class="lm-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<p class="lm-note">' + t('loginNote') + '</p>'
     + '</div>';
@@ -460,6 +460,23 @@ function render() {
   if (path === '' || path === '/') fitHeroTitle();
   window.scrollTo(0, 0);
   setMetaDesc(pageMetaDesc(path));
+  setRouteMeta(path);
+}
+
+/* 每个路径一个规范 URL（canonical / og:url）。
+ * 商品页指到构建时生成的静态落地页 /p/<id>：那份是"可被搜索引擎完整读取"的版本，
+ * 站内 SPA 页面同样是 /product/<id>，两者互为同一内容，靠 canonical 合并，避免重复收录。 */
+function setRouteMeta(path) {
+  const origin = (typeof location !== 'undefined' && location.origin && location.origin !== 'null')
+    ? location.origin : 'https://beanbeanmouse.com';
+  const p = path || '/';
+  const canonical = (p.indexOf('/product/') === 0)
+    ? origin + '/p/' + p.slice(9)
+    : origin + (p === '/' ? '/' : p);
+  const link = document.querySelector('link[rel="canonical"]');
+  if (link) link.setAttribute('href', canonical);
+  const og = document.querySelector('meta[property="og:url"]');
+  if (og) og.setAttribute('content', canonical);
 }
 
 function needsBootLoading(path) {
@@ -652,15 +669,15 @@ function renderHome() {
     + '<button type="submit" class="btn btn-accent">' + icon('search') + t('searchBtn') + '</button>'
     + '</form>'
     + '<div class="store-cta">'
-    + '<a class="btn btn-accent btn-lg" href="#/products" data-nav="/products">' + t('sfCtaShop') + '</a>'
-    + '<a class="btn btn-ghost btn-lg" href="#/videos" data-nav="/videos">' + t('sfCtaVideo') + '</a>'
+    + '<a class="btn btn-accent btn-lg" href="/products" data-nav="/products">' + t('sfCtaShop') + '</a>'
+    + '<a class="btn btn-ghost btn-lg" href="/videos" data-nav="/videos">' + t('sfCtaVideo') + '</a>'
     /* 原来这里还有个"批发询价"，和商品页的询盘重复；换成"关于我们"，让买家先认识平台 */
-    + '<a class="btn btn-ghost btn-lg" href="#/about" data-nav="/about">' + t('aboutTitle') + '</a>'
+    + '<a class="btn btn-ghost btn-lg" href="/about" data-nav="/about">' + t('aboutTitle') + '</a>'
     + '</div>'
     + '<div class="store-trust">'
     + ['trustOem', 'trustShip', 'trustInspect', 'trustAfter'].map(k => '<span class="trust-chip">' + t(k) + '</span>').join('')
     + '</div>'
-    + '<div class="hero-popular">' + t('popular') + hotKw.map(k => '<a href="#/products?kw=' + encodeURIComponent(k) + '" data-nav="/products?kw=' + encodeURIComponent(k) + '">' + esc(k) + '</a>').join('') + '</div>'
+    + '<div class="hero-popular">' + t('popular') + hotKw.map(k => '<a href="/products?kw=' + encodeURIComponent(k) + '" data-nav="/products?kw=' + encodeURIComponent(k) + '">' + esc(k) + '</a>').join('') + '</div>'
     + '</div>'
     + '<div class="store-art">'
     + '<img src="' + storefrontArt() + '" alt="' + esc(t('sfArtAlt')) + '" width="720" height="720" decoding="async">'
@@ -670,10 +687,10 @@ function renderHome() {
     + '</section>'
     + '<div class="container page">'
     /* 8 个细分 */
-    + '<section class="section"><div class="section-head"><h2>' + t('catStripTitle') + '</h2><a href="#/products" class="small" data-nav="/products">' + t('viewAllCats') + ' →</a></div>'
+    + '<section class="section"><div class="section-head"><h2>' + t('catStripTitle') + '</h2><a href="/products" class="small" data-nav="/products">' + t('viewAllCats') + ' →</a></div>'
     + '<div class="sub-grid">' + subs.map(s => {
       const count = live.filter(p => p.sub === s.id).length;
-      return '<a class="sub-card" href="#/products?cat=pet&sub=' + s.id + '" data-nav="/products?cat=pet&sub=' + s.id + '">'
+      return '<a class="sub-card" href="/products?cat=pet&sub=' + s.id + '" data-nav="/products?cat=pet&sub=' + s.id + '">'
         + '<img class="sub-ico" src="' + subIco(s.id) + '" alt="" width="44" height="44" loading="lazy" decoding="async">'
         + '<span class="sub-name">' + langObj(s) + '</span>'
         + '<span class="sub-count">' + count + ' ' + t('totalProducts') + '</span>'
@@ -681,8 +698,8 @@ function renderHome() {
     }).join('') + '</div></section>'
     /* 精选商品：只 4 个；视频内容集中在"客户实拍视频墙"页，首页只留一个入口 */
     + '<section class="section"><div class="section-head"><h2>' + t('featuredTitle') + '</h2>'
-    + '<span class="section-links"><a href="#/videos" class="small" data-nav="/videos">' + t('videoWallTitle') + ' →</a>'
-    + '<a href="#/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></span></div>'
+    + '<span class="section-links"><a href="/videos" class="small" data-nav="/videos">' + t('videoWallTitle') + ' →</a>'
+    + '<a href="/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></span></div>'
     + '<div class="product-grid">' + featured.map(productCard).join('') + '</div></section>'
     /* 服务承诺 */
     + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
@@ -700,7 +717,7 @@ function renderHome() {
     + '<section class="section about-teaser">'
     + '<div class="about-teaser-art"><img src="assets/pet/about-hamster.png" alt="" width="360" height="360" loading="lazy" decoding="async"></div>'
     + '<div class="about-teaser-copy"><h2>' + t('aboutTeaserTitle') + '</h2><p>' + t('aboutTeaserDesc') + '</p>'
-    + '<a class="btn btn-accent" href="#/about" data-nav="/about">' + t('aboutMore') + '</a></div></section>'
+    + '<a class="btn btn-accent" href="/about" data-nav="/about">' + t('aboutMore') + '</a></div></section>'
     + '</div>';
 }
 
@@ -873,7 +890,7 @@ function renderProducts(params) {
     + '<input type="search" id="productKw" placeholder="' + t('searchBarPlaceholder') + '" value="' + esc(kw) + '" aria-label="' + t('searchBarPlaceholder') + '">'
   + '<button type="submit" class="btn btn-accent">' + icon('search') + t('searchBtn') + '</button>'
   + '</form>'
-  + (searchSuggest.length ? '<div class="search-suggest">' + searchSuggest.slice(0, 6).map(sg => '<a class="chip" href="#/products?kw=' + encodeURIComponent(sg) + '" data-nav="/products?kw=' + encodeURIComponent(sg) + '">' + esc(sg) + '</a>').join('') + '</div>' : '')
+  + (searchSuggest.length ? '<div class="search-suggest">' + searchSuggest.slice(0, 6).map(sg => '<a class="chip" href="/products?kw=' + encodeURIComponent(sg) + '" data-nav="/products?kw=' + encodeURIComponent(sg) + '">' + esc(sg) + '</a>').join('') + '</div>' : '')
   + '</div>'
     + '<div class="products-layout">'
     + '<aside class="card filter-panel" id="filterPanel">'
@@ -923,7 +940,7 @@ function bindProductsPage() {
     params.delete('sub');
     if (r.value) params.set('cat', r.value); else params.delete('cat');
     const qs = params.toString();
-    location.hash = '#/products' + (qs ? '?' + qs : '');
+    go('/products' + (qs ? '?' + qs : ''));
   }));
   panel.querySelectorAll('input[name="sub"]').forEach(r => r.addEventListener('change', () => setFilter('sub', r.value)));
   const pm = $('#priceMin'), px = $('#priceMax'), mq = $('#moqFilter'), or = $('#originFilter'), so = $('#sortSel');
@@ -943,7 +960,7 @@ function setFilter(key, value) {
   if (value === '' || value == null) params.delete(key);
   else params.set(key, value);
   const qs = params.toString();
-  location.hash = '#/products' + (qs ? '?' + qs : '');
+  go('/products' + (qs ? '?' + qs : ''));
 }
 
 function removeFilter(key, value) {
@@ -958,7 +975,7 @@ function removeFilter(key, value) {
     params.delete(key);
   }
   const qs = params.toString();
-  location.hash = '#/products' + (qs ? '?' + qs : '');
+  go('/products' + (qs ? '?' + qs : ''));
 }
 
 /* ---------- 贸易资讯 ---------- */
@@ -1013,7 +1030,7 @@ function renderNews(params) {
     + '<div class="card panel news-filter">'
     + '<div class="news-filter-row"><span class="filter-label">' + t('newsCatFilter') + '</span>'
     + '<div class="sub-tabs">' + NEWS_CATS.map(c =>
-      '<a class="sub-tab ' + (cat === c.id ? 'on' : '') + '" href="#/news?cat=' + c.id + '" data-nav="/news?cat=' + c.id + '">' + langObj(c) + '</a>'
+      '<a class="sub-tab ' + (cat === c.id ? 'on' : '') + '" href="/news?cat=' + c.id + '" data-nav="/news?cat=' + c.id + '">' + langObj(c) + '</a>'
     ).join('') + '</div></div>'
     + '<div class="news-filter-row" id="newsRegionGroup"><span class="filter-label">' + t('newsRegionFilter') + '</span>'
     + '<div class="check-group">' + NEWS_REGIONS.map(r =>
@@ -1055,7 +1072,7 @@ function detailRelatedHtml(p) {
   others = others.slice(0, 4);
   if (!others.length) return '';
   return '<section class="related-section detail-related"><div class="section-head"><h2>' + icon('sparkle') + ' ' + t('relatedTitle') + '</h2>'
-    + '<a class="btn btn-sm" href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + t('viewAll') + ' →</a></div>'
+    + '<a class="btn btn-sm" href="/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + t('viewAll') + ' →</a></div>'
     + '<div class="product-grid">' + others.map(productCard).join('') + '</div></section>';
 }
 function renderSellerPage(sid) {
@@ -1078,7 +1095,7 @@ function renderSellerPage(sid) {
   const firstProduct = products[0] || null;
   const stat = (n, l) => '<div class="sp-stat"><b>' + n + '</b><span>' + esc(l) + '</span></div>';
   return '<div class="container page">'
-    + '<nav class="breadcrumb"><a href="#/" data-nav="/">' + t('home') + '</a> / <a href="#/products" data-nav="/products">' + t('marketplace') + '</a> / <span>' + esc(companyName) + '</span></nav>'
+    + '<nav class="breadcrumb"><a href="/" data-nav="/">' + t('home') + '</a> / <a href="/products" data-nav="/products">' + t('marketplace') + '</a> / <span>' + esc(companyName) + '</span></nav>'
     + '<section class="card panel seller-profile-head">'
     + '<span class="sp-logo">' + esc(initialsOf(companyName)) + '</span>'
     + '<div class="sp-main"><div class="sp-title">' + esc(companyName) + ' ' + statusPill + '</div>'
@@ -1134,7 +1151,7 @@ function renderDetail(pid) {
     '<img src="' + (imgs.length ? productImgUrl(p, v) : productImg(p, 640, 480, v)) + '" alt="' + esc(langObj(p).title + ' · ' + (v + 1)) + '" class="' + (v === variant ? 'on' : '') + '" data-action="gallery" data-id="' + p.id + '" data-v="' + v + '">'
   ).join('');
   return '<div class="container page">'
-    + '<nav class="breadcrumb"><a href="#/" data-nav="/">' + t('home') + '</a> / <a href="#/products" data-nav="/products">' + t('marketplace') + '</a> / <a href="#/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + esc(langObj(cat)) + '</a> / <span>' + esc(langObj(p).title) + '</span></nav>'
+    + '<nav class="breadcrumb"><a href="/" data-nav="/">' + t('home') + '</a> / <a href="/products" data-nav="/products">' + t('marketplace') + '</a> / <a href="/products?cat=' + p.cat + '" data-nav="/products?cat=' + p.cat + '">' + esc(langObj(cat)) + '</a> / <span>' + esc(langObj(p).title) + '</span></nav>'
     + '<div class="detail-layout">'
     + '<div class="gallery">'
     + '<div class="main-img"><img src="' + mainSrc + '" alt="' + esc(langObj(p).title) + '" id="mainImg"></div>'
@@ -1173,7 +1190,7 @@ function renderDetail(pid) {
     + '<span class="avatar" style="width:38px;height:38px;font-size:14px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
     + '<div class="info"><div class="name">' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('shield') + '<span style="color:#126A33;font-size:12px">' + t('verified') + '</span>' : '') + '</div>'
     + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('responseRate') + ' ' + seller.responseRate + '%</div>'
-    + '<a class="seller-page-link" href="#/seller/' + seller.id + '" data-nav="/seller/' + seller.id + '">' + t('viewSellerPage') + ' →</a></div>'
+    + '<a class="seller-page-link" href="/seller/' + seller.id + '" data-nav="/seller/' + seller.id + '">' + t('viewSellerPage') + ' →</a></div>'
     + '</div>'
     + '<div class="detail-actions">'
     + '<button type="button" class="btn btn-primary btn-lg" data-action="open-inquiry" data-id="' + p.id + '" style="flex:1">' + icon('send') + t('sendInquiry') + '</button>'
@@ -1224,7 +1241,7 @@ function renderDetail(pid) {
           : '<span class="status-pill done">' + t('compliancePassLabel') + '</span>')
         + (flags.length ? '<div class="risk-box">' + flags.map(k => '<span class="risk-chip">' + esc(k) + '</span>').join('') + '</div>' : '')
         + '<p class="small muted">' + t('compliancePanelNote') + '</p>'
-        + '<a class="btn btn-sm" href="#/compliance" data-nav="/compliance">' + t('complianceScreenDemo') + ' →</a>'
+        + '<a class="btn btn-sm" href="/compliance" data-nav="/compliance">' + t('complianceScreenDemo') + ' →</a>'
         + '</div></div>';
     })()
     + '<div class="card detail-block"><h2>' + t('aboutSeller') + '</h2><div class="seller-block">'
@@ -1718,7 +1735,7 @@ function submitInquiry(f) {
     + '<p>' + t('inquirySuccessDesc') + '</p>'
     + '<div class="inquiry-summary" style="text-align:left"><img src="' + productImg(p2, 200, 150) + '" alt=""><div><div style="font-weight:600">' + esc(langObj(p2).title) + '</div><div class="small muted">' + qty + ' ' + fd.get('unit') + ' · ' + esc(name) + '</div></div></div>'
     + '<div class="flex gap-10" style="justify-content:center">'
-    + '<a class="btn btn-primary" href="#/dashboard" data-nav="/dashboard">' + t('viewMyInquiries') + '</a>'
+    + '<a class="btn btn-primary" href="/dashboard" data-nav="/dashboard">' + t('viewMyInquiries') + '</a>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('continueBrowsing') + '</button>'
     + '</div></div></div></div>';
 }
@@ -2172,7 +2189,7 @@ function passwordPanelHtml() {
     + '<div class="flex gap-10" style="align-items:center;flex-wrap:wrap">'
     + '<button type="submit" class="btn btn-primary">' + t('pwdSubmit') + '</button>'
     + (state.mailReady
-      ? '<a class="small" href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a>'
+      ? '<a class="small" href="/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a>'
       : '<span class="small muted">' + t('pwdForgetHint') + '</span>')
     + '</div>'
     + '<p class="small muted" data-pwd-result hidden></p>'
@@ -3127,10 +3144,10 @@ function renderGuide() {
     + '<ul class="risk-list">' + TRADE_GUIDE_RISKS.map(x => '<li><span class="risk-ico">⚠</span><span>' + esc(zh ? x.zh : x.en) + '</span></li>').join('') + '</ul></section>'
     + '<section class="card panel guide-section"><div class="panel-head"><h2>' + (zh ? '配套工具' : 'Related tools') + '</h2></div>'
     + '<div class="flex gap-10" style="flex-wrap:wrap">'
-    + '<a class="btn" href="#/export" data-nav="/export">' + t('navExport') + ' →</a>'
-    + '<a class="btn" href="#/logistics" data-nav="/logistics">' + t('navLogistics') + ' →</a>'
-    + '<a class="btn" href="#/compliance" data-nav="/compliance">' + t('navCompliance') + ' →</a>'
-    + '<a class="btn" href="#/disputes" data-nav="/disputes">' + t('navDisputes') + ' →</a>'
+    + '<a class="btn" href="/export" data-nav="/export">' + t('navExport') + ' →</a>'
+    + '<a class="btn" href="/logistics" data-nav="/logistics">' + t('navLogistics') + ' →</a>'
+    + '<a class="btn" href="/compliance" data-nav="/compliance">' + t('navCompliance') + ' →</a>'
+    + '<a class="btn" href="/disputes" data-nav="/disputes">' + t('navDisputes') + ' →</a>'
     + '</div></section>'
     + '<p class="small muted guide-disclaimer">' + esc(L.disclaimer) + '</p>'
     + '</div>';
@@ -3147,7 +3164,7 @@ function renderCustoms() {
     + '<div class="page-head guide-head"><h1>' + t('customsTitle') + '</h1><p>' + t('customsSub') + '</p></div>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('customsPick') + '</h2></div>'
     + '<div class="customs-grid">' + CUSTOMS_REF.map(c =>
-      '<a class="customs-card' + (c.code === row.code ? ' on' : '') + '" href="#/customs?country=' + c.code + '" data-nav="/customs?country=' + c.code + '">'
+      '<a class="customs-card' + (c.code === row.code ? ' on' : '') + '" href="/customs?country=' + c.code + '" data-nav="/customs?country=' + c.code + '">'
       + '<span class="lang-flag">' + countryTag(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
     ).join('') + '</div></section>'
     + '<div class="dash-layout customs-layout">'
@@ -3186,7 +3203,7 @@ function renderRecruit() {
     + '<section class="card panel"><div class="panel-head"><h2>' + (zh ? '为什么选择豆豆鼠' : 'Why BeanBeanMouse') + '</h2></div>'
     + '<div class="benefit-grid">' + benefits.map(b => '<div class="benefit-card"><div class="benefit-ico">' + b[0] + '</div><b>' + esc(b[1]) + '</b><p>' + esc(b[2]) + '</p></div>').join('') + '</div></section>'
     + '<div class="cta-band recruit-cta"><div><h2>' + t('recruitCta') + '</h2><p>' + (zh ? '免费入驻，按效果付费' : 'Free to join, pay by results') + '</p></div>'
-    + '<a class="btn btn-accent btn-lg" href="#/login" data-nav="/login">' + t('recruitCta') + '</a></div>'
+    + '<a class="btn btn-accent btn-lg" href="/login" data-nav="/login">' + t('recruitCta') + '</a></div>'
     + '</div>';
 }
 
@@ -3226,7 +3243,7 @@ function renderContracts() {
   document.title = t('contractsTitle') + ' · BeanBeanMouse';
   if (!state.user) {
     return '<div class="container page"><div class="card panel"><p>' + t('contractNeedLogin') + '</p>'
-      + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('login') + '</a></div></div>';
+      + '<a class="btn btn-primary" href="/login" data-nav="/login">' + t('login') + '</a></div></div>';
   }
   const mine = (state.orders || []).filter(o => o.buyerId === state.user.id || o.sellerId === (state.user.sellerId || state.user.id));
   const opts = mine.map(o => '<option value="' + o.id + '">' + esc(o.id) + ' · ' + esc(partyNameOf(o, 'seller')) + ' ⇄ ' + esc(partyNameOf(o, 'buyer')) + '</option>').join('');
@@ -3327,7 +3344,7 @@ function renderExport() {
       ? checklist
       : '<div class="card panel"><div class="panel-head"><h2>' + icon('building') + ' ' + t('exportChecklistTitle') + '</h2></div>'
         + '<p class="muted">' + t('exportNoLoginHint') + '</p>'
-        + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('exportLoginBtn') + '</a></div>')
+        + '<a class="btn btn-primary" href="/login" data-nav="/login">' + t('exportLoginBtn') + '</a></div>')
     + '<section class="card panel guide-section"><div class="panel-head"><h2>' + t('exportChecklistTitle') + '</h2>'
     + '<span class="small muted">' + t('exportChecklistSub') + '</span></div>'
     + (guideItems.length ? guideItems.map(it => {
@@ -3345,9 +3362,9 @@ function renderExport() {
     + '<section class="card panel"><div class="panel-head"><h2>' + icon('file') + ' ' + t('exportProductHint') + '</h2></div>'
     + '<p class="small muted">' + t('exportChecklistSub') + '</p>'
     + '<div class="flex gap-10" style="flex-wrap:wrap">'
-    + '<a class="btn" href="#/guide" data-nav="/guide">' + t('navGuide') + ' →</a>'
-    + '<a class="btn" href="#/compliance" data-nav="/compliance">' + t('navCompliance') + ' →</a>'
-    + '<a class="btn" href="#/logistics" data-nav="/logistics">' + t('navLogistics') + ' →</a></div></section>'
+    + '<a class="btn" href="/guide" data-nav="/guide">' + t('navGuide') + ' →</a>'
+    + '<a class="btn" href="/compliance" data-nav="/compliance">' + t('navCompliance') + ' →</a>'
+    + '<a class="btn" href="/logistics" data-nav="/logistics">' + t('navLogistics') + ' →</a></div></section>'
     + '</div>';
 }
 
@@ -3380,7 +3397,7 @@ function renderLogistics() {
     + '<div class="container-grid">' + CONTAINER_TYPES.map(c => '<div class="container-card"><b>' + esc(langObj(c)) + '</b></div>').join('') + '</div></section>'
     + '<section class="card panel"><div class="panel-head"><h2>' + t('logisticsCostTitle') + '</h2><span class="small muted">' + t('logisticsCostNote') + '</span></div>'
     + '<div class="customs-grid">' + PORT_CHARGES.map(c =>
-      '<a class="customs-card' + (c.code === port.code ? ' on' : '') + '" href="#/logistics?port=' + c.code + '" data-nav="/logistics?port=' + c.code + '">'
+      '<a class="customs-card' + (c.code === port.code ? ' on' : '') + '" href="/logistics?port=' + c.code + '" data-nav="/logistics?port=' + c.code + '">'
       + '<span class="lang-flag">' + countryTag(c.flag) + '</span><span>' + esc(zh ? c.zh : c.en) + '</span></a>'
     ).join('') + '</div>'
     + '<div class="port-charge-card"><h3>' + countryTag(port.flag) + ' ' + esc(zh ? port.zh : port.en) + '</h3>'
@@ -3533,7 +3550,7 @@ function renderDisputes() {
   document.title = t('navDisputes') + ' · BeanBeanMouse';
   if (!state.user) {
     return '<div class="container page"><div class="card panel"><p>' + t('afterSalesNeedLogin') + '</p>'
-      + '<a class="btn btn-primary" href="#/login" data-nav="/login">' + t('login') + '</a></div></div>';
+      + '<a class="btn btn-primary" href="/login" data-nav="/login">' + t('login') + '</a></div></div>';
   }
   const u = state.user;
   let rows = state.afterSales || [];
@@ -3627,8 +3644,8 @@ function adminFeedbackBody() {
   const rows = showAll ? all : all.filter(s => s.status !== 'done');
   return '<div class="card panel"><div class="panel-head"><h2>' + t('adminFeedback') + '</h2>'
     + '<span class="flex gap-10"><span class="small muted">' + rows.filter(s => s.status === 'new').length + ' ' + t('feedbackNew') + '</span>'
-    + '<a class="btn btn-sm' + (showAll ? '' : ' btn-primary') + '" href="#/dashboard/feedback?status=open" data-nav="/dashboard/feedback?status=open">' + t('feedbackFilterOpen') + '</a>'
-    + '<a class="btn btn-sm' + (showAll ? ' btn-primary' : '') + '" href="#/dashboard/feedback?status=all" data-nav="/dashboard/feedback?status=all">' + t('feedbackFilterAll') + '</a></span></div>'
+    + '<a class="btn btn-sm' + (showAll ? '' : ' btn-primary') + '" href="/dashboard/feedback?status=open" data-nav="/dashboard/feedback?status=open">' + t('feedbackFilterOpen') + '</a>'
+    + '<a class="btn btn-sm' + (showAll ? ' btn-primary' : '') + '" href="/dashboard/feedback?status=all" data-nav="/dashboard/feedback?status=all">' + t('feedbackFilterAll') + '</a></span></div>'
     + (rows.length ? rows.map(s => {
       const u = (state.users || []).find(x => x.id === s.userId);
       return '<div class="as-card"><div class="as-head"><b>' + esc(feedbackTypeLabel(s.type)) + '</b>'
@@ -4183,7 +4200,7 @@ function openProductPreview(pid) {
     + '<p class="small muted pp-desc">' + esc(String(viewProductText(p, 'desc') || '').slice(0, 300)) + '</p>'
     + '</div></div>'
     + '<div class="pp-actions">'
-    + '<a class="btn btn-primary" href="#/product/' + esc(p.id) + '" data-nav="/product/' + esc(p.id) + '" data-action="close-modal">' + t('openProductPage') + ' →</a>'
+    + '<a class="btn btn-primary" href="/product/' + esc(p.id) + '" data-nav="/product/' + esc(p.id) + '" data-action="close-modal">' + t('openProductPage') + ' →</a>'
     + '<button type="button" class="btn" data-action="copy-product-link" data-id="' + esc(p.id) + '">' + icon('file') + ' ' + t('copyProductLink') + '</button>'
     + '</div></div>');
 }
@@ -4445,7 +4462,7 @@ function chatHeadHtml(active, isService) {
   const title = p ? langObj(p).title : active.id;
   if (!isService) {
     return '<b class="oneline" title="' + esc(title) + '">' + esc(title) + '</b>'
-      + '<a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a>';
+      + '<a class="btn btn-sm" href="/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a>';
   }
   return '<div class="ch-main">'
     + '<b class="oneline" title="' + esc(title) + '">' + esc(title) + '</b>'
@@ -4454,8 +4471,8 @@ function chatHeadHtml(active, isService) {
     + '</div>'
     + '<span class="ch-actions">'
     + '<span class="chip" title="' + t('productCodeLabel') + '">' + icon('box') + ' ' + esc(productCodeOf(p)) + '</span>'
-    + (p ? '<a class="btn btn-sm" href="#/product/' + esc(p.id) + '" data-nav="/product/' + esc(p.id) + '">' + t('viewDetail') + '</a>' : '')
-    + '<a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('inquiryManage') + '</a>'
+    + (p ? '<a class="btn btn-sm" href="/product/' + esc(p.id) + '" data-nav="/product/' + esc(p.id) + '">' + t('viewDetail') + '</a>' : '')
+    + '<a class="btn btn-sm" href="/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('inquiryManage') + '</a>'
     + '</span>';
 }
 
@@ -4983,8 +5000,8 @@ function renderLogin() {
     + '<button type="button" class="btn btn-lg btn-outline" data-action="show-register" style="margin-top:10px">' + icon('edit') + ' ' + t('registerTab') + '</button>'
     + '<div class="login-trust"><span> ' + t('loginTrust1') + '</span><span> ' + t('loginTrust2') + '</span><span> ' + t('loginTrust3') + '</span></div>'
     + '<div class="login-note"> ' + t('loginNote') + '</div>'
-    + (state.mailReady ? '<p class="login-admin-link"><a href="#/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
-    + '<p class="login-admin-link"><a href="#/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + ' →</a></p>'
+    + (state.mailReady ? '<p class="login-admin-link"><a href="/forgot-password" data-nav="/forgot-password">' + t('forgotPassword') + '</a></p>' : '')
+    + '<p class="login-admin-link"><a href="/admin-login" data-nav="/admin-login">' + t('adminLoginEntry') + ' →</a></p>'
     + '</div></div>';
 }
 
@@ -5011,10 +5028,10 @@ function renderLegal(kind) {
     + esc(SITE_ENTITY.email) + ' · ' + esc(t('aboutContactWechat')) + ' ' + esc('beanbeanmouse') + ' · ' + esc(SITE_ENTITY.phone) + '</p>'
     + '<p class="small muted">' + t('legalEntityNote') + '</p></div>'
     + '</div>'
-    + '<p class="legal-back"><a href="#/login" data-nav="/" class="small">' + t('home') + '</a> · '
+    + '<p class="legal-back"><a href="/login" data-nav="/" class="small">' + t('home') + '</a> · '
     + ['terms', 'privacy', 'returns', 'report'].filter(k => k !== kind).map(k => {
       const d = legalDoc(k);
-      return '<a href="#/' + k + '" data-nav="/' + k + '" class="small">' + esc(d ? d.title : k) + '</a>';
+      return '<a href="/' + k + '" data-nav="/' + k + '" class="small">' + esc(d ? d.title : k) + '</a>';
     }).join(' · ') + '</p>'
     + '</div>';
 }
@@ -5024,8 +5041,8 @@ function authPageShell(title, desc, inner) {
     + '<div class="login-brand"><img class="login-mascot" src="assets/mascot-icon.png" alt="BeanBeanMouse" width="58" height="58" decoding="async">'
     + '<div class="login-brand-txt"><b>BeanBean<span>Mouse</span></b><span>' + t('loginTag') + '</span></div></div>'
     + '<h1>' + title + '</h1><p class="sub">' + desc + '</p>' + inner
-    + '<div class="admin-login-links"><a href="#/login" data-nav="/login">' + t('adminBackToLogin') + '</a>'
-    + '<a href="#/" data-nav="/">' + t('home') + '</a></div>'
+    + '<div class="admin-login-links"><a href="/login" data-nav="/login">' + t('adminBackToLogin') + '</a>'
+    + '<a href="/" data-nav="/">' + t('home') + '</a></div>'
     + '</div></div>';
 }
 function renderForgotPassword() {
@@ -5096,8 +5113,8 @@ function renderAdminLogin() {
     + '</form>'
     + '<div class="admin-login-note">' + icon('shield') + ' ' + t('adminLoginAuditNote') + '</div>'
     + '<div class="admin-login-links">'
-    + '<a href="#/login" data-nav="/login">' + t('adminBackToLogin') + '</a>'
-    + '<a href="#/" data-nav="/">' + t('home') + '</a>'
+    + '<a href="/login" data-nav="/login">' + t('adminBackToLogin') + '</a>'
+    + '<a href="/" data-nav="/">' + t('home') + '</a>'
     + '</div></div></div>';
 }
 
@@ -5139,7 +5156,7 @@ function adminPwdWarnHtml() {
   return '<div class="container admin-pwd-warn-wrap"><div class="admin-pwd-warn">'
     + '<span class="apw-ico">' + icon('shield') + '</span>'
     + '<div class="apw-txt"><b>' + t('adminPwdWarn') + '</b><span>' + t('adminPwdWarnSub') + '</span></div>'
-    + '<a class="btn btn-sm btn-primary" href="#/dashboard/profile" data-nav="/dashboard/profile">' + t('adminPwdWarnBtn') + '</a>'
+    + '<a class="btn btn-sm btn-primary" href="/dashboard/profile" data-nav="/dashboard/profile">' + t('adminPwdWarnBtn') + '</a>'
     + '</div></div>';
 }
 
@@ -5164,9 +5181,9 @@ function sideNav(items, activeTab) {
     + '<span class="side-role">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span></div>'
     + '<nav class="side-nav">'
     + items.map(it =>
-      '<a href="#/dashboard/' + it.tab + '" data-nav="/dashboard/' + it.tab + '" class="' + (activeTab === it.tab ? 'active' : '') + '">' + icon(it.icon) + it.label + (it.count ? '<span class="badge-dot">' + it.count + '</span>' : '') + '</a>'
+      '<a href="/dashboard/' + it.tab + '" data-nav="/dashboard/' + it.tab + '" class="' + (activeTab === it.tab ? 'active' : '') + '">' + icon(it.icon) + it.label + (it.count ? '<span class="badge-dot">' + it.count + '</span>' : '') + '</a>'
     ).join('')
-    + '<a href="#/" data-nav="/" data-action="logout" class="side-out">' + icon('logout') + t('logout') + '</a>'
+    + '<a href="/" data-nav="/" data-action="logout" class="side-out">' + icon('logout') + t('logout') + '</a>'
     + '</nav></aside>';
 }
 
@@ -5208,17 +5225,17 @@ function renderSellerDash(path) {
       + '<div class="card stat-card"><div class="stat-ico ico-green">' + icon('clock') + '</div><div><div class="n">' + pending + '</div><div class="l">' + t('statPending') + '</div></div></div>'
       + '<div class="card stat-card"><div class="stat-ico ico-purple">' + icon('sparkle') + '</div><div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('statRate') + '</div></div></div>'
       + '</div>'
-      + '<div class="card panel"><div class="panel-head"><h2>' + t('recentInquiries') + '</h2><a class="btn btn-sm" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
+      + '<div class="card panel"><div class="panel-head"><h2>' + t('recentInquiries') + '</h2><a class="btn btn-sm" href="/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
       + (myInquiries.length ? myInquiries.slice(0, 4).map(inquiryItem).join('') : '<div class="empty-state" style="padding:30px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/mailbox.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noInquiries') + '</p></div>')
       + '</div>'
       + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('quickActions') + '</h2></div>'
       + '<div class="flex gap-10" style="flex-wrap:wrap">'
-      + '<a class="btn btn-primary" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + t('newProduct') + '</a>'
-      + '<a class="btn" href="#/dashboard/products" data-nav="/dashboard/products">' + icon('box') + t('productManage') + '</a>'
-      + '<a class="btn" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + icon('message') + t('inquiryManage') + '</a>'
+      + '<a class="btn btn-primary" href="/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + t('newProduct') + '</a>'
+      + '<a class="btn" href="/dashboard/products" data-nav="/dashboard/products">' + icon('box') + t('productManage') + '</a>'
+      + '<a class="btn" href="/dashboard/inquiries" data-nav="/dashboard/inquiries">' + icon('message') + t('inquiryManage') + '</a>'
       + '</div></div>';
   } else if (activeTab === 'products') {
-    body = '<div class="card panel"><div class="panel-head"><h2>' + t('productManage') + '</h2><a class="btn btn-primary btn-sm" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + t('newProduct') + '</a></div>'
+    body = '<div class="card panel"><div class="panel-head"><h2>' + t('productManage') + '</h2><a class="btn btn-primary btn-sm" href="/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + t('newProduct') + '</a></div>'
       + (myProducts.length
         ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('productDetail') + '</th><th>' + t('category') + '</th><th>' + t('priceRangeLabel') + '</th><th>' + t('moqLabel') + '</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
         + myProducts.map(p => {
@@ -5247,7 +5264,7 @@ function renderSellerDash(path) {
     body = exportChecklistHtml(sid)
       + '<div class="card panel mt-20"><div class="panel-head"><h2>' + icon('file') + ' ' + t('exportProductHint') + '</h2></div>'
       + '<p class="small muted">' + t('exportGuideNote') + '</p>'
-      + '<a class="btn" href="#/export" data-nav="/export">' + t('navExport') + ' →</a></div>';
+      + '<a class="btn" href="/export" data-nav="/export">' + t('navExport') + ' →</a></div>';
   } else if (activeTab === 'profile') {
     body = renderProfileBody();
   } else if (activeTab === 'messages') {
@@ -5388,7 +5405,7 @@ function adminOverviewBody() {
     + '<div class="card panel"><div class="panel-head"><h2>' + t('inqByCountry') + '</h2><span class="small muted">' + t('inqByCountryHint') + '</span></div>'
     + '<div class="chart-bars">' + barRows(cntRows, maxCnt, k => k === '—' ? t('unknownCountry') : countryLabel(k)) + '</div></div>'
     + '</div>'
-    + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('latestActivity') + '</h2><a class="btn btn-sm" href="#/dashboard/logs" data-nav="/dashboard/logs">' + t('viewAll') + ' →</a></div>'
+    + '<div class="card panel mt-20"><div class="panel-head"><h2>' + t('latestActivity') + '</h2><a class="btn btn-sm" href="/dashboard/logs" data-nav="/dashboard/logs">' + t('viewAll') + ' →</a></div>'
     + (logs.length
       ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('logTime') + '</th><th>' + t('logActor') + '</th><th>' + t('logAction') + '</th><th>' + t('logTarget') + '</th></tr></thead><tbody>'
       + logs.map(l => '<tr><td>' + fmtDate(l.ts) + '</td><td>' + esc(l.actor) + '</td><td>' + esc(l.action) + '</td><td>' + esc(l.target) + '</td></tr>').join('')
@@ -5407,7 +5424,7 @@ function adminReviewBody() {
     { k: 'rejected', label: t('rejectedLabel') }
   ];
   return '<div class="card panel"><div class="panel-head"><h2>' + t('productReview') + '</h2><span class="small muted">' + t('reviewHint') + '</span></div>'
-    + '<div class="sub-tabs">' + tabs.map(tb => '<a class="sub-tab ' + (st === tb.k ? 'on' : '') + '" href="#/dashboard/review?status=' + tb.k + '" data-nav="/dashboard/review?status=' + tb.k + '">' + tb.label + (tb.k === 'pending' ? ' (' + list.length + ')' : '') + '</a>').join('') + '</div>'
+    + '<div class="sub-tabs">' + tabs.map(tb => '<a class="sub-tab ' + (st === tb.k ? 'on' : '') + '" href="/dashboard/review?status=' + tb.k + '" data-nav="/dashboard/review?status=' + tb.k + '">' + tb.label + (tb.k === 'pending' ? ' (' + list.length + ')' : '') + '</a>').join('') + '</div>'
     + (list.length ? list.map(p => adminReviewCard(p, st)).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('check') + '</div><p>' + t('noPending') + '</p></div>')
     + '</div>';
 }
@@ -5442,10 +5459,10 @@ function adminReviewCard(p, st) {
         + '<button type="button" class="btn btn-sm btn-primary" data-action="approve-product" data-id="' + p.id + '">' + icon('check') + t('approve') + '</button>'
         + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="reject-product" data-id="' + p.id + '">' + t('reject') + '</button>'
         + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button>'
-        + '<a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
+        + '<a class="btn btn-sm" href="/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
         + '</div>'
       : st === 'live'
-        ? '<div class="actions"><a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
+        ? '<div class="actions"><a class="btn btn-sm" href="/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
           + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button>'
           + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="toggle-status" data-id="' + p.id + '">' + t('offShelf') + '</button></div>'
         : '<div class="actions"></div>')
@@ -5579,7 +5596,7 @@ function adminProductsBody() {
   return '<div class="card panel"><div class="panel-head"><h2>' + t('productManage') + '</h2>'
     + '<span class="flex gap-10"><span class="small muted">' + rows.length + ' ' + t('totalProducts') + '</span>'
     + '<button type="button" class="btn btn-sm" data-action="export-products">' + icon('file') + ' ' + t('exportWarehouse') + '</button>'
-    + '<a class="btn btn-sm btn-primary" href="#/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + ' ' + t('publish') + '</a></span></div>'
+    + '<a class="btn btn-sm btn-primary" href="/dashboard/publish" data-nav="/dashboard/publish">' + icon('plus') + ' ' + t('publish') + '</a></span></div>'
     + (rows.length
       ? '<div class="table-responsive"><table class="table"><thead><tr><th>' + t('productCodeLabel') + '</th><th>' + t('regName') + '</th><th>' + t('quotePrice') + '</th><th>MOQ</th><th>' + t('statusPill') + '</th><th></th></tr></thead><tbody>'
         + rows.map(p => {
@@ -6030,7 +6047,7 @@ function exportPublishHint() {
   const level = r.score >= 80 ? 'ok' : r.score >= 50 ? 'mid' : 'low';
   return '<div class="exp-level ' + level + '" style="margin:0 0 14px"><b>' + t('exportReadinessScore') + '：' + r.score + '%</b>'
     + '<span>' + esc(r.score >= 80 ? t('exportReadyHigh') : r.score >= 50 ? t('exportReadyMid') : t('exportReadyLow')) + '</span>'
-    + '<a class="btn btn-sm" href="#/dashboard/export" data-nav="/dashboard/export" style="margin-left:auto">' + t('exportTab') + ' →</a></div>';
+    + '<a class="btn btn-sm" href="/dashboard/export" data-nav="/dashboard/export" style="margin-left:auto">' + t('exportTab') + ' →</a></div>';
 }
 const productImgFiles = [];
 function productImgListHtml(p) {
@@ -6312,7 +6329,7 @@ function buyerInquiryItem(i) {
     + '<div class="top">'
     + '<div class="who"><div class="nm">' + (p ? esc(langObj(p).title) : '—') + '</div>'
     + '<div class="ct">' + t('sentAt') + ' ' + fmtDate(i.createdAt) + ' · ' + i.qty + ' ' + i.unit + ' · ' + identityBadgeHtml(i) + ' <span class="status-pill ' + (status ? 'done' : 'new') + '">' + (i.status === 'quoted' ? t('quotedStatus') : status ? t('statusReplied') : t('statusNew')) + '</span></div></div>'
-    + (p ? '<a class="btn btn-sm" href="#/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>' : '')
+    + (p ? '<a class="btn btn-sm" href="/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>' : '')
     + (i.quote ? '<button type="button" class="btn btn-sm btn-primary" data-action="order-create" data-id="' + i.id + '" style="margin-left:6px">' + icon('box') + ' ' + t('orders') + '</button>' : '')
     + '</div>'
     + inquiryMsg(i)
@@ -6532,7 +6549,7 @@ async function bindVerifyEmail(params) {
   try {
     await api.auth.verifyEmail(token);
     msg.textContent = t('verifyOk');
-    act.innerHTML = '<a class="btn btn-accent" href="#/login" data-nav="/login">' + t('gotoLogin') + '</a>';
+    act.innerHTML = '<a class="btn btn-accent" href="/login" data-nav="/login">' + t('gotoLogin') + '</a>';
     act.hidden = false;
   } catch (e) {
     msg.textContent = t('verifyFail') + (e && e.message ? '（' + e.message + '）' : '');

@@ -307,24 +307,55 @@ function syncVerification() {
 }
 syncVerification();
 
-function go(path) { location.hash = path; }
-function parseHash() {
-  const h = (location.hash || '#/').slice(1);
-  const i = h.indexOf('?');
-  if (i === -1) return { path: h || '/', params: new URLSearchParams() };
-  return { path: h.slice(0, i) || '/', params: new URLSearchParams(h.slice(i + 1)) };
+/* ==================== 路由（2026-10-05 改为路径路由） ====================
+ * 主用真实路径：/products、/product/p25、/dashboard/orders、/login …
+ * 好处：每个页面有自己的 URL（可被搜索引擎收录、可直接分享、可做独立 meta）。
+ * 兼容：#/products 这种老链接/老书签仍然能用——检测到 hash 路由就按 hash 解析，
+ *      并在进入时把地址栏规整成路径形式；file:// 下（本地回归）自动回退到 hash。 */
+const CAN_PUSH_STATE = (typeof location !== 'undefined' && (location.protocol === 'http:' || location.protocol === 'https:'));
+
+function currentRoute() {
+  const h = (typeof location !== 'undefined' && location.hash) || '';
+  if (h.charAt(1) === '/') {                       /* 兼容旧 hash 链接 */
+    const raw = h.slice(1);
+    const i = raw.indexOf('?');
+    return {
+      path: (i === -1 ? raw : raw.slice(0, i)) || '/',
+      params: new URLSearchParams(i === -1 ? '' : raw.slice(i + 1)),
+      legacyHash: true
+    };
+  }
+  return {
+    path: location.pathname || '/',
+    params: new URLSearchParams(location.search || ''),
+    legacyHash: false
+  };
+}
+/* 旧名字保留：全站有十几处调用 parseHash()，语义不变（path + params） */
+function parseHash() { return currentRoute(); }
+
+function go(path) {
+  const p = String(path || '/');
+  if (p.charAt(0) !== '/') return;
+  if (CAN_PUSH_STATE) {
+    try {
+      history.pushState({}, '', p);
+      render();
+      return;
+    } catch (e) { /* 落到 hash 兜底 */ }
+  }
+  location.hash = '#' + p;
 }
 
-/* 干净路径兼容：_redirects 已把 /products 这类路径 301 到 /#/products；
-   万一重定向把 hash 丢掉（或有人直接访问干净路径），这里再兜一次，
-   保证落到对应页面而不是首页。仅在 hash 为空时改写，不影响正常路由。 */
-const CLEAN_PATHS = ['products', 'news', 'guide', 'export', 'logistics', 'compliance', 'disputes', 'feedback', 'customs', 'recruit', 'insurance', 'contracts'];
-(function adoptCleanPath() {
-  if (location.hash) return;
-  const seg = location.pathname.replace(/\/+$/, '').replace(/^\//, '');
-  if (CLEAN_PATHS.indexOf(seg) === -1) return;
-  try { history.replaceState(null, '', '/#/' + seg); } catch (e) { location.hash = '#/' + seg; }
-})();
+/* 打开就是老 hash 地址（#/product/p1）时，地址栏规整成 /product/p1，
+   这样刷新、分享、收录拿到的都是规范 URL。 */
+function normalizeLegacyHash() {
+  if (!CAN_PUSH_STATE) return;
+  const h = location.hash || '';
+  if (h.charAt(1) !== '/') return;
+  try { history.replaceState({}, '', h.slice(1) + (location.search || '')); } catch (e) { /* 忽略 */ }
+}
+normalizeLegacyHash();
 
 function fmtPrice(n) {
   if (Number.isInteger(n)) return n.toLocaleString('en-US');
@@ -650,7 +681,13 @@ document.addEventListener('click', e => {
   const actEl = e.target.closest('[data-action]');
   const navEl = e.target.closest('[data-nav]');
   if (actEl) { handleAction(actEl); return; }
-  if (navEl) { go(navEl.dataset.nav); return; }
+  if (navEl) {
+    /* 站内链接改成真实路径后，必须阻止浏览器真的去请求这个地址：
+     * 否则会整页刷新（线上白屏一下、本地 file:// 直接报"Not allowed to load local resource"）。 */
+    if (navEl.tagName === 'A' && navEl.getAttribute('href')) e.preventDefault();
+    go(navEl.dataset.nav);
+    return;
+  }
   if (e.target.classList && e.target.classList.contains('modal-mask')) closeModal();
 });
 
@@ -1302,10 +1339,10 @@ function renderHeader() {
       + '</button>'
       + '<div class="user-menu" id="userMenu" hidden role="menu">'
             + '<div class="user-menu-head"><b>' + esc(u.name || '') + '</b><span class="small muted oneline">' + esc(u.email || '') + '</span></div>'
-            + '<a role="menuitem" href="#/dashboard/profile" data-nav="/dashboard/profile">' + icon('users') + t('profileTab') + '</a>'
-            + '<a role="menuitem" href="#/dashboard/inquiries" data-nav="/dashboard/inquiries">' + icon('message') + t('myInquiries') + '</a>'
-            + '<a role="menuitem" href="#/dashboard/favorites" data-nav="/dashboard/favorites">' + icon('sparkle') + t('favorite') + '</a>'
-            + '<a role="menuitem" href="#/dashboard" data-nav="/dashboard">' + icon('box') + t('dashboard') + '</a>'
+            + '<a role="menuitem" href="/dashboard/profile" data-nav="/dashboard/profile">' + icon('users') + t('profileTab') + '</a>'
+            + '<a role="menuitem" href="/dashboard/inquiries" data-nav="/dashboard/inquiries">' + icon('message') + t('myInquiries') + '</a>'
+            + '<a role="menuitem" href="/dashboard/favorites" data-nav="/dashboard/favorites">' + icon('sparkle') + t('favorite') + '</a>'
+            + '<a role="menuitem" href="/dashboard" data-nav="/dashboard">' + icon('box') + t('dashboard') + '</a>'
             + '<button type="button" role="menuitem" class="user-menu-out" data-action="logout">' + icon('log') + t('logout') + '</button>'
             + '</div>'
       ;

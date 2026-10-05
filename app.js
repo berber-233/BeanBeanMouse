@@ -56,10 +56,13 @@ document.addEventListener('click', e => {
 });
 
 /* ---------- 启动 ---------- */
+/* 路由事件：路径路由用 popstate（前进/后退），hashchange 继续兜住老链接与本地 file:// 模式 */
+window.addEventListener('popstate', render);
 window.addEventListener('hashchange', render);
 /* 路由变化时关掉还开着的弹窗：否则用户在弹窗里点了导航（或浏览器回退），
  * 弹窗会盖在新页面上，什么都点不动（探针里就撞到过）。 */
 window.addEventListener('hashchange', () => { try { closeModal(); } catch (e) { /* 忽略 */ } });
+window.addEventListener('popstate', () => { try { closeModal(); } catch (e) { /* 忽略 */ } });
 window.addEventListener('resize', fitHeroTitle);
 render();
 

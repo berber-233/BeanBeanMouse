@@ -1,4 +1,11 @@
 /* 具体规则在前、兜底规则在后：Cloudflare 按第一条命中的规则生效 */
+/* SPA 外壳副本：只作为内部代理目标，不应被搜索引擎收录成"又一个首页" */
+/spa
+  X-Robots-Tag: noindex, follow
+
+/spa.html
+  X-Robots-Tag: noindex, follow
+
 /assets/*
   Cache-Control: public, max-age=604800, immutable
 

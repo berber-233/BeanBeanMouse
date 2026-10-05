@@ -1,15 +1,40 @@
-# 站点用 hash 路由（/#/products 等）。这些干净路径此前直接 404，
-# 而 sitemap.xml 里收录的就是干净路径 —— 这里 301 到对应的 hash 路由，
-# 避免搜索引擎收录时报 "Not Found"。前端 app-core.js 还有一层兜底改写。
-/products   /#/products   301
-/news       /#/news       301
-/guide      /#/guide      301
-/export     /#/export     301
-/logistics  /#/logistics  301
-/compliance /#/compliance 301
-/disputes   /#/disputes   301
-/feedback   /#/feedback   301
-/customs    /#/customs    301
-/recruit    /#/recruit    301
-/insurance  /#/insurance  301
-/contracts  /#/contracts  301
+# 路由已改为真实路径（2026-10-05）：/products、/product/p25、/dashboard/orders …
+# 这些路径由单页应用接管，用 200 代理（内部重写）保持地址栏干净路径。
+#
+# ⚠ 关键：代理目标**不能写 /index.html**。Pages 会把 /index.html 规范化成根路径 "/"，
+#   规则于是退化成"308 跳回首页"（实测 /products、/about、/login 全被跳回 /）。
+#   所以构建时会把首页复制一份成 /spa.html，这里统一代理到它。
+# 说明：/api/*（Pages Functions）不受 _redirects 影响；/assets/*、/vendor/*、/p/*（商品静态页）
+#   都是真实静态文件，不写规则，直接命中文件。
+/products        /spa  200
+/products/*      /spa  200
+/product/*       /spa  200
+/about           /spa  200
+/videos          /spa  200
+/news            /spa  200
+/news/*          /spa  200
+/guide           /spa  200
+/export          /spa  200
+/logistics       /spa  200
+/compliance      /spa  200
+/disputes        /spa  200
+/feedback        /spa  200
+/customs         /spa  200
+/recruit         /spa  200
+/insurance       /spa  200
+/contracts       /spa  200
+/login           /spa  200
+/admin-login     /spa  200
+/forgot-password /spa  200
+/reset-password  /spa  200
+/verify          /spa  200
+/verify-email    /spa  200
+/terms           /spa  200
+/privacy         /spa  200
+/returns         /spa  200
+/report          /spa  200
+/dashboard       /spa  200
+/dashboard/*     /spa  200
+/seller/*        /spa  200
+# SPA 外壳本身不该被直接访问/收录（它是首页的副本）
+/spa             /404.html  404

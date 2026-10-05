@@ -25,8 +25,18 @@ for (const e of entries) {
 import { readFileSync, writeFileSync } from 'node:fs';
 const stamp = Date.now().toString(36);
 const indexPath = path.join(dist, 'index.html');
-const html = readFileSync(indexPath, 'utf8').replace(/\?v=[\w.]+/g, '?v=' + stamp);
+const html = readFileSync(indexPath, 'utf8')
+  .replace(/\?v=[\w.]+/g, '?v=' + stamp)
+  /* 路径路由下 /product/p25 这种深链接里，相对引用会被解析成 /product/data.js（脚本全 404、页面空白），
+   * 所以构建时统一改成绝对路径。源码 index.html 保持相对路径 —— 本地回归走 file://，
+   * 绝对路径在 file:// 下会指向磁盘根目录，反而跑不起来。 */
+  .replace(/(src|href)="(?!https?:|\/|#|mailto:|data:)([^"]+)"/g, '$1="/$2"');
 writeFileSync(indexPath, html, 'utf8');
+/* SPA 外壳副本：_redirects 的 200 代理**不能指向 /index.html** ——
+ * Pages 会把 /index.html 规范化成根路径 "/"，于是整条规则退化成"308 跳回首页"
+ * （实测 /products、/about、/login 全部 308 → /）。
+ * 复制成 /spa.html 这个独立文件后，代理才是真正的内部重写，地址栏保持干净路径。 */
+writeFileSync(path.join(dist, 'spa.html'), html, 'utf8');
 
 /* ================= SEO：为每个商品生成静态落地页 /p/<id>（2026-10-05） =================
  * 站点是 hash 路由（/#/product/p25），搜索引擎只会看到一个首页 URL，
@@ -168,11 +178,14 @@ async function buildProductLandingPages() {
     writeFile(path.join(dist, 'p', p.id + '.html'), productPageHtml(p), 'utf8');
     urls.push({ loc: SITE + '/p/' + p.id, lastmod: new Date(p.updated_at || p.updatedAt || Date.now()).toISOString().slice(0, 10), priority: '0.8' });
   }
-  /* 重写 sitemap：保留原有干净路径，追加商品页（原来完全没有商品页，等于放弃自然流量） */
+  /* 追加商品页到 sitemap：**保留原有的页面条目**，只清掉上一次构建留下的 /p/ 条目（保证可重复构建），
+   * 再追加本次的 /p/<id>。商品页原来一个都没有，等于放弃自然流量。 */
   const smPath = path.join(dist, 'sitemap.xml');
   const old = readFile(smPath, 'utf8');
   const today = new Date().toISOString().slice(0, 10);
-  const body = old.replace(/<url>[\s\S]*?<\/url>\s*/g, '').replace(/<\/urlset>\s*$/, '');
+  const body = old
+    .replace(/<url>\s*<loc>[^<]*\/p\/[^<]*<\/loc>[\s\S]*?<\/url>\s*/g, '')
+    .replace(/<\/urlset>\s*$/, '');
   const extra = urls.map(u => '  <url>\n    <loc>' + u.loc + '</loc>\n    <lastmod>' + u.lastmod + '</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>' + u.priority + '</priority>\n  </url>\n').join('');
   writeFile(smPath, body + extra + '</urlset>\n', 'utf8');
   console.log('  商品静态落地页：' + urls.length + ' 个（/p/<id>），sitemap 已更新（' + today + '）');
