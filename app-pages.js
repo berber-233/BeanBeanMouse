@@ -698,7 +698,7 @@ function renderHome() {
     }).join('') + '</div></section>'
     /* 精选商品：只 4 个；视频内容集中在"客户实拍视频墙"页，首页只留一个入口 */
     + '<section class="section"><div class="section-head"><h2>' + t('featuredTitle') + '</h2>'
-    + '<span class="section-links"><a href="/videos" class="small" data-nav="/videos">' + t('videoWallTitle') + ' →</a>'
+    + '<span class="section-links"><a href="/videos" class="small" data-nav="/videos">' + t('videoWallNav') + ' →</a>'
     + '<a href="/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></span></div>'
     + '<div class="product-grid">' + featured.map(productCard).join('') + '</div></section>'
     /* 服务承诺 */
@@ -744,13 +744,26 @@ function videoThumbSrc(v) {
 
 function renderVideos() {
   document.title = t('videoWallTitle') + ' · BeanBeanMouse';
-  const list = (state.videos && state.videos.length) ? state.videos : VIDEO_SHOWCASE;
+  /* 之前这里拿的是写死的 VIDEO_SHOWCASE（三条不存在的"客户投稿"，且没有授权与链接）。
+   * 用户要求：这个模块改成"后续上线"，并明确投稿要求（附链接 + 本人同意）。 */
+  const list = (state.videos && state.videos.length) ? state.videos : [];
   return '<div class="container page">'
     + '<section class="section"><h1 class="page-title">' + t('videoWallTitle') + '</h1>'
     + '<p class="section-note">' + t('videoWallDesc') + '</p>'
-    + '<div class="video-grid video-grid--full">' + list.map(videoCard).join('') + '</div>'
+    + '<div class="notice"><strong>' + t('videoSoonTag') + ' · ' + t('videoNoticeTitle') + '</strong>'
+    + '<p>' + t('videoSoonDesc') + '</p></div>'
+    + (list.length
+      ? '<div class="video-grid video-grid--full">' + list.map(videoCard).join('') + '</div>'
+      : '<div class="empty-state" style="padding:36px"><p>' + t('videoFallbackNote') + '</p></div>')
     + '<div class="notice"><strong>' + t('videoNoticeTitle') + '</strong><p>' + t('videoNoticeDesc') + '</p></div>'
-    + '<div class="section-actions"><button type="button" class="btn btn-accent" data-action="catreq-open">' + t('videoSubmit') + '</button></div>'
+    + '<div class="card panel" style="margin-top:18px"><div class="panel-head"><h2>' + t('videoRuleTitle') + '</h2>'
+    + '<span class="chip">' + t('videoSoonTag') + '</span></div>'
+    + '<ul class="contact-list" style="padding:0 18px 14px">'
+    + '<li><span class="contact-k">1</span><span>' + t('videoRule1') + '</span></li>'
+    + '<li><span class="contact-k">2</span><span>' + t('videoRule2') + '</span></li>'
+    + '<li><span class="contact-k">3</span><span>' + t('videoRule3') + '</span></li>'
+    + '</ul></div>'
+    + '<div class="section-actions"><a class="btn btn-accent" href="mailto:' + esc(SITE_ENTITY.email) + '?subject=' + encodeURIComponent('Video submission') + '">' + t('videoSubmit') + '</a></div>'
     + '</section></div>';
 }
 
@@ -3226,12 +3239,17 @@ async function bindInsurancePage() {
   try {
     const provs = await api.insurance.providers();
     wrap.innerHTML = provs.map(p => {
-      const tiers = Object.keys(p.tiers || {});
+      /* 兜底：接口万一把 tiers 当字符串回（历史上真发生过），
+       * 直接 Object.keys('{"a":1}') 会按字符展开，页面变成一长串空行。 */
+      let tiersObj = p.tiers;
+      if (typeof tiersObj === 'string') { try { tiersObj = JSON.parse(tiersObj); } catch (e) { tiersObj = {}; } }
+      if (!tiersObj || typeof tiersObj !== 'object') tiersObj = {};
+      const tiers = Object.keys(tiersObj);
       return '<div class="ins-provider' + (p.enabled ? '' : ' off') + '">'
         + '<div class="ins-provider-head"><b>' + esc(p.name) + '</b>'
         + '<span class="chip ' + (p.enabled ? 'ok' : '') + '">' + (p.enabled ? t('insuranceActive') : t('insurancePartnersNote')) + '</span></div>'
         + (tiers.length
-          ? '<ul class="ins-tier-list">' + tiers.map(k => '<li><b>' + esc(p.tiers[k].label) + '</b> — ' + esc(p.tiers[k].coverage) + '</li>').join('') + '</ul>'
+          ? '<ul class="ins-tier-list">' + tiers.map(k => '<li><b>' + esc(tiersObj[k].label) + '</b> — ' + esc(tiersObj[k].coverage) + '</li>').join('') + '</ul>'
           : '<p class="small muted">' + t('insurancePartnersNote') + '</p>')
         + '</div>';
     }).join('');
@@ -5505,12 +5523,16 @@ function adminOverviewBody() {
   state.inquiries.forEach(i => {
     const p = productById(i.productId);
     if (!p) return;
-    const key = (p.sub && subOf(p)) ? p.sub : p.cat;
+    /* 一律按细分品类统计（仓鼠/猫/小型犬/大型犬/食品/美容/玩具/出行）。
+     * 以前商品没填细分时会退回大类，结果整个看板只剩一根"宠物用品"柱，
+     * 看着像统计坏了——现在改成显式的"未填细分品类"，一眼知道是数据缺了。 */
+    const key = (p.sub && p.sub !== '') ? p.sub : '__none__';
     catCount[key] = (catCount[key] || 0) + 1;
   });
   const catRows = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
   const maxCat = Math.max(1, ...catRows.map(r => r[1]));
   const subLabelOf = key => {
+    if (key === '__none__') return t('subUnknown');
     const s = (CATEGORIES[0].subs || []).find(x => x.id === key);
     return s ? langObj(s) : langObj(catById(key));   /* barRows 会统一 esc，这里给原始文本 */
   };
@@ -5553,14 +5575,23 @@ function adminOverviewBody() {
 function adminReviewBody() {
   const { params } = parseHash();
   const st = params.get('status') || 'pending';
-  const list = state.products.filter(p => st === 'pending' ? p.status === 'pending' : st === 'rejected' ? p.status === 'rejected' : isLive(p));
+  /* 按状态取列表：额外的"已下架"页签让下架的商品有明确归宿，
+   * 不然下架后它既不在"待审核"也不在"已上架"里，看着像凭空消失。 */
+  const byStatus = k => k === 'pending' ? state.products.filter(p => p.status === 'pending')
+    : k === 'rejected' ? state.products.filter(p => p.status === 'rejected')
+      : k === 'off' ? state.products.filter(p => p.status === 'off')
+        : state.products.filter(isLive);
+  const list = byStatus(st);
   const tabs = [
-    { k: 'pending', label: t('pendingLabel') },
-    { k: 'live', label: t('onShelfLabel') },
-    { k: 'rejected', label: t('rejectedLabel') }
+    { k: 'pending', label: t('pendingLabel'), n: byStatus('pending').length },
+    { k: 'live', label: t('onShelfLabel'), n: byStatus('live').length },
+    { k: 'off', label: t('offShelfLabel'), n: byStatus('off').length },
+    { k: 'rejected', label: t('rejectedLabel'), n: byStatus('rejected').length }
   ];
   return '<div class="card panel"><div class="panel-head"><h2>' + t('productReview') + '</h2><span class="small muted">' + t('reviewHint') + '</span></div>'
-    + '<div class="sub-tabs">' + tabs.map(tb => '<a class="sub-tab ' + (st === tb.k ? 'on' : '') + '" href="/dashboard/review?status=' + tb.k + '" data-nav="/dashboard/review?status=' + tb.k + '">' + tb.label + (tb.k === 'pending' ? ' (' + list.length + ')' : '') + '</a>').join('') + '</div>'
+    /* 每组数量都用自己那一组算：之前写的是 list.length（当前页签的数据），
+     * 切到"已上架"后"待审核"会跟着显示成已上架的数量（用户看到过 32）。 */
+    + '<div class="sub-tabs">' + tabs.map(tb => '<a class="sub-tab ' + (st === tb.k ? 'on' : '') + '" href="/dashboard/review?status=' + tb.k + '" data-nav="/dashboard/review?status=' + tb.k + '">' + tb.label + (tb.n ? ' (' + tb.n + ')' : '') + '</a>').join('') + '</div>'
     + (list.length ? list.map(p => adminReviewCard(p, st)).join('') : '<div class="empty-state" style="padding:36px"><div class="ico">' + icon('check') + '</div><p>' + t('noPending') + '</p></div>')
     + '</div>';
 }
@@ -5568,8 +5599,9 @@ function adminReviewBody() {
 function adminReviewCard(p, st) {
   const seller = sellerOf(p);
   const risks = st === 'pending' ? complianceCheck(p) : [];
-  const stLabel = p.status === 'pending' ? t('pendingLabel') : p.status === 'rejected' ? t('rejectedLabel') : t('onShelfLabel');
-  const stCls = p.status === 'pending' ? 'pend' : p.status === 'rejected' ? 'rej' : 'live';
+  const stLabel = p.status === 'pending' ? t('pendingLabel') : p.status === 'rejected' ? t('rejectedLabel')
+    : p.status === 'off' ? t('offShelfLabel') : t('onShelfLabel');
+  const stCls = p.status === 'pending' ? 'pend' : p.status === 'rejected' ? 'rej' : p.status === 'off' ? 'off' : 'live';
   return '<div class="review-card">'
     /* 审核时也要看到真实商品图（之前只显示程序生成的占位图） */
     + '<img class="thumb" src="' + productMainImg(p, 240, 180) + '" alt="' + esc(langObj(p).title) + '">'
@@ -5601,7 +5633,12 @@ function adminReviewCard(p, st) {
         ? '<div class="actions"><a class="btn btn-sm" href="/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
           + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button>'
           + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="toggle-status" data-id="' + p.id + '">' + t('offShelf') + '</button></div>'
-        : '<div class="actions"></div>')
+        : st === 'off'
+          ? '<div class="actions"><a class="btn btn-sm" href="/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
+            + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button>'
+            + '<button type="button" class="btn btn-sm btn-primary" data-action="toggle-status" data-id="' + p.id + '">' + t('onShelf') + '</button></div>'
+          : '<div class="actions"><a class="btn btn-sm" href="/product/' + p.id + '" data-nav="/product/' + p.id + '">' + t('viewDetail') + ' →</a>'
+            + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + icon('edit') + ' ' + t('edit') + '</button></div>')
     + '</div>';
 }
 
@@ -5745,7 +5782,11 @@ function adminProductsBody() {
             + '<td><span class="status-pill ' + st[0] + '">' + st[1] + '</span></td>'
             + '<td class="nowrap">'
             + '<button type="button" class="btn btn-sm" data-action="edit-product" data-id="' + p.id + '">' + t('edit') + '</button> '
-            + '<button type="button" class="btn btn-sm" data-action="toggle-status" data-id="' + p.id + '">' + (p.status === 'off' ? t('onShelfLabel') : t('offShelfLabel')) + '</button> '
+            /* 按钮写"动作"而不是"状态"：以前显示"已上架/已下架"，
+             * 点下去才发现是切换，看着像状态标签。 */
+            + (p.status === 'pending' || p.status === 'rejected'
+              ? '<a class="btn btn-sm" href="/dashboard/review" data-nav="/dashboard/review">' + t('goReview') + '</a> '
+              : '<button type="button" class="btn btn-sm" data-action="toggle-status" data-id="' + p.id + '">' + (p.status === 'off' ? t('onShelf') : t('offShelf')) + '</button> ')
             + '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="delete-product" data-id="' + p.id + '">' + t('delete') + '</button>'
             + '</td></tr>';
         }).join('')

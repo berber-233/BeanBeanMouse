@@ -242,7 +242,7 @@ function resolveBrowser() {
   /* 2026-10-01：平台转为自营+面向买家，页脚去掉"招商入驻"入口（页面本身保留） */
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
-  check('footer: version 0.3 shown', /0\.3/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.000 shown', /v1\.000/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1000,6 +1000,63 @@ function resolveBrowser() {
     });
     check('no raw data URI as text @ ' + hash, raw.length === 0, raw.join(' | '));
   }
+
+  /* 回归：管理员商品管理按钮写"动作"、审核页计数与"已下架"页签 */
+  const adminUi = await page.evaluate(() => {
+    const saved = { products: state.products, lang: state.lang };
+    state.lang = 'zh';
+    const mk = (id, status) => ({ id, status, priceMin: 1, priceMax: 2, moq: 1, unit: 'pcs', addedAt: 1,
+      en: { title: 'T' + id, desc: 'd' }, zh: { title: 'T' + id, desc: 'd' } });
+    state.products = [mk('a', 'on'), mk('b', 'off'), mk('c', 'pending'), mk('d', 'rejected'), mk('e', 'on')];
+    const tableHtml = adminProductsBody();
+    const tabsHtml = adminReviewBody();
+    state.products = saved.products; state.lang = saved.lang;
+    const doc = new DOMParser().parseFromString(tableHtml, 'text/html');
+    const rows = Array.from(doc.querySelectorAll('table tbody tr')).map(tr => {
+      const cells = tr.querySelectorAll('td');
+      return { pill: (cells[4] ? cells[4].textContent : '').trim(),
+        actions: Array.from((cells[5] || { querySelectorAll: () => [] }).querySelectorAll('button,a')).map(x => (x.textContent || '').trim()) };
+    });
+    const tdoc = new DOMParser().parseFromString(tabsHtml, 'text/html');
+    return { rows, tabs: Array.from(tdoc.querySelectorAll('.sub-tab')).map(a => (a.textContent || '').trim()) };
+  });
+  check('商品管理：已上架行的按钮是「下架」而不是「已下架」', adminUi.rows[0] && adminUi.rows[0].actions.includes('下架') && !adminUi.rows[0].actions.includes('已下架'), JSON.stringify(adminUi.rows[0]));
+  check('商品管理：已下架行的按钮是「上架」', adminUi.rows[1] && adminUi.rows[1].actions.includes('上架'), JSON.stringify(adminUi.rows[1]));
+  check('商品管理：待审核行不给上下架按钮、指向"去审核"', adminUi.rows[2] && adminUi.rows[2].actions.includes('去审核') && !adminUi.rows[2].actions.some(x => x === '下架' || x === '上架'), JSON.stringify(adminUi.rows[2]));
+  check('审核页：多出「已下架」页签（下架商品有归宿）', adminUi.tabs.length === 4 && adminUi.tabs.some(x => x.indexOf('已下架') === 0), JSON.stringify(adminUi.tabs));
+  check('审核页：计数各算各的（待审核1/已上架2/已下架1/已驳回1）',
+    adminUi.tabs[0].includes('(1)') && adminUi.tabs[1].includes('(2)') && adminUi.tabs[2].includes('(1)') && adminUi.tabs[3].includes('(1)'), JSON.stringify(adminUi.tabs));
+
+  /* 回归：v1.000 版本号 / 页脚去掉 WhatsApp / 保险页不再出现成串"—" */
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.waitForTimeout(400);
+  const shell = await page.evaluate(() => ({
+    version: (document.querySelector('.version-line') || {}).textContent || '',
+    watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
+    assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
+  }));
+  check('页脚版本号是 v1.000', /v1\.000/.test(shell.version), shell.version.trim());
+  check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
+
+  await page.evaluate(() => { location.hash = '#/insurance'; });
+  await page.waitForTimeout(600);
+  const insText = await page.evaluate(() => (document.querySelector('.ins-provider') || {}).innerText || '');
+  const dashCount = (insText.match(/—/g) || []).length;
+  check('保险页承保方不再渲染成一串空行', insText.length > 0 && dashCount <= 4, '破折号数量=' + dashCount + ' 文本长度=' + insText.length);
+
+  await page.evaluate(() => { location.hash = '#/videos'; });
+  await page.waitForTimeout(600);
+  const vid = await page.evaluate(() => document.body.innerText || '');
+  /* 浏览器语言可能是中文或英文，断言两种语言都认 */
+  check('视频页声明"后续上线"', /后续上线|Coming soon/i.test(vid));
+  check('视频页写明投稿要求：附视频链接', /视频链接|video link/i.test(vid));
+  check('视频页写明投稿要求：需视频主人本人同意', /本人同意|授权|consent|authoris/i.test(vid));
+  check('视频页不再放伪造的客户投稿视频', !/客户投稿 · 上海/.test(vid));
+
+  await page.evaluate(() => { location.hash = '#/about'; });
+  await page.waitForTimeout(500);
+  const about = await page.evaluate(() => document.body.innerText || '');
+  check('关于我们地址是"中国广东惠州"', /中国广东惠州|Huizhou,\s*Guangdong/i.test(about), (about.match(/(中国|Huizhou)[^\n]*/) || ['(未找到)'])[0]);
 
   /* 回归：对象存储文件地址归一（后端回 /files/<id> 时前端必须补成 /api/files/<id>，
    * 否则图片静默不显示；但本地素材路径不能被误改）。 */

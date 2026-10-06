@@ -1122,6 +1122,14 @@ async function route(m, segs, q, req, res) {
     if (b && m === 'GET') {
       const p = await get('SELECT * FROM products WHERE id = ?', b);
       if (!p) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      /* 未上架（待审核/已驳回/已下架）的商品不能被匿名直接打开：
+       * 匿名列表本来就不含它们，但直接猜 id 就能读到草稿/被驳回的内容。
+       * 允许本人（卖家）与管理员照常查看，用于编辑和审核。 */
+      if (p.status !== 'on') {
+        const viewer = await currentUser(req);
+        const allowed = viewer && (viewer.role === 'admin' || viewer.id === p.seller_id);
+        if (!allowed) return fail(res, 404, 'NOT_FOUND', '产品不存在');
+      }
       return send(res, 200, await productView(p));
     }
     /* 编辑商品：卖家改完重新走审核；管理员直接生效（自营） */
@@ -1836,7 +1844,10 @@ async function route(m, segs, q, req, res) {
   if (a === 'insurances') {
     await ensureInsuranceProviders();
     if (m === 'GET' && b === 'providers') {
-      return send(res, 200, await all('SELECT * FROM insurance_providers ORDER BY sort'));
+      const rows = await all('SELECT * FROM insurance_providers ORDER BY sort');
+      /* tiers 在库里是 TEXT，直接回给前端会被当成字符串按字符遍历，
+       * 页面上就渲染出一长串空行（用户看到的"乱码"）。这里解析成对象再回。 */
+      return send(res, 200, rows.map(r => ({ ...r, tiers: safeJson(r.tiers, {}), enabled: !!r.enabled })));
     }
     if (m === 'GET' && !b) {
       const u = await requireAuth(res, req);

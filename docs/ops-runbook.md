@@ -128,3 +128,17 @@ node work\probe-live-product-flow.mjs        # 商品全链路：传图→建商
 - 测试若在对象存储留下文件，用 `node work\clean-test-files.mjs <fileId>...` 删掉（不传参数则删脚本里记的默认几个）。
 - 文件地址规则：后端返回的图片地址**必须带 `/api` 前缀**（`/api/files/<id>`）；裸 `/files/<id>` 是 404。
   线上靠 `API_BASE_PATH=/api` 配置（见 `wrangler.jsonc`），本地 Node 直起时该值为空。
+
+---
+
+## 9. 清理演示商品（2026-10-06）
+
+```powershell
+node scripts\backup-d1.mjs                      # 先备份（可回滚），产物在 backups/
+node work\clean-demo-products.mjs --dry         # 只看计划：哪些会删、哪些只能下架
+node work\clean-demo-products.mjs --apply       # 真执行
+```
+
+- 有询盘引用的商品**只能下架**（后端不允许删，否则历史询盘会对不上）；其余直接删除。
+- 脚本按 `product_id` 判断引用关系（后端询盘行是下划线命名，别写成 `productId`）。
+- 走完市场会变空，这是预期：巡检里的"商品接口"只校验返回结构，空库不会报红。

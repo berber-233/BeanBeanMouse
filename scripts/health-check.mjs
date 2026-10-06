@@ -30,7 +30,13 @@ async function get(pathname, opts) {
   const api = await get('/api/products?size=1');
   let first = null;
   try { first = (JSON.parse(api.text).items || [])[0] || null; } catch (e) { /* 忽略 */ }
-  check('商品接口 200 且有数据', api.status === 200 && !!first, 'status=' + api.status);
+  /* 商品接口必须是 200 且返回合法分页结构；"有没有商品"属于内容准备度，
+   * 库里清空演示商品后不该让巡检一直报红。 */
+  let payload = null;
+  try { payload = JSON.parse(api.text); } catch (e) { /* 忽略 */ }
+  check('商品接口 200 且返回合法分页结构', api.status === 200 && !!payload && Array.isArray(payload.items),
+    'status=' + api.status + ' n=' + ((payload && payload.items) ? payload.items.length : '-'));
+  if (api.status === 200 && !first) console.log('  ℹ 内容准备度：当前没有上架商品（等真实商品上架后这里会自然有数据）');
 
   const routes = ['/products', '/about', '/login', '/verify'];
   for (const r of routes) {

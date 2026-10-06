@@ -337,8 +337,9 @@ let shipmentId;
 let insuranceId;
 {
   const r = await req('/insurances/providers');
-  check('保险商列表（试点 + 合作占位）', r.status === 200 && r.data.length >= 3 && r.data[0].enabled === 1);
-  const prov = r.data.find(p => p.enabled === 1);
+  /* enabled 现在统一是布尔值（以前是 SQLite 的 0/1） */
+  check('保险商列表（试点 + 合作占位）', r.status === 200 && r.data.length >= 3 && r.data[0].enabled === true);
+  const prov = r.data.find(p => p.enabled === true);
   const buy = await req('/insurances', { method: 'POST', token: buyerToken, body: { orderId, providerId: prov.id, tier: 'standard' } });
   check('买家投保 -> 201 active', buy.status === 201 && buy.data.status === 'active' && buy.data.premium > 0);
   insuranceId = buy.data && buy.data.id;
@@ -734,6 +735,51 @@ let oneLangProductId = null, oneLangCode = '';
   }
   const bad = await req('/products/p1/images', { method: 'POST', token: adminToken, body: { fileIds: ['not-exist'] } });
   check('挂不存在的文件被拒', bad.status === 400);
+}
+
+/* ---- 保险承保方：tiers 必须是对象（历史上回过 JSON 字符串，
+ *      前端按字符遍历 → 页面渲染出一长串空行，用户看到的"乱码"） ---- */
+{
+  const r = await req('/insurances/providers');
+  const rows = Array.isArray(r.data) ? r.data : [];
+  check('保险承保方列表可读', r.status === 200 && rows.length > 0, 'status=' + r.status + ' n=' + rows.length);
+  const first = rows[0] || {};
+  check('承保方 tiers 是对象（不是 JSON 字符串）', first.tiers && typeof first.tiers === 'object', 'typeof=' + typeof first.tiers);
+  const tierKeys = first.tiers ? Object.keys(first.tiers) : [];
+  check('保障档位可枚举且带 label/coverage', tierKeys.length > 0 && !!(first.tiers[tierKeys[0]] || {}).label,
+    tierKeys.join(','));
+  check('承保方 enabled 是布尔值', typeof first.enabled === 'boolean', 'typeof=' + typeof first.enabled);
+}
+
+/* ---- 未上架商品的可见性：匿名不能读，管理员/卖家本人可以 ---- */
+{
+  const created = await req('/products', {
+    method: 'POST', token: adminToken,
+    body: {
+      category: 'pet', sub: 'pet-hamster', country: 'CN', priceMin: 1, priceMax: 2, moq: 1, leadTime: 7,
+      translations: { en: { title: 'visibility probe', description: 'd' }, zh: { title: '可见性测试', description: 'd' } }
+    }
+  });
+  const pid = created.data && created.data.id;
+  check('新建商品默认待审核', created.status === 201 && created.data.status === 'pending', 'status=' + (created.data && created.data.status));
+  if (pid) {
+    const anon = await fetch(base + '/products/' + pid);
+    check('待审核商品匿名读不到（404）', anon.status === 404, 'status=' + anon.status);
+    const asAdmin = await req('/products/' + pid, { token: adminToken });
+    check('管理员仍能读到待审核商品', asAdmin.status === 200, 'status=' + asAdmin.status);
+
+    /* 匿名列表里也不该出现 */
+    const pub = await fetch(base + '/products?size=100');
+    const pubList = (await pub.json()).items || [];
+    check('待审核商品不在公开列表里', !pubList.some(x => x.id === pid));
+
+    /* 下架后同样匿名不可见 */
+    await req('/products/' + pid + '/status', { method: 'POST', token: adminToken, body: { status: 'on' } });
+    await req('/products/' + pid + '/status', { method: 'POST', token: adminToken, body: { status: 'off' } });
+    const anon2 = await fetch(base + '/products/' + pid);
+    check('下架商品匿名读不到（404）', anon2.status === 404, 'status=' + anon2.status);
+    await req('/products/' + pid, { method: 'DELETE', token: adminToken });
+  }
 }
 
 {
