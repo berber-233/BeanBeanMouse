@@ -33,7 +33,12 @@ function updatePublishPreview() {
 
 document.addEventListener('input', e => {
   const el = e.target;
-  if (el.closest('form[data-form="product-form"]')) { updatePublishPreview(); return; }
+  if (el.closest('form[data-form="product-form"]')) {
+    updatePublishPreview();
+    /* 顺手存草稿：后台刷新/误关页面后还能把内容填回来 */
+    if (typeof saveProductDraftSoon === 'function') saveProductDraftSoon();
+    return;
+  }
   if ((el.name === 'note' && el.closest('form[data-form="quote-form"]')) || (el.name === 'message' && el.closest('form[data-form="inquiry-form"]'))) {
     const box = el.closest('form').querySelector('[data-trans-target]');
     if (box) {
@@ -164,13 +169,16 @@ window.hydrateProducts = hydrateProducts;
         render();
         hydrateSessionData();
       }
-    }).catch(() => {
-      /* 令牌失效或不属于任何账号：清掉登录态，防止张冠李戴 */
-      state.token = '';
-      state.user = null;
-      saveState();
+    }).catch(e => {
+      /* 只有"登录确已失效"（401/403）才清登录态；
+       * 网络抖动/超时不能清，否则用户会莫名被登出、进工作台还提示"请先登录"。 */
+      if (e && (e.status === 401 || e.status === 403)) {
+        state.token = '';
+        state.user = null;
+        saveState();
+        render();
+      }
       markServerReady('session');
-      render();
     });
   } else if (state.user) {
     /* 没有令牌却显示着用户（历史遗留的本地演示登录）：一并清掉 */
@@ -312,6 +320,12 @@ async function hydrateSessionData() {
   sessionHydrating = true;
   const isAdmin = state.user.role === 'admin';
   try {
+    /* 商品列表要按身份重取一次：启动时身份还没恢复（/auth/me 是异步的），
+     * 那时拉的只是"公开商品"，管理员/卖家看不到待审核与已下架的商品
+     * —— 刷新到审核页会显示"暂无待审核产品"（用户踩过）。 */
+    if (isAdmin || state.user.role === 'seller') {
+      try { await hydrateProducts(); } catch (e) { /* 商品拉取失败不阻断其它数据 */ }
+    }
     const jobs = [
       /* 个人资料 + 名片：之前只写服务器、不回读，刷新后看不到自己填的内容 */
       api.profile.get().then(p => {
@@ -417,6 +431,27 @@ async function hydrateSessionData() {
   }
 }
 window.hydrateSessionData = hydrateSessionData;
+
+/* 身份恢复：有令牌但 state.user 丢了时（刷新、后台恢复）用它拉一次"我是谁"。
+ * 供工作台在"还没恢复好"时调用，避免直接给用户弹"请先登录"。 */
+/* 用 window 上的标记而不是 let：refreshIdentity 是函数声明（会被提升），
+ * 若在 let 初始化前被调用会撞 TDZ（实测报 Cannot access 'identityRefreshing' before initialization）。 */
+function refreshIdentity() {
+  if (window.__identityRefreshing || !state.token) return;
+  window.__identityRefreshing = true;
+  api.auth.me()
+    .then(u => {
+      if (u && u.id) {
+        state.user = Object.assign({}, u);
+        saveState();
+        render();
+        hydrateSessionData();
+      }
+    })
+    .catch(() => { /* 拿不到就维持现状，下次再试 */ })
+    .finally(() => { window.__identityRefreshing = false; });
+}
+window.refreshIdentity = refreshIdentity;
 
 /* 节流版：工作台切换标签时调用，3 秒内只真正拉一次 */
 let lastHydrateAt = 0;

@@ -78,7 +78,11 @@ async function apiRequest(path, options = {}) {
   if (!res.ok) {
     let msg = 'HTTP ' + res.status;
     try { const j = await res.json(); msg = j.message || msg; } catch (e) { /* 忽略 */ }
-    throw new Error(msg);
+    const err = new Error(msg);
+    /* 带上状态码：调用方要区分"登录失效（401/403）"和"网络抖动"，
+     * 前者才该清登录态，后者清了会让用户莫名其妙被登出。 */
+    err.status = res.status;
+    throw err;
   }
   /* 写操作成功后自动刷新"登录范围内的数据"（订单/售后/推广/品类需求等），
    * 否则界面还停在本地的旧列表上，看起来像"改了没反应"。 */
@@ -91,7 +95,12 @@ function scheduleSessionRefresh() {
   if (typeof hydrateSessionData !== 'function') return;
   clearTimeout(sessionRefreshTimer);
   sessionRefreshTimer = setTimeout(() => {
-    try { hydrateSessionData(); } catch (e) { /* 忽略 */ }
+    /* 写完数据后：先重新拉一遍服务端数据，再重绘一次，
+     * 否则"回复完询盘，数据看板还是旧数字"（用户反馈过）。 */
+    Promise.resolve()
+      .then(() => hydrateSessionData())
+      .catch(() => {})
+      .then(() => { try { if (typeof renderPage === 'function') renderPage(); } catch (e) { /* 忽略 */ } });
   }, 300);
 }
 

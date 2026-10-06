@@ -515,6 +515,48 @@ function pageMetaDesc(path) {
 
 function renderPage() {
   render();
+  /* 重渲染后把"发布商品"的草稿填回去：后台刷新（询盘/通知）会重建 DOM，
+   * 之前正在填的表单会被清空——用户反馈"刷新界面让我白忙活，又重填了一遍"。 */
+  try { restoreProductDraft(); } catch (e) { /* 忽略 */ }
+}
+
+/* ---------- 发布商品：防重复提交 + 草稿保护 ---------- */
+let productSubmitting = false;
+const PRODUCT_DRAFT_KEY = 'bbm_product_draft_v1';
+let productDraftTimer = null;
+function productFormEl() { return document.querySelector('form[data-form="product-form"]'); }
+function saveProductDraft() {
+  const f = productFormEl();
+  if (!f || f.dataset.id) return;           /* 编辑已有商品时不记草稿 */
+  try {
+    const fields = {};
+    for (const [k, v] of new FormData(f).entries()) {
+      if (fields[k] === undefined) fields[k] = v;
+      else if (Array.isArray(fields[k])) fields[k].push(v);
+      else fields[k] = [fields[k], v];
+    }
+    localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({ at: Date.now(), fields }));
+  } catch (e) { /* 存不下就算了 */ }
+}
+function saveProductDraftSoon() {
+  clearTimeout(productDraftTimer);
+  productDraftTimer = setTimeout(saveProductDraft, 400);
+}
+function clearProductDraft() { try { localStorage.removeItem(PRODUCT_DRAFT_KEY); } catch (e) {} }
+function restoreProductDraft() {
+  const f = productFormEl();
+  if (!f || f.dataset.id) return;           /* 只在"新建"页恢复 */
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(PRODUCT_DRAFT_KEY) || 'null'); } catch (e) { return; }
+  if (!d || !d.fields) return;
+  for (const k of Object.keys(d.fields)) {
+    const v = d.fields[k];
+    f.querySelectorAll('[name="' + k + '"]').forEach(el => {
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = Array.isArray(v) ? v.indexOf(el.value) >= 0 : el.value === v;
+      else if (el.type !== 'file' && el.tagName !== 'SELECT') el.value = Array.isArray(v) ? v[0] : v;
+      else if (el.tagName === 'SELECT') el.value = Array.isArray(v) ? v[0] : v;
+    });
+  }
 }
 
 /* ---------- 产品卡片 ---------- */
@@ -1452,9 +1494,13 @@ async function translateProductForm(btn) {
       [srcDesc, dstDesc, srcDesc ? srcDesc.value.trim() : '']
     ];
     /* 标题与描述并行翻译（串行会等两倍时间） */
+    /* 加超时：翻译通道偶尔很慢，之前没有上限，按钮会一直卡在"翻译中"（用户反馈会卡）。 */
+    const withTimeout = (p, ms) => Promise.race([
+      p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+    ]);
     const jobs = parts.filter(([s, d, txt]) => s && d && txt).map(async ([srcEl, dstEl, text]) => {
       /* 注意：翻译 API 是 api.translate.text(text, target, source) */
-      const r = await api.translate.text(text, target, to === 'en' ? 'zh-CN' : 'en');
+      const r = await withTimeout(api.translate.text(text, target, to === 'en' ? 'zh-CN' : 'en'), 25000);
       /* 服务端所有通道都失败时会回退成"原文照抄"（provider=offline），
        * 这种情况不能当成功，否则用户以为翻译好了。 */
       if (r && r.text && r.provider !== 'offline' && r.text !== text) { dstEl.value = r.text; return 1; }
@@ -1463,6 +1509,9 @@ async function translateProductForm(btn) {
     const done = (await Promise.all(jobs)).reduce((a, b) => a + b, 0);
     setOut(done ? t('translateDone') : t('translateFailed'));
     if (!done) toast(t('translateFailed'));
+    /* 译文是程序写进 input 的，不会触发 input 事件 → 手动存一次草稿，
+     * 免得后台一刷新译文就没了（用户反馈"翻译完白忙活"）。 */
+    if (done && typeof saveProductDraft === 'function') saveProductDraft();
   } catch (e) {
     setOut(t('translateFailed'));
     toast(t('translateFailed') + (e && e.message ? '：' + e.message : ''));
@@ -4277,8 +4326,12 @@ document.addEventListener('scroll', e => {
 /* 收到新消息时：不在底部就累计"新消息"角标，点按钮回到底部并清空 */
 function noteIncomingMessage(convId) {
   if (!convId) return;
-  const pos = chatScrollPos[convId];
-  if (pos && pos.atBottom) return;
+  /* 用"真实 DOM 位置"判断是否在底部：之前只看 chatScrollPos 缓存，
+   * 缓存缺失时（刚进会话、还没滚动过）会误判成"用户往上翻了"，
+   * 于是"回到最新"按钮点了又冒出来，看着像一直卡着。 */
+  const el = document.querySelector('.chat-msgs[data-conv="' + String(convId || '').replace(/"/g, '') + '"]');
+  const atBottom = !el || (el.scrollHeight - el.clientHeight - el.scrollTop) < 24;
+  if (atBottom) { chatPending[convId] = 0; return; }
   chatPending[convId] = (chatPending[convId] || 0) + 1;
 }
 function jumpChatToBottom(convId) {
@@ -5184,6 +5237,12 @@ function adminPwdWarnHtml() {
 function renderDashboard(path) {
   const u = state.user;
   if (!u) {
+    /* 有令牌但身份还没恢复好（刷新/网络抖动时会发生）：
+     * 这时弹"请先登录"会让用户以为被登出了（用户反馈过），改为拉一次身份并显示加载中。 */
+    if (state.token) {
+      if (typeof refreshIdentity === 'function') refreshIdentity();
+      return '<div class="container page"><div class="card panel" style="padding:28px"><p class="muted">' + t('loadingFromServer') + '</p></div></div>';
+    }
     toast(t('needLogin'));
     return renderLogin();
   }
@@ -6358,19 +6417,32 @@ function submitProduct(f) {
   };
   /* 线上：真正提交到服务器（以前只改浏览器本地，刷新就没了） */
   if (api.config.mode === 'http') {
+    /* 防重复提交：上传 7 张图 + 建商品要几十秒，用户等不及再点一次就会
+     * 生成两条一模一样的商品（线上真出现过：两条 identical 待审核）。
+     * 这里用模块级开关挡住第二次提交，直到整条流程结束。 */
+    if (productSubmitting) { toast(t('savingTip')); return; }
+    productSubmitting = true;
     return (async () => {
       try {
-        /* 先上传选中的商品图片（走对象存储），再把 fileId 挂到商品上 */
+        /* 先上传选中的商品图片（走对象存储），再把 fileId 挂到商品上。
+         * 并行上传（限 4 并发）：之前一张一张串行传，7 张图要等很久，
+         * 用户以为卡死了（"发布一个产品卡了很久"）。 */
         let uploadedIds = [];
         if (productImgFiles.length && typeof api.files.upload === 'function') {
-          for (const f of productImgFiles.slice(0, 8)) {
-            /* 注意：productImgFiles 里存的是 {file, dataUrl, ...} 包装对象，
-             * 要上传它里面的 File 本体（之前传了包装对象 → 服务端报"缺少文件字段"）。 */
-            const raw = f && f.file ? f.file : (f instanceof File ? f : null);
-            if (!raw) continue;
-            try { const r = await api.files.upload(raw); if (r && r.id) uploadedIds.push(r.id); }
-            catch (e) { toast((e && e.message) || String(e)); }
-          }
+          const raws = productImgFiles.slice(0, 8)
+            .map(f => (f && f.file ? f.file : (f instanceof File ? f : null)))
+            .filter(Boolean);
+          let cursor = 0;
+          const worker = async () => {
+            while (cursor < raws.length) {
+              const raw = raws[cursor++];
+              try {
+                const r = await api.files.upload(raw);
+                if (r && r.id) uploadedIds.push(r.id);
+              } catch (e) { toast((e && e.message) || String(e)); }
+            }
+          };
+          await Promise.all(Array.from({ length: Math.min(4, raws.length) }, worker));
         }
         const saved = id ? await api.products.update(id, data) : await api.products.create(data);
         const pid = (saved && (saved.id || (saved.product && saved.product.id))) || id;
@@ -6385,12 +6457,15 @@ function submitProduct(f) {
           }
         }
         productImgFiles.length = 0;
+        clearProductDraft();
         toast(t('productSubmitted'));
         if (typeof hydrateProducts === 'function') await hydrateProducts();
         if (typeof hydrateSessionData === 'function') await hydrateSessionData();
         go('/dashboard/products');
       } catch (e) {
         toast(e.message || String(e));
+      } finally {
+        productSubmitting = false;
       }
     })();
   }

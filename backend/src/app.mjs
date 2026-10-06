@@ -1081,6 +1081,17 @@ async function route(m, segs, q, req, res) {
       if (!body.category || !body.country) {
         return fail(res, 400, 'VALIDATION', 'category/country 为必填');
       }
+      /* 防重复提交兜底：上传多张图 + 建商品要几十秒，用户等不及再点一次就会
+       * 生成两条一模一样的商品（线上真出现过）。同一卖家、同样的英文标题、
+       * 60 秒内再次提交时，直接把已有那条退回去，不再新建。 */
+      const titleProbe = String(((body.translations || {}).en || {}).title || '').trim();
+      if (titleProbe) {
+        const dup = await get(
+          'SELECT id FROM products WHERE seller_id = ? AND created_at > ? AND id IN (SELECT product_id FROM product_translations WHERE lang = ? AND title = ?) ORDER BY created_at DESC',
+          u.id, Date.now() - 60000, 'en', titleProbe
+        );
+        if (dup) return send(res, 200, { ...(await productView(await get('SELECT * FROM products WHERE id = ?', dup.id))), duplicate: true });
+      }
       /* 只填一种语言也能发布：另一种服务端自动补齐（见 fillMissingTranslations） */
       const filled = await fillMissingTranslations(body.translations || {});
       if (!filled.ok) return fail(res, 400, 'VALIDATION', '至少要填写一种语言的标题');

@@ -26,6 +26,42 @@ function fileUrl(u) {
   return s;
 }
 
+/* 线上是路径路由（/dashboard/xxx、/about…），页面里的相对地址 assets/xxx.png
+ * 会被浏览器按当前路径解析成 /dashboard/assets/xxx.png —— 服务器返回的是 SPA 的 HTML（200），
+ * 图片解不出来就是"一直转圈/空白"（用户反馈的"品类需求那有个图片一直不显示"）。
+ * 本地用 file:// 打开时必须保持相对路径，否则本地素材全挂。 */
+const IS_HTTP_PAGE = typeof location !== 'undefined' && /^https?:$/.test(location.protocol);
+function toAbsAsset(src, isHttp) {
+  const s = String(src == null ? '' : src);
+  if (!s || /^(https?:|data:|blob:|\/)/i.test(s)) return s;
+  return (isHttp === undefined ? IS_HTTP_PAGE : !!isHttp) ? '/' + s : s;
+}
+/* 给页面上所有 img/video/source 补前导斜杠：用 MutationObserver 兜底，
+ * 这样新渲染出来的元素（弹窗、聊天里的商品卡等）也自动被修正，不用改几十处调用点。 */
+function installAssetPathFix() {
+  if (typeof document === 'undefined' || !IS_HTTP_PAGE) return;
+  const fix = el => {
+    if (!el || el.nodeType !== 1) return;
+    const tag = el.tagName;
+    if (tag === 'IMG' || tag === 'VIDEO' || tag === 'SOURCE' || tag === 'A') {
+      const raw = el.getAttribute(tag === 'A' ? 'href' : 'src');
+      /* 链接只处理指向静态素材的（assets/...），不动站内路由 */
+      if (raw && /^assets\//.test(raw) && (tag !== 'A' || /\.(png|jpe?g|webp|svg|gif|mp4|webm)$/i.test(raw))) {
+        el.setAttribute(tag === 'A' ? 'href' : 'src', '/' + raw);
+      }
+      if (tag === 'IMG' && el.hasAttribute('srcset')) {
+        el.setAttribute('srcset', String(el.getAttribute('srcset')).replace(/(^|,\s*)(assets\/)/g, '$1/$2'));
+      }
+    }
+    if (el.querySelectorAll) el.querySelectorAll('img,video,source,a').forEach(fix);
+  };
+  new MutationObserver(muts => {
+    for (const m of muts) for (const n of m.addedNodes) fix(n);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  fix(document.documentElement);
+  document.addEventListener('DOMContentLoaded', () => fix(document.documentElement));
+}
+
 /* 多语言兜底：数据对象只完整覆盖中/英文，其他语言回退到英文 */
 function langObj(obj, lang) {
   const code = lang || state.lang;
@@ -1109,6 +1145,14 @@ function handleAction(el) {
     case 'approve-product': {
       const p = productById(id);
       if (!p) break;
+      /* 线上必须真的调后端：以前这里只改本地状态（p.status='on' + saveState），
+       * 服务器上还是待审核 —— 用户"审核通过了却在市场上看不到商品"就是这个原因。 */
+      if (api.config.mode === 'http') {
+        runBusy(el, () => api.products.review(id, { action: 'approve' })
+          .then(() => { toast(t('reviewPassed')); return (typeof hydrateProducts === 'function') ? hydrateProducts() : null; })
+          .catch(e => toast(e.message || String(e))));
+        break;
+      }
       p.status = 'on';
       p.rejectReason = '';
       addLog(state.user ? state.user.name : '管理员', t('reviewPassed'), langObj(p).title, '');
@@ -1120,6 +1164,14 @@ function handleAction(el) {
       if (!p) break;
       const reason = prompt(t('rejectReason'));
       if (reason === null) break;
+      /* 同上：驳回也要落库，否则刷新就"复活"了 */
+      if (api.config.mode === 'http') {
+        const txt = String(reason).trim() || t('rejectedLabel');
+        runBusy(el, () => api.products.review(id, { action: 'reject', reason: txt })
+          .then(() => { toast(t('reviewRejected')); return (typeof hydrateProducts === 'function') ? hydrateProducts() : null; })
+          .catch(e => toast(e.message || String(e))));
+        break;
+      }
       p.status = 'rejected';
       p.rejectReason = reason.trim() || t('rejectedLabel');
       addLog(state.user ? state.user.name : '管理员', t('reviewRejected'), langObj(p).title, reason.trim());
@@ -1453,3 +1505,8 @@ function mountTurnstile(attempt) {
     console.warn('[turnstile] render 失败：' + (e && e.message));
   }
 }
+
+/* ---------- 启动收尾：静态资源绝对路径修正 ----------
+ * 放在文件末尾执行：installAssetPathFix 依赖前面声明的 IS_HTTP_PAGE，
+ * 放文件开头会触发 TDZ（Cannot access 'IS_HTTP_PAGE' before initialization）。 */
+if (typeof document !== 'undefined' && typeof installAssetPathFix === 'function') installAssetPathFix();
