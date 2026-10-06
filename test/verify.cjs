@@ -1120,10 +1120,17 @@ function resolveBrowser() {
     if (mask) mask.querySelector('[data-crop="skip"]').click();
     const out = await p;
     await new Promise(r => setTimeout(r, 150));
-    return { hasStage, hasZoom, sameFile: out === file, closed: !document.querySelector('.img-crop-mask') };
+    return { hasStage, hasZoom, sameFile: !!(out && out.ok && out.file === file), closed: !document.querySelector('.img-crop-mask') };
   });
   check('商品图裁剪器：能打开并给出预览与缩放', cropProbe.hasStage === true && cropProbe.hasZoom === true, JSON.stringify(cropProbe));
   check('商品图裁剪器：选「用原图」返回原文件并关闭', cropProbe.sameFile === true && cropProbe.closed === true, JSON.stringify(cropProbe));
+
+  /* 选文件 → 真的弹出裁剪窗（这条才是用户实际走的路径；上轮只测了函数本身，漏了接线） */
+  const wiring = await page.evaluate(() => ({
+    input: document.querySelectorAll('input[data-product-imgs]').length,
+    hint: document.body.innerText.indexOf('弹出裁剪窗口') >= 0
+  }));
+  check('发布页有选图入口与裁剪说明', wiring.input === 1 && wiring.hint === true, JSON.stringify(wiring));
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForTimeout(300);
 

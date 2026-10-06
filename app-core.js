@@ -892,6 +892,20 @@ function handleAction(el) {
       if (inp) inp.value = el.dataset.amount;
       break;
     }
+    /* 手动重新裁剪某张待上传的商品图（自动弹窗被跳过时的兜底入口） */
+    case 'product-img-crop': {
+      const idx = Number(el.dataset.idx);
+      const item = (typeof productImgFiles !== 'undefined' && productImgFiles[idx]) ? productImgFiles[idx] : null;
+      if (!item || !item.file) break;
+      runBusy(el, () => cropProductImage(item.file).then(async r => {
+        if (!r) return;
+        if (!r.ok) { toast(t('cropUnsupported').replace('{name}', item.name || '')); return; }
+        const a = await readAttachFile(r.file).catch(() => null);
+        if (a) productImgFiles[idx] = a;
+        if (typeof refreshProductImgWrap === 'function') refreshProductImgWrap();
+      }));
+      break;
+    }
     case 'tip-cancel': cancelTip(el.dataset.order, el.dataset.tip); break;
     case 'tip-skip': closeModal(); toast(t('tipSkipped')); break;
     case 'tip-dismiss': {
@@ -1073,8 +1087,17 @@ function handleAction(el) {
       const p = pid ? productById(pid) : null;
       const base = Array.isArray(p && p.images) ? p.images.length : 0;
       if (p && idx < base) {
+        /* 线上：真的删服务器上的那张图（以前只改本地状态，刷新图片又回来了） */
+        const imageId = (p.imageIds || [])[idx] || '';
+        if (api.config.mode === 'http' && imageId) {
+          runBusy(el, () => api.products.removeImage(p.id, imageId)
+            .then(() => { toast(t('imgRemove')); return (typeof hydrateProducts === 'function') ? hydrateProducts() : null; })
+            .catch(e => toast(e.message || String(e))));
+          break;
+        }
         const imgs = Array.isArray(p.images) ? p.images.slice() : [];
         imgs.splice(idx, 1);
+        if (Array.isArray(p.imageIds)) p.imageIds = p.imageIds.filter((_, i) => i !== idx);
         p.images = imgs;
         saveState();
       } else if (idx >= base) {

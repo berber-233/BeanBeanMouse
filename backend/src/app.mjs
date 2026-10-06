@@ -1220,13 +1220,18 @@ async function route(m, segs, q, req, res) {
       const body = await readBody(req);
       const ids = Array.isArray(body.fileIds) ? body.fileIds.slice(0, 12) : (body.fileId ? [body.fileId] : []);
       if (!ids.length) return fail(res, 400, 'VALIDATION', 'fileId 或 fileIds 必填');
+      /* 已挂过的图不再重复挂：编辑商品时重新选同一批照片、或前端重复提交，
+       * 都会让同一张图在详情页出现好几份（用户反馈"照片按更新多出好几份"）。 */
+      const existing = new Set((await all('SELECT file_id FROM product_images WHERE product_id = ?', p.id)).map(r => r.file_id));
       let sort = (await get('SELECT COUNT(*) AS c FROM product_images WHERE product_id = ?', p.id)).c;
       for (const fid of ids) {
+        if (existing.has(fid)) continue;
         const f = await get('SELECT id, mime, status FROM files WHERE id = ?', fid);
         if (!f || f.status !== 'active') return fail(res, 400, 'VALIDATION', '文件不存在或已失效');
         if (!/^image\//.test(String(f.mime || ''))) return fail(res, 400, 'VALIDATION', '商品图片必须是图片类型');
         await run('INSERT INTO product_images (id, product_id, file_id, sort, created_at) VALUES (?,?,?,?,?)',
           randomUUID(), p.id, f.id, sort++, Date.now());
+        existing.add(fid);
       }
       await run('UPDATE products SET updated_at = ? WHERE id = ?', Date.now(), p.id);
       await audit(u.id, 'product.image.add', 'product', p.id, ids.length + ' image(s)');

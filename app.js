@@ -112,6 +112,9 @@ function productToFrontend(p) {
     /* 防伪码：以服务端签发的为准（前端不再自己算，否则页面显示的码根本验不过） */
     antiFakeCode: p.antiFakeCode || '',
     images: (Array.isArray(p.images) ? p.images : []).map(x => (typeof x === 'string' ? fileUrl(x) : fileUrl(x.url || ('/files/' + (x.fileId || x.file_id))))).filter(Boolean),
+    /* 同时记住每张图的记录 id：删除线上商品图要按 id 调接口，
+     * 只留下 URL 的话前端根本没法删（以前只改本地，刷新又回来）。 */
+    imageIds: (Array.isArray(p.images) ? p.images : []).map(x => (x && typeof x === 'object') ? (x.id || '') : '').filter(Boolean),
     hsCode: p.hsCode || p.hs_code || '',
     addedAt: p.addedAt || p.created_at || 0,
     en: { title: pick('en', 'title') || p.id, desc: pick('en', 'desc'), features: pick('en', 'features') || [] },

@@ -575,7 +575,9 @@ function productCard(p) {
   + (p.hot ? '<span class="badge">' + t('hot') + '</span>' : '')
   + (p.promoted ? '<span class="badge promo">' + t('promoBadge') + '</span>' : '')
   + (p.featured && !p.hot ? '<span class="badge new">★</span>' : '')
-  + '<span class="badge demo" title="' + esc(t('demoTagNote')) + '">' + t('demoTag') + '</span>'
+  /* 这里原来无条件打"示例"角标：演示数据清光、v1.000 开始真实使用后，
+   * 自己的商品也被标成"示例"（用户反馈）。现在只在商品显式带 demo 标记时才显示。 */
+  + (p.demo ? '<span class="badge demo" title="' + esc(t('demoTagNote')) + '">' + t('demoTag') + '</span>' : '')
     + '<img src="' + productMainImg(p, 640, 480) + '" alt="' + esc(langObj(p).title) + '" loading="lazy">'
     + '<button type="button" class="fav-btn ' + (fav ? 'on' : '') + '" data-action="toggle-fav" data-id="' + p.id + '" aria-label="' + t('favorite') + '">' + icon(fav ? 'heart' : 'heart', fav ? 'fill' : '') + '</button>'
     + '</div>'
@@ -1201,7 +1203,9 @@ function renderDetail(pid) {
   const srcFeatures = (p[base] && p[base].features) || [];
   const showSrcBlock = state.lang !== base;
   const imgs = productImages(p);
-  const galleryN = imgs.length ? imgs.length : 3;
+  /* 缩略图最多展示 8 张（多的用 +N 角标提示）：图一多整排会顶出容器外
+   * （用户反馈"照片按更新多出好几份，超到外面了"）。 */
+  const galleryN = imgs.length ? Math.min(imgs.length, 8) : 3;
   const mainSrc = imgs.length ? productImgUrl(p, variant) : productImg(p, 800, 600, variant);
   const thumbs = Array.from({ length: galleryN }, (_, v) =>
     /* alt 用"商品名 + 第几张"，比纯数字对无障碍和 SEO 都有用 */
@@ -1212,7 +1216,9 @@ function renderDetail(pid) {
     + '<div class="detail-layout">'
     + '<div class="gallery">'
     + '<div class="main-img"><img src="' + mainSrc + '" alt="' + esc(langObj(p).title) + '" id="mainImg"></div>'
-    + '<div class="gallery-thumbs">' + thumbs + '</div>'
+    + '<div class="gallery-thumbs">' + thumbs
+    + (imgs.length > galleryN ? '<span class="gallery-more">+' + (imgs.length - galleryN) + '</span>' : '')
+    + '</div>'
     + '</div>'
     + '<div class="card detail-main">'
     + '<h1' + l10nAttrs(p.id, 'title', base, srcTitle) + '>' + esc(viewProductText(p, 'title')) + '</h1>'
@@ -1508,7 +1514,9 @@ async function translateProductForm(btn) {
     });
     const done = (await Promise.all(jobs)).reduce((a, b) => a + b, 0);
     setOut(done ? t('translateDone') : t('translateFailed'));
-    if (!done) toast(t('translateFailed'));
+    /* 译完给一个明确提示：以前只有字段被悄悄填上，用户以为"点了没反应"。 */
+    if (done) toast(t('translateDone') + ' · ' + t('translateNote'));
+    else toast(t('translateFailed'));
     /* 译文是程序写进 input 的，不会触发 input 事件 → 手动存一次草稿，
      * 免得后台一刷新译文就没了（用户反馈"翻译完白忙活"）。 */
     if (done && typeof saveProductDraft === 'function') saveProductDraft();
@@ -1535,9 +1543,15 @@ document.addEventListener('change', e => {
       if (productImgFiles.length >= 8) { toast(t('imgMax')); break; }
       let use = f;
       if (typeof cropProductImage === 'function') {
-        try { use = await cropProductImage(f); } catch (err) { use = f; }
+        try {
+          const r = await cropProductImage(f);
+          if (!r) continue;                       /* 用户取消了这一张 */
+          /* 浏览器解不开的格式（典型是 iPhone 的 HEIC）以前是**静默跳过弹窗**，
+           * 用户只会觉得"裁剪窗口没出来"。现在明确告诉他原因，并按原图加入。 */
+          if (!r.ok) toast(t('cropUnsupported').replace('{name}', f.name || ''));
+          use = r.file || f;
+        } catch (err) { use = f; }
       }
-      if (!use) continue;                        /* 用户取消了这一张 */
       const a = await readAttachFile(use).catch(() => null);
       if (a) productImgFiles.push(a);
     }
@@ -1555,7 +1569,8 @@ function cropProductImage(file) {
     const finish = v => { if (!settled) { settled = true; resolve(v); } };
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onerror = () => { URL.revokeObjectURL(url); finish(file); };
+    /* 解不开的图片（HEIC 等）返回 ok:false，让调用方给出明确提示 */
+    img.onerror = () => { URL.revokeObjectURL(url); finish({ ok: false, file }); };
     img.onload = () => {
       const mask = document.createElement('div');
       mask.className = 'img-crop-mask';
@@ -1593,7 +1608,7 @@ function cropProductImage(file) {
       };
       const close = v => { URL.revokeObjectURL(url); mask.remove(); document.removeEventListener('keydown', onKey); finish(v); };
       const onKey = ev => {
-        if (ev.key === 'Escape') close(file);
+        if (ev.key === 'Escape') close({ ok: true, file });
         else if (ev.key === 'Enter') mask.querySelector('[data-crop="ok"]').click();
       };
       document.addEventListener('keydown', onKey);
@@ -1605,7 +1620,7 @@ function cropProductImage(file) {
       mask.addEventListener('click', ev => {
         const act = ev.target.closest('[data-crop]');
         if (!act) return;
-        if (act.dataset.crop === 'skip') return close(file);
+        if (act.dataset.crop === 'skip') return close({ ok: true, file });
         /* 导出：与预览用同一套构图公式，输出 4:3 / 1200×900 的 JPEG */
         const W = 1200, H = 900;
         const out = document.createElement('canvas');
@@ -1616,9 +1631,9 @@ function cropProductImage(file) {
         const s = Math.max(W / img.width, H / img.height) * zoom;
         c.drawImage(img, (W - img.width * s) / 2 + ox * k, (H - img.height * s) / 2 + oy * k, img.width * s, img.height * s);
         out.toBlob(b => {
-          if (!b) return close(file);
+          if (!b) return close({ ok: true, file });
           const name = String(file.name || 'product').replace(/\.[^.]+$/, '') + '.jpg';
-          close(new File([b], name, { type: 'image/jpeg' }));
+          close({ ok: true, file: new File([b], name, { type: 'image/jpeg' }) });
         }, 'image/jpeg', 0.9);
       });
       draw();
@@ -6385,6 +6400,8 @@ function productImgListHtml(p) {
   if (!all.length) return '';
   return '<div class="product-imgs">' + all.map((x, idx) =>
     '<span class="product-img-item"><img src="' + x.dataUrl + '" alt="' + esc(x.name) + '">'
+    /* 手动裁剪入口：万一自动弹窗被跳过（格式不支持的图），用户还能自己点这里裁剪 */
+    + (!x.base ? '<button type="button" class="attach-x crop-btn" data-action="product-img-crop" data-idx="' + x.i + '" title="' + esc(t('cropManual')) + '" aria-label="' + esc(t('cropManual')) + '">' + icon('edit') + '</button>' : '')
     + '<button type="button" class="attach-x" data-action="product-img-remove" data-idx="' + idx + '" aria-label="' + t('imgRemove') + '">' + icon('x') + '</button></span>'
   ).join('') + '</div>';
 }
@@ -6400,6 +6417,13 @@ function renderPublishForm() {
   const { params } = parseHash();
   const editId = params.get('id') || '';
   const p = editId ? productById(editId) : null;
+  /* 切换商品/新建时清掉上一次残留的待上传图片：否则这些图会被挂到新商品上，
+   * 编辑同一个商品时还会反复追加（用户反馈"照片按更新多出好几份"）。 */
+  const formKey = p ? p.id : 'new';
+  if (window.__productFormKey !== formKey) {
+    window.__productFormKey = formKey;
+    if (typeof productImgFiles !== 'undefined') productImgFiles.length = 0;
+  }
   const hue = p ? p.hue : 210;
   const cat = p ? p.cat : 'machinery';
   const hueList = [210, 262, 330, 24, 160, 0];
@@ -6428,7 +6452,8 @@ function renderPublishForm() {
      * 对发布没有任何作用（用户反馈"那不是纯多余吗"）。整块去掉。 */
     + '<div class="form-section-title full">' + t('formSecImages') + '</div>'
     + '<div class="field full needs-r2"><label>' + t('prodImgLabel') + ' <span class="hint">' + t('prodImgHint') + '</span></label>'
-    + '<input type="file" class="input" name="images" multiple accept="image/jpeg,image/png,image/webp" data-product-imgs>'
+    + '<input type="file" class="input" name="images" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif" data-product-imgs>'
+    + '<p class="small muted" style="margin:6px 0 0">' + t('prodImgCropHint') + '</p>'
     + '<div id="productImgsWrap">' + productImgListHtml(p) + '</div></div>'
     + '<div class="form-section-title full">' + t('formSecPrice') + '</div>'
     + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'
@@ -6536,7 +6561,10 @@ function submitProduct(f) {
         const saved = id ? await api.products.update(id, data) : await api.products.create(data);
         const pid = (saved && (saved.id || (saved.product && saved.product.id))) || id;
         let attached = null;
-        if (pid && uploadedIds.length) attached = await api.products.addImages(pid, uploadedIds);
+        /* 只挂"这个商品身上还没有的"图：同一张照片重复挂会让详情页出现好几份 */
+        const have = new Set(((saved && saved.images) || []).map(x => (x && x.fileId) || '').filter(Boolean));
+        const fresh = uploadedIds.filter(fid => !have.has(fid));
+        if (pid && fresh.length) attached = await api.products.addImages(pid, fresh);
         /* 立刻把新图写进本地商品对象：不然要等一次整表刷新才看得到（用户反馈"要等很久"） */
         if (attached && attached.images && pid) {
           const local = (state.products || []).find(x => x.id === pid);
