@@ -2305,3 +2305,22 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   }
   .store-copy .hero-search .btn { width: 100%; border-radius: 12px; }
 }
+
+/* ==================== 第四轮：顶部导航换语言后不再被截断（用户 2026-10-06 反馈） ====================
+ * 现象：登录后（右上角有收藏/通知/用户区）切换中英文，导航文字被切掉——英文/德文更长，
+ *       1440px 就已经截断（英文 18px、德文 40px）；中文到 901px 截断 46px。
+ * 原因：导航项 previous 是 white-space:nowrap + 容器 overflow-x:auto，超出部分只能靠横向滚动看，
+ *       视觉上就是"字符跑出去了"。
+ * 做法：① 导航文案换成短语（长解释留在页面上）② 允许折成上下两行 ③ 空间不足时自动缩小字号。 */
+.main-nav { flex-wrap: wrap; overflow: visible; row-gap: 2px; align-items: center; }
+.main-nav a { white-space: normal; line-height: 1.25; max-width: 100%; flex: 0 1 auto; }
+.header-inner { height: auto; min-height: 62px; padding-top: 6px; padding-bottom: 6px; }
+@media (min-width: 901px) {
+  .main-nav a { font-size: 14.5px; padding: 7px 12px; }
+}
+@media (min-width: 901px) and (max-width: 1280px) {
+  .main-nav a { font-size: 13.5px; padding: 6px 10px; }
+}
+@media (min-width: 901px) and (max-width: 1060px) {
+  .main-nav a { font-size: 12.5px; padding: 6px 8px; }
+}

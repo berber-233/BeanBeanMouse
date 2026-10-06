@@ -948,6 +948,41 @@ function resolveBrowser() {
   check('i18n: ru 商品卡底栏不溢出卡片', footBad === 0, 'bad=' + footBad);
   const pageOverflow389 = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check('i18n: ru 390px 无横向溢出', pageOverflow389 <= 0, 'overflow=' + pageOverflow389);
+
+  /* 回归：顶部导航换语言后不能被截断（英文/德文更长，登录后右上角还有收藏/通知/用户区挤压）。
+   * 修复前实测：1440px 英文截断 18px、德文 40px；901px 中文截断 46px。 */
+  {
+    const headerBad = [];
+    for (const w of [1440, 1280, 1024]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      for (const lang of ['zh', 'en']) {
+        await page.evaluate(l => { state.lang = l; state.firstVisit = false; saveState(); render(); }, lang);
+        await page.waitForTimeout(200);
+        const r = await page.evaluate(() => {
+          const nav = document.querySelector('.main-nav');
+          const inner = document.querySelector('.header-inner');
+          const innerRect = inner.getBoundingClientRect();
+          const clipped = Array.from(document.querySelectorAll('.main-nav a')).filter(a => {
+            const rect = a.getBoundingClientRect();
+            return a.scrollWidth > a.clientWidth + 1 || rect.right > innerRect.right + 1;
+          }).map(a => (a.textContent || '').trim());
+          return {
+            navClipped: nav ? nav.scrollWidth - nav.clientWidth : 0,
+            clipped,
+            pageOverflow: document.documentElement.scrollWidth - window.innerWidth
+          };
+        });
+        if (r.navClipped > 1 || r.clipped.length || r.pageOverflow > 1) {
+          headerBad.push(w + 'px/' + lang + '(' + (r.clipped.join('/') || r.navClipped + 'px') + ')');
+        }
+      }
+    }
+    check('顶部导航：中英文在各宽度都不被截断', headerBad.length === 0, headerBad.join(' '));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.evaluate(() => { state.lang = 'zh'; render(); });
+    await page.waitForTimeout(200);
+  }
+
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('bridgetrade_v1') || '{}');
     s.lang = 'zh';
