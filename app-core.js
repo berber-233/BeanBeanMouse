@@ -15,6 +15,17 @@ function t(key, vars) {
   return s;
 }
 
+/* 对象存储文件地址归一：后端历史上回的是裸 "/files/<id>"，
+ * 而这个地址直连是 404（真正能取到的是 /api/files/<id>）。
+ * 只对 "/files/" 开头的路径补前缀，assets/、data:、http(s): 一律原样返回，
+ * 避免把本地素材路径误改成 /api/... 导致图片全挂。 */
+function fileUrl(u) {
+  const s = String(u == null ? '' : u).trim();
+  if (!s) return '';
+  if (s.charAt(0) === '/' && s.indexOf('/files/') === 0) return '/api' + s;
+  return s;
+}
+
 /* 多语言兜底：数据对象只完整覆盖中/英文，其他语言回退到英文 */
 function langObj(obj, lang) {
   const code = lang || state.lang;

@@ -6339,7 +6339,7 @@ function submitProduct(f) {
         if (attached && attached.images && pid) {
           const local = (state.products || []).find(x => x.id === pid);
           if (local) {
-            local.images = attached.images.map(x => '/api' + x.url);
+            local.images = attached.images.map(x => fileUrl(x.url));
             saveState();
           }
         }

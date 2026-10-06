@@ -576,6 +576,24 @@ let oneLangProductId = null, oneLangCode = '';
   const r = await req('/files', { method: 'POST', token: sellerToken, body: { data: Buffer.from('not an image').toString('base64'), mime: 'text/html' } });
   check('file upload unsupported type -> 400', r.status === 400 && r.data.error === 'UNSUPPORTED_TYPE');
 }
+{
+  /* 文件删除：以前只有上传/读取，前端 api.files.remove 调过来是 404，
+   * 删了附件文件仍留在对象存储里。 */
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const up = await req('/files', { method: 'POST', token: sellerToken, body: { data: png, mime: 'image/png', filename: 'del-me.png' } });
+  check('待删除文件上传成功', up.status === 201 && !!up.data.id);
+  const id = up.data && up.data.id;
+  if (id) {
+    const del = await fetch(base + '/files/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + sellerToken } });
+    check('file delete -> 200', del.status === 200 && (await del.json()).ok === true);
+    const gone = await fetch(base + '/files/' + id);
+    check('已删除文件直链读不到（404）', gone.status === 404);
+    /* 别人的文件不能删 */
+    const up2 = await req('/files', { method: 'POST', token: sellerToken, body: { data: png, mime: 'image/png', filename: 'keep.png' } });
+    const del2 = await fetch(base + '/files/' + up2.data.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + buyerToken } });
+    check('买家删卖家文件被拦（403）', del2.status === 403);
+  }
+}
 
 /* ---- DeepL 真实通道（本地假端点：验证鉴权头、表单与响应解析） ---- */
 {

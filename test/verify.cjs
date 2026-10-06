@@ -1001,6 +1001,24 @@ function resolveBrowser() {
     check('no raw data URI as text @ ' + hash, raw.length === 0, raw.join(' | '));
   }
 
+  /* 回归：对象存储文件地址归一（后端回 /files/<id> 时前端必须补成 /api/files/<id>，
+   * 否则图片静默不显示；但本地素材路径不能被误改）。 */
+  const urlNorm = await page.evaluate(() => {
+    if (typeof fileUrl !== 'function') return { missing: true };
+    return {
+      bare: fileUrl('/files/abc-123'),
+      already: fileUrl('/api/files/abc-123'),
+      asset: fileUrl('assets/pet/products/dog.png'),
+      data: fileUrl('data:image/png;base64,AAA'),
+      empty: fileUrl(null)
+    };
+  });
+  check('fileUrl: 裸 /files/<id> 补成 /api/files/<id>', urlNorm.bare === '/api/files/abc-123', 'got=' + urlNorm.bare);
+  check('fileUrl: 已带 /api 前缀不重复补', urlNorm.already === '/api/files/abc-123', 'got=' + urlNorm.already);
+  check('fileUrl: 本地素材路径原样返回', urlNorm.asset === 'assets/pet/products/dog.png', 'got=' + urlNorm.asset);
+  check('fileUrl: data URI 原样返回', urlNorm.data === 'data:image/png;base64,AAA', 'got=' + urlNorm.data);
+  check('fileUrl: 空值返回空串', urlNorm.empty === '', 'got=' + JSON.stringify(urlNorm.empty));
+
   console.log(results.map(([n, ok]) => (ok ? 'PASS' : 'FAIL') + ' | ' + n).join('\n'));
   const failed = results.filter(([, ok]) => !ok).length;
   console.log('PAGE ERRORS: ' + JSON.stringify(errors));

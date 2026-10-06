@@ -12,7 +12,7 @@ import { get, run, all } from './store.mjs';
 import { seedIfEmpty, antiFakeCode, newAntiFakeCode } from './seed.mjs';
 import { hashPassword, verifyPassword, signToken, verifyToken, configureAuth } from './auth.mjs';
 import { translateText, translateError } from './translate.mjs';
-import { validateFile, putFile, getFile, UPLOAD_DIR, MAX_FILE_SIZE, storageInfo } from './storage.mjs';
+import { validateFile, putFile, getFile, deleteFile, UPLOAD_DIR, MAX_FILE_SIZE, storageInfo } from './storage.mjs';
 import { sendMail, notifyUser, mailerInfo } from './mailer.mjs';
 import { verifyEmailContent, resetPasswordContent } from './email-template.mjs';
 
@@ -24,6 +24,9 @@ export function createApp({ env = {}, deps = {} } = {}) {
   const REQUIRE_ACCOUNT_REVIEW = String(ENV.REQUIRE_ACCOUNT_REVIEW === undefined ? '0' : ENV.REQUIRE_ACCOUNT_REVIEW) !== '0';
   const wsBroadcast = typeof deps.wsBroadcast === 'function' ? deps.wsBroadcast : () => {};
   configureAuth({ secret: ENV.JWT_SECRET, iterations: ENV.PBKDF2_ITERATIONS });
+  /* 接口对外前缀：线上是 Pages Functions（/api/*），本地 Node 直起是根路径。
+   * 返回给前端的文件地址必须带这个前缀，否则 /files/<id> 直连是 404。 */
+  const API_BASE = String(ENV.API_BASE_PATH || '').replace(/\/+$/, '');
 
 
 
@@ -595,7 +598,9 @@ async function productView(row) {
     /* 商品货号（SKU）：客服/仓库按货号找货、买家询盘时报货号 */
     code: row.code || '',
     promoted: !!promo,
-    images: imgRows.map(x => ({ id: x.id, fileId: x.file_id, url: '/files/' + x.file_id }))
+    /* 地址带上 /api 前缀：裸 "/files/<id>" 直连是 404（前端曾经靠自己补前缀才显示，
+     * 任何新代码直接用这个字段都会踩坑）。 */
+    images: imgRows.map(x => ({ id: x.id, fileId: x.file_id, url: API_BASE + '/files/' + x.file_id }))
   };
 }
 
@@ -2042,11 +2047,13 @@ async function route(m, segs, q, req, res) {
         id, u.id, key, mime, data.length, 'active', Date.now()
       );
       await audit(u.id, 'file.upload', 'file', id, filename);
-      return send(res, 201, { id, filename, mime, size: data.length, url: '/files/' + id });
+      return send(res, 201, { id, filename, mime, size: data.length, url: API_BASE + '/files/' + id });
     }
     if (b && m === 'GET') {
       const row = await get('SELECT * FROM files WHERE id = ?', b);
       if (!row) return fail(res, 404, 'NOT_FOUND', '文件不存在');
+      /* 已删除的文件不能再通过直链读到（否则"删除"只是假动作） */
+      if (row.status && row.status !== 'active') return fail(res, 404, 'NOT_FOUND', '文件不存在');
       let buf;
       try {
         buf = await getFile(row.bucket_key);
@@ -2063,6 +2070,26 @@ async function route(m, segs, q, req, res) {
         'Content-Disposition': 'inline',
         'Cache-Control': 'public, max-age=31536000, immutable'
       });
+    }
+    /* 删除文件：之前只有上传和读取，前端 api.files.remove 调过来是 404，
+     * 结果"删了附件"只是记录消失、文件永远留在对象存储里（白占空间）。 */
+    if (b && m === 'DELETE') {
+      const u = await requireAuth(res, req);
+      if (!u) return;
+      const row = await get('SELECT * FROM files WHERE id = ?', b);
+      if (!row) return fail(res, 404, 'NOT_FOUND', '文件不存在');
+      if (u.role !== 'admin' && row.owner_id !== u.id) return fail(res, 403, 'FORBIDDEN', '只能删除自己上传的文件');
+      let storageDeleted = true;
+      try {
+        storageDeleted = await deleteFile(row.bucket_key);
+      } catch (e) {
+        /* 存储层删不掉（比如桶策略变了）也不能把记录留着：先标记 deleted，
+         * 读接口只认 active，用户侧不会再看到这个文件。 */
+        storageDeleted = false;
+      }
+      await run("UPDATE files SET status = 'deleted' WHERE id = ?", row.id);
+      await audit(u.id, 'file.delete', 'file', row.id, storageDeleted ? 'storage+db' : 'db-only');
+      return send(res, 200, { ok: true, id: row.id, storageDeleted });
     }
   }
 

@@ -40,6 +40,9 @@
     "ALIYUN_DM_REGION": "cn-hangzhou",
     "MAIL_FROM": "no-reply@mail.beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",
+    // 接口对外前缀：Pages Functions 挂在 /api/*（本地 Node 直起时为空）。
+    // 后端返回给前端的文件地址靠它拼成 /api/files/<id>，否则裸 /files/<id> 直连 404。
+    "API_BASE_PATH": "/api",
     // 邮件通道（阿里云）已开通并实测发信成功，2026-09-28 起新注册必须完成邮箱验证才能登录。
     // 需要临时放开时改回 "0" 即可，代码无需改动。
     "REQUIRE_EMAIL_VERIFY": "1",

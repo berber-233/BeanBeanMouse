@@ -115,7 +115,7 @@ function productToFrontend(p) {
     code: p.code || '',
     /* 防伪码：以服务端签发的为准（前端不再自己算，否则页面显示的码根本验不过） */
     antiFakeCode: p.antiFakeCode || '',
-    images: (Array.isArray(p.images) ? p.images : []).map(x => (typeof x === 'string' ? x : ('/api' + (x.url || ('/files/' + (x.fileId || x.file_id)))))).filter(Boolean),
+    images: (Array.isArray(p.images) ? p.images : []).map(x => (typeof x === 'string' ? fileUrl(x) : fileUrl(x.url || ('/files/' + (x.fileId || x.file_id))))).filter(Boolean),
     hsCode: p.hsCode || p.hs_code || '',
     addedAt: p.addedAt || p.created_at || 0,
     en: { title: pick('en', 'title') || p.id, desc: pick('en', 'desc'), features: pick('en', 'features') || [] },
