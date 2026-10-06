@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" aria-label="BeanBeanMouse 豆豆鼠">
+  <rect width="760" height="220" fill="#FFFDF8"/>
+  <g transform="translate(6 22) scale(0.72)"><g>
+    <g>
+      <circle cx="76" cy="70" r="32" fill="#F7D9A8" stroke="#26304A" stroke-width="7"/>
+      <circle cx="180" cy="70" r="32" fill="#F7D9A8" stroke="#26304A" stroke-width="7"/>
+      <circle cx="76" cy="70" r="15" fill="#FFB9C4"/>
+      <circle cx="180" cy="70" r="15" fill="#FFB9C4"/>
+      <ellipse cx="128" cy="140" rx="88" ry="82" fill="#F7D9A8" stroke="#26304A" stroke-width="7"/>
+      <path d="M62 206 q66 34 132 0" fill="none" stroke="#1D4ED8" stroke-width="14" stroke-linecap="round"/>
+      <ellipse cx="128" cy="166" rx="40" ry="30" fill="#FFF6E8"/>
+      <ellipse cx="128" cy="150" rx="9" ry="7" fill="#FF9E9E"/>
+      <path d="M128 158 v9" fill="none" stroke="#26304A" stroke-width="5" stroke-linecap="round"/>
+      <path d="M128 167 q-13 12 -24 0" fill="none" stroke="#26304A" stroke-width="5" stroke-linecap="round"/>
+      <path d="M128 167 q13 12 24 0" fill="none" stroke="#26304A" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="98" cy="128" r="11" fill="#26304A"/>
+      <circle cx="94" cy="124" r="4" fill="#FFFFFF"/>
+      <circle cx="158" cy="128" r="11" fill="#26304A"/>
+      <circle cx="154" cy="124" r="4" fill="#FFFFFF"/>
+      
+      <ellipse cx="74" cy="152" rx="13" ry="8" fill="#FFB9C4" opacity=".85"/>
+      <ellipse cx="182" cy="152" rx="13" ry="8" fill="#FFB9C4" opacity=".85"/>
+      <g transform="rotate(-12 196 176)">
+        <rect x="180" y="160" width="32" height="32" rx="6" fill="#F59E0B" stroke="#26304A" stroke-width="5"/>
+        <path d="M180 176 h32" stroke="#26304A" stroke-width="4" stroke-linecap="round"/>
+        <path d="M196 160 v32" stroke="#26304A" stroke-width="4" stroke-linecap="round"/>
+      </g>
+    </g></g></g>
+  <text x="212" y="106" fill="#26304A" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="58" font-weight="800" letter-spacing="-1">BeanBean<tspan fill="#F59E0B">Mouse</tspan></text>
+  <text x="215" y="142" fill="#26304A" font-family="Segoe UI, system-ui, sans-serif" font-size="19" letter-spacing="5" opacity=".85">豆豆鼠 · 宠物用品自营出口</text>
+  <path d="M215 164 h300" stroke="#F59E0B" stroke-width="3" stroke-linecap="round"/>
+  <text x="215" y="190" fill="#26304A" font-family="Segoe UI, system-ui, sans-serif" font-size="14" letter-spacing="3" opacity=".6">PET SUPPLIES · DIRECT EXPORT</text>
+</svg>

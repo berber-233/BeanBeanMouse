@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 176 176" width="176" height="176" role="img" aria-label="BeanBeanMouse pattern">
+  <rect width="176" height="176" fill="#FFF6E8"/>
+  <g transform="rotate(-24 44 40)"><ellipse cx="44" cy="40" rx="16.5" ry="11" fill="#F59E0B" opacity=".9"/><path d="M33 36.15 q11 -5.5 22 0" stroke="#FFFFFF" stroke-width="3.74" fill="none" opacity=".55" stroke-linecap="round"/></g>
+  <g fill="#26304A" opacity=".55"><circle cx="124" cy="45" r="5"/><circle cx="132" cy="42" r="5"/><circle cx="140" cy="45" r="5"/><ellipse cx="132" cy="58" rx="10" ry="8"/></g>
+  <g transform="rotate(10 96 118)" opacity=".85"><rect x="85" y="107" width="22" height="22" rx="4" fill="none" stroke="#1D4ED8" stroke-width="3.4"/><path d="M85 118 h22M96 107 v22" stroke="#1D4ED8" stroke-width="2.6"/></g>
+  <path d="M18 128 q16 12 32 0" fill="none" stroke="#FFB9C4" stroke-width="4.5" stroke-linecap="round" opacity=".95"/>
+  <g transform="rotate(-24 140 148)"><ellipse cx="140" cy="148" rx="13.5" ry="9" fill="#F59E0B" opacity=".9"/><path d="M131 144.85 q9 -4.5 18 0" stroke="#FFFFFF" stroke-width="3.06" fill="none" opacity=".55" stroke-linecap="round"/></g>
+  <g fill="#26304A" opacity=".55"><circle cx="44" cy="85" r="5"/><circle cx="52" cy="82" r="5"/><circle cx="60" cy="85" r="5"/><ellipse cx="52" cy="98" rx="10" ry="8"/></g>
+</svg>
