@@ -407,8 +407,11 @@ function normalizeLegacyHash() {
 normalizeLegacyHash();
 
 function fmtPrice(n) {
-  if (Number.isInteger(n)) return n.toLocaleString('en-US');
-  return n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 2 : 1 });
+  /* 报价必须固定两位小数：以前整数直接显示 8、8.5 显示成 8.5，
+   * 采购方按国际贸易惯例看的是 $8.00 / $8.50（用户反馈"价格不能显示两位小数"）。 */
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0.00';
+  return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /* 国家/地区标记：原来返回国旗 emoji（区域指示符对），但 **Windows 没有旗帜字形**，

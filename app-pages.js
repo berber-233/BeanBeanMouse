@@ -1525,19 +1525,107 @@ document.addEventListener('change', e => {
   if (!input || !input.hasAttribute('data-product-imgs')) return;
   if (!input.files || !input.files.length) return;
   const files = Array.from(input.files);
-  Promise.all(files.map(f => {
-    if (!ATTACH_IMAGE_TYPES.includes(f.type)) { toast(t('attachTypeNotAllowed')); return null; }
-    return readAttachFile(f).catch(() => null);
-  })).then(list => {
-    list.forEach(a => {
-      if (!a) return;
-      if (productImgFiles.length >= 8) { toast(t('imgMax')); return; }
-      productImgFiles.push(a);
-    });
+  /* 选完图逐张进裁剪器：商品图以前直接用原图，卡片是 cover 裁切，
+   * 手机竖拍的照片中间一小块才显示得出来（用户反馈"只能显示一小部分"）。
+   * 现在可以拖动+缩放自己确定构图，导出统一 4:3、最长边 1200px 的 JPEG，
+   * 顺带把上传体积压小（手机原图常常 3–5MB，压完几百 KB，上传也快了）。 */
+  (async () => {
+    for (const f of files) {
+      if (!ATTACH_IMAGE_TYPES.includes(f.type)) { toast(t('attachTypeNotAllowed')); continue; }
+      if (productImgFiles.length >= 8) { toast(t('imgMax')); break; }
+      let use = f;
+      if (typeof cropProductImage === 'function') {
+        try { use = await cropProductImage(f); } catch (err) { use = f; }
+      }
+      if (!use) continue;                        /* 用户取消了这一张 */
+      const a = await readAttachFile(use).catch(() => null);
+      if (a) productImgFiles.push(a);
+    }
     refreshProductImgWrap();
-  });
+  })();
   input.value = '';
 });
+
+/* ---------- 商品图裁剪/缩放 ----------
+ * 返回 Promise<File>：确认裁剪 → 返回压好的 JPEG；点"用原图"→ 返回原文件；
+ * 关闭/取消 → resolve(null)，调用方跳过这张。 */
+function cropProductImage(file) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = v => { if (!settled) { settled = true; resolve(v); } };
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); finish(file); };
+    img.onload = () => {
+      const mask = document.createElement('div');
+      mask.className = 'img-crop-mask';
+      mask.innerHTML = '<div class="img-crop-box" role="dialog" aria-modal="true">'
+        + '<h3 style="margin:0 0 6px">' + t('cropTitle') + '</h3>'
+        + '<p class="small muted" style="margin:0 0 10px">' + t('cropHint') + '</p>'
+        + '<div class="img-crop-stage"><canvas></canvas></div>'
+        + '<label class="img-crop-zoom">' + t('cropZoom') + '<input type="range" min="100" max="300" value="100"></label>'
+        + '<div class="img-crop-actions">'
+        + '<button type="button" class="btn" data-crop="skip">' + t('cropUseOriginal') + '</button>'
+        + '<button type="button" class="btn btn-primary" data-crop="ok">' + t('cropConfirm') + '</button>'
+        + '</div></div>';
+      document.body.appendChild(mask);
+      const stage = mask.querySelector('.img-crop-stage');
+      const canvas = mask.querySelector('canvas');
+      const zoomEl = mask.querySelector('input[type="range"]');
+      let zoom = 1, ox = 0, oy = 0, dragging = false, sx = 0, sy = 0;
+      const baseScale = () => Math.max(stage.clientWidth / img.width, stage.clientHeight / img.height);
+      const clamp = () => {
+        const s = baseScale() * zoom;
+        const maxX = Math.max(0, (img.width * s - stage.clientWidth) / 2);
+        const maxY = Math.max(0, (img.height * s - stage.clientHeight) / 2);
+        ox = Math.max(-maxX, Math.min(maxX, ox));
+        oy = Math.max(-maxY, Math.min(maxY, oy));
+      };
+      const draw = () => {
+        const W = stage.clientWidth, H = stage.clientHeight;
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        if (canvas.width !== Math.round(W * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+        const c = canvas.getContext('2d');
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        c.clearRect(0, 0, W, H);
+        const s = baseScale() * zoom;
+        c.drawImage(img, (W - img.width * s) / 2 + ox, (H - img.height * s) / 2 + oy, img.width * s, img.height * s);
+      };
+      const close = v => { URL.revokeObjectURL(url); mask.remove(); document.removeEventListener('keydown', onKey); finish(v); };
+      const onKey = ev => {
+        if (ev.key === 'Escape') close(file);
+        else if (ev.key === 'Enter') mask.querySelector('[data-crop="ok"]').click();
+      };
+      document.addEventListener('keydown', onKey);
+      zoomEl.addEventListener('input', () => { zoom = (+zoomEl.value) / 100; clamp(); draw(); });
+      stage.addEventListener('pointerdown', ev => { dragging = true; sx = ev.clientX - ox; sy = ev.clientY - oy; try { stage.setPointerCapture(ev.pointerId); } catch (e) {} });
+      stage.addEventListener('pointermove', ev => { if (!dragging) return; ox = ev.clientX - sx; oy = ev.clientY - sy; clamp(); draw(); });
+      stage.addEventListener('pointerup', () => { dragging = false; });
+      stage.addEventListener('pointercancel', () => { dragging = false; });
+      mask.addEventListener('click', ev => {
+        const act = ev.target.closest('[data-crop]');
+        if (!act) return;
+        if (act.dataset.crop === 'skip') return close(file);
+        /* 导出：与预览用同一套构图公式，输出 4:3 / 1200×900 的 JPEG */
+        const W = 1200, H = 900;
+        const out = document.createElement('canvas');
+        out.width = W; out.height = H;
+        const c = out.getContext('2d');
+        c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
+        const k = W / stage.clientWidth;
+        const s = Math.max(W / img.width, H / img.height) * zoom;
+        c.drawImage(img, (W - img.width * s) / 2 + ox * k, (H - img.height * s) / 2 + oy * k, img.width * s, img.height * s);
+        out.toBlob(b => {
+          if (!b) return close(file);
+          const name = String(file.name || 'product').replace(/\.[^.]+$/, '') + '.jpg';
+          close(new File([b], name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.9);
+      });
+      draw();
+    };
+    img.src = url;
+  });
+}
 
 function attachUrl(a) {
   if (!a) return '';
@@ -6336,7 +6424,8 @@ function renderPublishForm() {
     + '<option value="">' + t('allSubs') + '</option>'
     + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
     + '</select></div>'
-    + '<div class="field"><label>' + t('chooseImage') + '</label><div class="palette">' + hueList.map(h => '<span class="swatch ' + (h === hue ? 'on' : '') + '" data-action="pick-hue" data-hue="' + h + '" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 48%),hsl(' + ((h + 45) % 360) + ' 55% 30%))"></span>').join('') + '</div></div>'
+    /* 这里原来是"图片配色（色板）"：现在商品图都用真实照片，选色只影响占位图，
+     * 对发布没有任何作用（用户反馈"那不是纯多余吗"）。整块去掉。 */
     + '<div class="form-section-title full">' + t('formSecImages') + '</div>'
     + '<div class="field full needs-r2"><label>' + t('prodImgLabel') + ' <span class="hint">' + t('prodImgHint') + '</span></label>'
     + '<input type="file" class="input" name="images" multiple accept="image/jpeg,image/png,image/webp" data-product-imgs>'

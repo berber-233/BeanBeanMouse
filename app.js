@@ -9,17 +9,8 @@ document.addEventListener('submit', e => {
   }
 });
 
-/* 发布页：色板与预览联动 */
-document.addEventListener('click', e => {
-  const sw = e.target.closest('[data-action="pick-hue"]');
-  if (!sw) return;
-  $$('.swatch').forEach(s => s.classList.toggle('on', s === sw));
-  const form = document.querySelector('form[data-form="product-form"]');
-  const hidden = form ? form.querySelector('input[name="hue"]') : null;
-  if (hidden) hidden.value = sw.dataset.hue;
-  updatePublishPreview();
-});
-
+/* 发布页预览：以前还有一排"图片配色"色板可以点，现在商品图都用真实照片，
+ * 占位图配色无关紧要，色板已删除，这里只用固定的默认色渲染预览。 */
 function updatePublishPreview() {
   const img = document.querySelector('#publishPreview img');
   const form = document.querySelector('form[data-form="product-form"]');

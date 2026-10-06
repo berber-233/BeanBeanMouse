@@ -1093,6 +1093,40 @@ function resolveBrowser() {
   const about = await page.evaluate(() => document.body.innerText || '');
   check('关于我们地址是"中国广东惠州"', /中国广东惠州|Huizhou,\s*Guangdong/i.test(about), (about.match(/(中国|Huizhou)[^\n]*/) || ['(未找到)'])[0]);
 
+  /* 回归：价格两位小数 / 发布页多余的色板已删 / 商品图可裁剪缩放 */
+  const priceFmt = await page.evaluate(() => [fmtPrice(8), fmtPrice(8.5), fmtPrice(1234.5), fmtPrice(0.1)]);
+  check('价格固定显示两位小数', priceFmt[0] === '8.00' && priceFmt[1] === '8.50' && priceFmt[2] === '1,234.50' && priceFmt[3] === '0.10', JSON.stringify(priceFmt));
+
+  await page.evaluate(() => { location.hash = '#/dashboard/publish'; });
+  await page.waitForTimeout(700);
+  const publishUi = await page.evaluate(() => ({
+    palette: document.querySelectorAll('form[data-form="product-form"] .palette').length,
+    swatches: document.querySelectorAll('form[data-form="product-form"] .swatch').length,
+    fileInput: document.querySelectorAll('input[data-product-imgs]').length
+  }));
+  check('发布页去掉了"图片配色"色板', publishUi.palette === 0 && publishUi.swatches === 0, JSON.stringify(publishUi));
+  check('发布页保留图片上传入口', publishUi.fileInput === 1);
+
+  const cropProbe = await page.evaluate(async () => {
+    if (typeof cropProductImage !== 'function') return { missing: true };
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHgQCAZ0d3gYAAAAASUVORK5CYII=';
+    const blob = await (await fetch(dataUrl)).blob();
+    const file = new File([blob], 'probe.png', { type: 'image/png' });
+    const p = cropProductImage(file);
+    await new Promise(r => setTimeout(r, 400));
+    const mask = document.querySelector('.img-crop-mask');
+    const hasStage = !!(mask && mask.querySelector('.img-crop-stage canvas'));
+    const hasZoom = !!(mask && mask.querySelector('input[type="range"]'));
+    if (mask) mask.querySelector('[data-crop="skip"]').click();
+    const out = await p;
+    await new Promise(r => setTimeout(r, 150));
+    return { hasStage, hasZoom, sameFile: out === file, closed: !document.querySelector('.img-crop-mask') };
+  });
+  check('商品图裁剪器：能打开并给出预览与缩放', cropProbe.hasStage === true && cropProbe.hasZoom === true, JSON.stringify(cropProbe));
+  check('商品图裁剪器：选「用原图」返回原文件并关闭', cropProbe.sameFile === true && cropProbe.closed === true, JSON.stringify(cropProbe));
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.waitForTimeout(300);
+
   /* 回归：对象存储文件地址归一（后端回 /files/<id> 时前端必须补成 /api/files/<id>，
    * 否则图片静默不显示；但本地素材路径不能被误改）。 */
   const urlNorm = await page.evaluate(() => {
