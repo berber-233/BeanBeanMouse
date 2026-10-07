@@ -2354,3 +2354,11 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 
 /* 裁剪窗工具行（显示整张 / 铺满画面） */
 .img-crop-tools { display: flex; gap: 8px; margin: -4px 0 12px; }
+
+/* ==================== 防伪验证弹窗二维码（用户 2026-10-07） ====================
+ * 以前 .verify-qr svg 被写死 108px，而外层 .fake-qr 只有 96px（还要减 12px padding）
+ * → 二维码直接溢出到框外。现在统一由容器决定尺寸，并把框放大到更好扫。 */
+.fake-qr.verify-qr { width: 136px; height: 136px; margin: 14px auto 8px; }
+.fake-qr.verify-qr svg { width: 100%; height: 100%; display: block; }
+/* 其它位置的二维码也一律不许超出容器 */
+.fake-qr svg, .ev-qr svg { max-width: 100%; max-height: 100%; }

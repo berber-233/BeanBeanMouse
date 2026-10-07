@@ -1176,14 +1176,15 @@ function renderSellerPage(sid) {
     + '<span class="sp-logo">' + esc(initialsOf(companyName)) + '</span>'
     + '<div class="sp-main"><div class="sp-title">' + esc(companyName) + ' ' + statusPill + '</div>'
     + '<div class="sp-en">' + esc(companyEn) + '</div>'
-    + '<div class="sp-meta">' + countryLabel(seller.country) + ' · ' + esc(langObj(seller).city) + ' · ' + t('since') + ' ' + seller.since + '</div>'
+    + '<div class="sp-meta">' + countryLabel(seller.country) + ' · ' + esc(langObj(seller).city) + (seller.since ? ' · ' + t('since') + ' ' + seller.since : '') + '</div>'
     + (company && company.businessScope ? '<div class="sp-scope">' + esc(company.businessScope) + '</div>' : '')
     + '</div>'
     + '<div class="sp-stats">'
     + stat(seller.rating.toFixed(1), '★ ' + t('statsSuppliers'))
     + stat(seller.orders.toLocaleString(), t('orders'))
-    + stat(seller.responseRate + '%', t('responseRate'))
-    + stat(seller.responseTime, t('responseTime'))
+    /* 回复率/响应时长：新店没有历史数据就不显示（以前写死 99% / 2h，属于编的） */
+    + (seller.responseRate ? stat(seller.responseRate + '%', t('responseRate')) : '')
+    + (seller.responseTime ? stat(seller.responseTime, t('responseTime')) : '')
     + '</div>'
     + '</section>'
     + '<div class="seller-trust-grid">'
@@ -1270,7 +1271,7 @@ function renderDetail(pid) {
     + '<div class="seller-card">'
     + '<span class="avatar" style="width:38px;height:38px;font-size:14px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
     + '<div class="info"><div class="name">' + esc(langObj(seller).company) + (isVerifiedSeller(p.sellerId) ? ' ' + icon('shield') + '<span style="color:#126A33;font-size:12px">' + t('verified') + '</span>' : '') + '</div>'
-    + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('responseRate') + ' ' + seller.responseRate + '%</div>'
+    + '<div class="sub">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + (seller.responseRate ? ' · ' + t('responseRate') + ' ' + seller.responseRate + '%' : '') + '</div>'
     + '<a class="seller-page-link" href="/seller/' + seller.id + '" data-nav="/seller/' + seller.id + '">' + t('viewSellerPage') + ' →</a></div>'
     + '</div>'
     + '<div class="detail-actions">'
@@ -1331,8 +1332,8 @@ function renderDetail(pid) {
     + '<div class="small muted">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('since') + ' ' + seller.since + '</div></div>'
     + '<div class="stats">'
     + '<div><div class="n">' + seller.rating + '</div><div class="l">★ ' + t('statsSuppliers') + '</div></div>'
-    + '<div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('responseRate') + '</div></div>'
-    + '<div><div class="n">' + seller.responseTime + '</div><div class="l">' + t('responseTime') + '</div></div>'
+    + (seller.responseRate ? '<div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('responseRate') + '</div></div>' : '')
+    + (seller.responseTime ? '<div><div class="n">' + seller.responseTime + '</div><div class="l">' + t('responseTime') + '</div></div>' : '')
     + '<div><div class="n">' + seller.orders.toLocaleString() + '</div><div class="l">' + t('orders') + '</div></div>'
     + '</div>'
     + '</div></div>'
@@ -5439,7 +5440,7 @@ function renderSellerDash(path) {
       + '<div class="card stat-card"><div class="stat-ico ico-blue">' + icon('box') + '</div><div><div class="n">' + live + '</div><div class="l">' + t('statLive') + '</div></div></div>'
       + '<div class="card stat-card"><div class="stat-ico ico-amber">' + icon('message') + '</div><div><div class="n">' + monthInq + '</div><div class="l">' + t('statInquiries') + '</div></div></div>'
       + '<div class="card stat-card"><div class="stat-ico ico-green">' + icon('clock') + '</div><div><div class="n">' + pending + '</div><div class="l">' + t('statPending') + '</div></div></div>'
-      + '<div class="card stat-card"><div class="stat-ico ico-purple">' + icon('sparkle') + '</div><div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('statRate') + '</div></div></div>'
+      + (seller.responseRate ? '<div class="card stat-card"><div class="stat-ico ico-purple">' + icon('sparkle') + '</div><div><div class="n">' + seller.responseRate + '%</div><div class="l">' + t('statRate') + '</div></div></div>' : '')
       + '</div>'
       + '<div class="card panel"><div class="panel-head"><h2>' + t('recentInquiries') + '</h2><a class="btn btn-sm" href="/dashboard/inquiries" data-nav="/dashboard/inquiries">' + t('viewAll') + ' →</a></div>'
       + (myInquiries.length ? myInquiries.slice(0, 4).map(inquiryItem).join('') : '<div class="empty-state" style="padding:30px"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/mailbox.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><p>' + t('noInquiries') + '</p></div>')
@@ -5861,7 +5862,7 @@ function verifyCard(c) {
     + '<span class="avatar" style="width:44px;height:44px;font-size:16px">' + esc(initialsOf(langObj(seller).company)) + '</span>'
     + '<div class="info">'
     + '<div class="head"><b>' + esc(langObj(seller).company) + '</b><span class="status-pill ' + stCls + '">' + stLabel + '</span></div>'
-    + '<div class="meta small muted">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + ' · ' + t('since') + ' ' + seller.since + '</div>'
+    + '<div class="meta small muted">' + esc(langObj(seller).city) + ', ' + countryName(seller.country) + (seller.since ? ' · ' + t('since') + ' ' + seller.since : '') + '</div>'
     + '<div class="meta"><span class="small muted">' + t('docsLabel') + '：</span>' + c.docs.map(d => '<span class="chip">' + esc(d) + '</span>').join('') + '</div>'
     + '</div>'
     + (st === 'pending'
@@ -6468,6 +6469,10 @@ function renderPublishForm() {
     + '<div class="form-grid">'
     + '<form data-form="product-form" data-id="' + (p ? p.id : '') + '" class="full" novalidate>'
     + '<input type="hidden" name="hue" value="' + hue + '">'
+    /* 货号：新建时还没有号（保存后由服务端按品类前缀分配），编辑时显示真实货号，
+     * 方便运营查库存、开账单（用户要求"发布产品时记得显示货号"）。 */
+    + '<div class="field full"><label>' + t('productCodeLabel') + ' <span class="hint">' + t('productCodeHint') + '</span></label>'
+    + '<input class="input" value="' + esc(p && p.code ? p.code : t('productCodePending')) + '" readonly></div>'
     + '<div class="form-grid">'
     + '<div class="form-section-title full">' + t('formSecBasic') + '</div>'
     + '<div class="field"><label>' + t('titleEn') + ' *</label><input class="input" name="titleEn" value="' + esc(p ? p.en.title : '') + '" required></div>'
@@ -6625,7 +6630,9 @@ function submitProduct(f) {
         }
         productImgFiles.length = 0;
         clearProductDraft();
-        toast(t('productSubmitted'));
+        /* 把服务端刚分配的货号念出来：运营要拿它去查库存/开账单 */
+        const newCode = saved && saved.code;
+        toast(t('productSubmitted') + (newCode ? ' · ' + t('productCodeLabel') + ' ' + newCode : ''));
         if (typeof hydrateProducts === 'function') await hydrateProducts();
         if (typeof hydrateSessionData === 'function') await hydrateSessionData();
         go('/dashboard/products');

@@ -247,7 +247,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.040 shown', /v1\.040/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.050 shown', /v1\.050/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -396,7 +396,10 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   await page.evaluate(() => { location.hash = '#/dashboard'; });
   await page.waitForTimeout(300);
-  check('seller: overview 4 stat cards', await page.locator('.stat-card').count() === 4);
+  /* 回复率/响应时长现在只在**真有历史数据**时才显示（以前是写死的 99%/2h 假数据），
+   * 所以新店是 3 张卡、有数据时 4 张。 */
+  check('seller: overview 统计卡 3–4 张（无回复数据时隐藏那两张）', await page.locator('.stat-card').count() >= 3 && await page.locator('.stat-card').count() <= 4,
+    'n=' + await page.locator('.stat-card').count());
   await page.evaluate(() => { location.hash = '#/dashboard/export'; });
   await page.waitForTimeout(300);
   check('seller: export tab checklist', await page.locator('.exp-item').count() >= 7);
@@ -1077,7 +1080,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.040', /v1\.040/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.050', /v1\.050/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
@@ -1139,6 +1142,31 @@ function resolveBrowser() {
       range: priceRangeLabel({ priceMin: 24.99, priceMax: 29.99 }) };
   });
   check('发布页有"固定单价/价格区间"切换', priceMode.missing !== true && priceMode.hiddenWhenFixed === true && priceMode.shownWhenRange === true, JSON.stringify(priceMode));
+
+  /* 货号：发布/编辑页要能看到货号（编辑显示真实号，新建提示保存后生成） */
+  const codeField = await page.evaluate(() => {
+    const form = document.querySelector('form[data-form="product-form"]');
+    if (!form) return { missing: true };
+    const inputs = Array.from(form.querySelectorAll('input[readonly]')).map(i => i.value);
+    return { values: inputs };
+  });
+  check('发布页显示货号栏（未保存时提示自动生成）', codeField.missing !== true && codeField.values.some(v => /自动生成|Generated/.test(v)), JSON.stringify(codeField));
+
+  /* 防伪二维码：SVG 必须落在自己的框里（以前写死 108px 比 96px 的框还大，溢出到框外） */
+  const qrFit = await page.evaluate(() => {
+    const svg = typeof realQrSvg === 'function' ? realQrSvg('https://beanbeanmouse.com/verify?code=BBM-TEST-0001', 2) : '';
+    if (!svg) return { skipped: true };
+    const box = document.createElement('div');
+    box.className = 'fake-qr verify-qr';
+    box.style.position = 'absolute'; box.style.left = '-9999px';
+    box.innerHTML = svg;
+    document.body.appendChild(box);
+    const b = box.getBoundingClientRect();
+    const s = box.querySelector('svg').getBoundingClientRect();
+    box.remove();
+    return { box: Math.round(b.width), svg: Math.round(s.width), fits: s.width <= b.width + 0.5 && s.height <= b.height + 0.5 };
+  });
+  check('防伪二维码不超出方框', qrFit.skipped === true || qrFit.fits === true, JSON.stringify(qrFit));
   check('固定单价自动跟随最低价 + 固定价只显示一个价格', priceMode.synced === true && priceMode.single === '$24.99' && priceMode.range === '$24.99–$29.99', JSON.stringify(priceMode));
 
   const cropProbe = await page.evaluate(async () => {

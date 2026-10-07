@@ -25,14 +25,17 @@ const CATEGORIES = [
 
 const SELLERS = [
   {
-    id: 'bbm', verified: true, since: 2019, responseRate: 99, responseTime: '2h',
+    /* 豆豆鼠自营：2026 年成立。回复率/响应时长这些**新店根本没有数据**，
+     * 以前写死的 99% / 2h 是编的（用户质疑"还有多少虚假信息"），现在置空，
+     * 前端遇到空值就不显示这两项统计。 */
+    id: 'bbm', verified: true, since: 2026, responseRate: null, responseTime: '',
     rating: 4.9, orders: 26800, country: 'CN',
     zh: { company: '豆豆鼠宠物用品（自营出口）', city: '杭州' },
     en: { company: 'BeanBeanMouse Pet Supplies (Direct Export)', city: 'Hangzhou' }
   },
   {
     /* 供应商合作申请（演示用）：用于后台资质审核流程，不参与商品归属 */
-    id: 'partner-demo', verified: false, since: 2024, responseRate: 92, responseTime: '6h',
+    id: 'partner-demo', verified: false, since: null, responseRate: null, responseTime: '',
     rating: 0, orders: 0, country: 'CN',
     zh: { company: '宁波毛豆宠物用品有限公司（合作申请中）', city: '宁波' },
     en: { company: 'Ningbo Maodou Pet Products Co. (application pending)', city: 'Ningbo' }
@@ -2204,7 +2207,7 @@ const I18N = {
     cancelEdit: '取消编辑', chooseImage: '图片配色', previewLabel: '预览',
     titleEn: '产品标题（英文，买家可见）', titleZh: '产品标题（中文）', descEn: '产品描述（英文）', descZh: '产品描述（中文）',
     leadTimeField: '交货周期（天）', termsField: '贸易术语', moqField: '最小起订量', unitField: '单位', countryField: '产地',
-    priceMinField: '最低价 (USD)', priceMaxField: '最高价 (USD)', priceModeLabel: '报价方式', priceModeRange: '价格区间（可议价）', priceModeFixed: '固定单价（便于开单对账）', categoryField: '品类', certsField: '认证',
+    priceMinField: '最低价 (USD)', priceMaxField: '最高价 (USD)', priceModeLabel: '报价方式', priceModeRange: '价格区间（可议价）', priceModeFixed: '固定单价（便于开单对账）', productCodeHint: '保存后由系统按品类前缀自动分配，用于查库存与开账单', productCodePending: '保存后自动生成', categoryField: '品类', certsField: '认证',
     inquiryFrom: '询盘来自', reply: '回复', replied: '已回复', markHandled: '标记已处理', noInquiries: '暂无询盘',
     replyPlaceholder: '输入您的回复（买家可在“我的询盘”中看到）…', sendReply: '发送回复',
     myInquiries: '我的询盘', myFavorites: '我的收藏', noInquiriesYet: '还没有发送过询盘', noFavoritesYet: '还没有收藏产品',
@@ -2581,7 +2584,7 @@ const I18N = {
     optionalHint: '选填',
     notFilled: '不填（不在商品页展示）',
     materialPlaceholder: '例：ABS + 不锈钢 / 短绒面料',
-  versionLabel: '版本 v1.040',
+  versionLabel: '版本 v1.050',
   demoNote: '图片与价格说明：部分商品图暂为概念图（真实拍摄图会陆续替换），站内价格为指导性 FOB 价；实际以询盘确认的正式报价单为准。',
   askTitle: '向豆豆鼠询价（批发 / OEM）', askQ1: '你要面向哪类宠物市场？', askQ2: '要采购哪一类用品？', askQ3: '采购量、目的国与联系方式',
   askCountry: '目的国 / 收货地', askCountryPh: '例如：德国 · 汉堡', askNote: '还想补充什么？', askNotePh: '例如：需要印我们的 logo，包装要英文',
@@ -2764,7 +2767,7 @@ const I18N = {
     cancelEdit: 'Cancel edit', chooseImage: 'Image palette', previewLabel: 'Preview',
     titleEn: 'Title (English, shown to buyers)', titleZh: 'Title (Chinese)', descEn: 'Description (English)', descZh: 'Description (Chinese)',
     leadTimeField: 'Lead time (days)', termsField: 'Trade terms', moqField: 'Min. order qty', unitField: 'Unit', countryField: 'Origin',
-    priceMinField: 'Min price (USD)', priceMaxField: 'Max price (USD)', priceModeLabel: 'Pricing mode', priceModeRange: 'Price range (negotiable)', priceModeFixed: 'Fixed unit price (for invoicing)', categoryField: 'Category', certsField: 'Certifications',
+    priceMinField: 'Min price (USD)', priceMaxField: 'Max price (USD)', priceModeLabel: 'Pricing mode', priceModeRange: 'Price range (negotiable)', priceModeFixed: 'Fixed unit price (for invoicing)', productCodeHint: 'Assigned automatically after saving (by category prefix) — used for stock lookup and invoicing', productCodePending: 'Generated after saving', categoryField: 'Category', certsField: 'Certifications',
     inquiryFrom: 'Inquiry from', reply: 'Reply', replied: 'Replied', markHandled: 'Mark handled', noInquiries: 'No inquiries yet',
     replyPlaceholder: 'Type your reply (the buyer will see it under “My inquiries”)…', sendReply: 'Send reply',
     myInquiries: 'My inquiries', myFavorites: 'My favorites', noInquiriesYet: 'No inquiries sent yet', noFavoritesYet: 'No favorites yet',
@@ -3142,7 +3145,7 @@ const I18N = {
   optionalHint: 'optional',
   notFilled: 'Leave blank (hidden on the product page)',
   materialPlaceholder: 'e.g. ABS + stainless steel / plush fabric',
-  versionLabel: 'Version v1.040',
+  versionLabel: 'Version v1.050',
   demoNote: 'Images & pricing: some product images are concept visuals for now (real photos are being added), and listed prices are indicative FOB prices. The formal quotation confirmed by enquiry prevails.',
   askTitle: 'Wholesale / OEM enquiry', askQ1: 'Which pet market are you buying for?', askQ2: 'Which product category do you need?', askQ3: 'Order quantity, destination and contact',
   askCountry: 'Destination', askCountryPh: 'e.g. Hamburg, Germany', askNote: 'Anything else?', askNotePh: 'e.g. need our logo printed, English packaging',
