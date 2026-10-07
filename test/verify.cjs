@@ -247,7 +247,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.020 shown', /v1\.020/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.030 shown', /v1\.030/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -292,7 +292,9 @@ function resolveBrowser() {
   check('detail: gallery thumbs >= 1', await page.locator('.gallery-thumbs img').count() >= 1);
   check('detail: HS code shown', (await page.locator('.spec-list').textContent()).includes('9403'));
   check('detail: subcategory with HS ref shown', (await page.locator('.spec-list').textContent()).includes('HS '));
-  check('detail: fx strip', await page.locator('.detail-main .fx-strip').count() === 1);
+  /* 商品页只介绍商品：参考汇率条已从这里移除（用户 2026-10-07：纯多余），
+   * 汇率信息保留在贸易资讯页。 */
+  check('detail: 商品页不再插参考汇率条', await page.locator('.detail-main .fx-strip').count() === 0);
   check('detail: incoterms legend', await page.locator('details.term-legend').count() === 1);
   check('detail: compliance tip', await page.locator('.tip-box').count() === 1);
   check('detail: compliance checklist', await page.locator('.compliance-market').count() >= 1);
@@ -1075,7 +1077,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.020', /v1\.020/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.030', /v1\.030/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
@@ -1129,12 +1131,19 @@ function resolveBrowser() {
     const mask = document.querySelector('.img-crop-mask');
     const hasStage = !!(mask && mask.querySelector('.img-crop-stage canvas'));
     const hasZoom = !!(mask && mask.querySelector('input[type="range"]'));
+    /* 缩放要能双向：min 必须小于 100，且要有"显示整张/铺满画面"两个按钮 */
+    const zoomEl = mask ? mask.querySelector('input[type="range"]') : null;
+    const canZoomOut = !!(zoomEl && Number(zoomEl.min) <= 60);
+    const tools = mask ? Array.from(mask.querySelectorAll('[data-crop]')).map(b => b.dataset.crop) : [];
+    if (zoomEl) { zoomEl.value = zoomEl.min; zoomEl.dispatchEvent(new Event('input')); }
     if (mask) mask.querySelector('[data-crop="skip"]').click();
     const out = await p;
     await new Promise(r => setTimeout(r, 150));
-    return { hasStage, hasZoom, sameFile: !!(out && out.ok && out.file === file), closed: !document.querySelector('.img-crop-mask') };
+    return { hasStage, hasZoom, canZoomOut, hasFit: tools.includes('fit') && tools.includes('fill'),
+      sameFile: !!(out && out.ok && out.file === file), closed: !document.querySelector('.img-crop-mask') };
   });
   check('商品图裁剪器：能打开并给出预览与缩放', cropProbe.hasStage === true && cropProbe.hasZoom === true, JSON.stringify(cropProbe));
+  check('商品图裁剪器：缩放可双向（能缩下去看整张）', cropProbe.canZoomOut === true && cropProbe.hasFit === true, JSON.stringify(cropProbe));
   check('商品图裁剪器：选「用原图」返回原文件并关闭', cropProbe.sameFile === true && cropProbe.closed === true, JSON.stringify(cropProbe));
 
   /* 选文件 → 真的弹出裁剪窗（这条才是用户实际走的路径；上轮只测了函数本身，漏了接线） */

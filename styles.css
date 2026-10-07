@@ -2351,3 +2351,6 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .filter-panel .radio-row label.sub-opt { display: flex; align-items: center; gap: 8px; }
 .filter-panel .sub-ico-sm { width: 22px; height: 22px; image-rendering: pixelated; border-radius: 5px; background: var(--primary-050); padding: 1px; flex: 0 0 auto; }
 .filter-panel .radio-row label.sub-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 裁剪窗工具行（显示整张 / 铺满画面） */
+.img-crop-tools { display: flex; gap: 8px; margin: -4px 0 12px; }

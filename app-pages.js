@@ -1243,7 +1243,8 @@ function renderDetail(pid) {
     + (p.priceMax > p.priceMin ? '<span class="range-sep">–</span><span class="price"><span class="cur">$</span>' + fmtPrice(p.priceMax) + '</span>' : '')
     + '<span class="moq-tag">' + t('priceFrom') + '</span>'
     + '</div>'
-    + fxStrip()
+    /* 商品页只介绍商品：原来这里插了一条"参考汇率 + 演示用参考中间价"，
+     * 既和选品决策无关、又带着"演示"字样（用户反馈纯多余）。汇率留在贸易资讯页。 */
     + petFitBlock(p)
     + '<ul class="spec-list">'
     + '<li><span class="k">' + t('moqLabel') + '</span><span class="v">' + p.moq + ' ' + p.unit + '</span></li>'
@@ -1587,7 +1588,11 @@ function cropProductImage(file) {
         + '<h3 style="margin:0 0 6px">' + t('cropTitle') + '</h3>'
         + '<p class="small muted" style="margin:0 0 10px">' + t('cropHint') + '</p>'
         + '<div class="img-crop-stage"><canvas></canvas></div>'
-        + '<label class="img-crop-zoom">' + t('cropZoom') + '<input type="range" min="100" max="300" value="100"></label>'
+        /* 缩放范围 50%–300%：100% = 铺满画面（无留白），往下缩可以看到整张照片，
+         * 缩小时画面里露出的部分会填成白底（用户反馈"怎么只有放大"）。 */
+        + '<label class="img-crop-zoom">' + t('cropZoom') + '<input type="range" min="50" max="300" value="100"></label>'
+        + '<div class="img-crop-tools"><button type="button" class="btn btn-sm" data-crop="fit">' + t('cropFit') + '</button>'
+        + '<button type="button" class="btn btn-sm" data-crop="fill">' + t('cropFill') + '</button></div>'
         + '<div class="img-crop-actions">'
         + '<button type="button" class="btn" data-crop="skip">' + t('cropUseOriginal') + '</button>'
         + '<button type="button" class="btn btn-primary" data-crop="ok">' + t('cropConfirm') + '</button>'
@@ -1630,6 +1635,18 @@ function cropProductImage(file) {
         const act = ev.target.closest('[data-crop]');
         if (!act) return;
         if (act.dataset.crop === 'skip') return close({ ok: true, file });
+        /* 显示整张：把缩放调到"照片刚好完整落在框内"（可能小于 100%，四周留白）；
+         * 铺满画面：回到 100%（无留白，但要裁掉多余部分）。 */
+        if (act.dataset.crop === 'fit' || act.dataset.crop === 'fill') {
+          const W = stage.clientWidth, H = stage.clientHeight;
+          const cover = Math.max(W / img.width, H / img.height);
+          const contain = Math.min(W / img.width, H / img.height);
+          const target = act.dataset.crop === 'fit' ? contain / cover : 1;
+          zoom = Math.max(0.5, Math.min(3, target));
+          zoomEl.value = String(Math.round(zoom * 100));
+          ox = 0; oy = 0; clamp(); draw();
+          return;
+        }
         /* 导出：与预览用同一套构图公式，输出 4:3 / 1200×900 的 JPEG */
         const W = 1200, H = 900;
         const out = document.createElement('canvas');
