@@ -371,11 +371,12 @@ button { font-family: inherit; }
 .detail-layout .gallery { position: sticky; top: 88px; align-self: start; }
 .gallery .main-img {
   border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
-  /* 用 1:1：我们自己的商品照是 800×800，概念图是 2:3 竖图；
-   * 原来的 4:3 横框会把竖图裁得只剩中间一条。 */
-  aspect-ratio: 1 / 1; background: #EAF0FB;
+  /* 改成 4:3 与商品卡、与上传时的裁剪框完全一致：以前是 1:1，用户按 4:3 裁好的照片
+   * 到详情页又被左右裁掉一块，看起来"和裁剪时不一样"（用户 2026-10-07 反馈）。
+   * 配 object-fit: contain，保证所见即所得（非 4:3 的老图会留白而不是被裁）。 */
+  aspect-ratio: 4 / 3; background: #F4F1EA;
 }
-.gallery .main-img img { width: 100%; height: 100%; object-fit: cover; }
+.gallery .main-img img { width: 100%; height: 100%; object-fit: contain; }
 .gallery-thumbs { display: flex; gap: 10px; margin-top: 10px; }
 .gallery-thumbs img {
   width: 86px; height: 64px; object-fit: cover; border-radius: 8px;

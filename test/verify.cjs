@@ -247,7 +247,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.050 shown', /v1\.050/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.060 shown', /v1\.060/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1080,7 +1080,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.050', /v1\.050/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.060', /v1\.060/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
@@ -1167,6 +1167,25 @@ function resolveBrowser() {
     return { box: Math.round(b.width), svg: Math.round(s.width), fits: s.width <= b.width + 0.5 && s.height <= b.height + 0.5 };
   });
   check('防伪二维码不超出方框', qrFit.skipped === true || qrFit.fits === true, JSON.stringify(qrFit));
+
+  /* 回归：详情页主图必须和裁剪框/商品卡同为 4:3 且 contain——
+   * 以前是 1:1 + cover，会把用户按 4:3 裁好的图左右再裁一次。 */
+  const anyPid = await page.evaluate(() => (state.products && state.products[0] && state.products[0].id) || '');
+  if (anyPid) { await page.evaluate(id => { location.hash = '#/product/' + id; }, anyPid); await page.waitForTimeout(500); }
+  const detailBox = await page.evaluate(() => {
+    const el = document.querySelector('.gallery .main-img');
+    const img = document.querySelector('.gallery .main-img img');
+    if (!el) return { missing: true };
+    const cs = getComputedStyle(el);
+    const is = img ? getComputedStyle(img) : {};
+    return { ratio: cs.aspectRatio, fit: is.objectFit || '' };
+  });
+  check('详情页主图与裁剪比例一致（4:3 + contain）',
+    detailBox.missing !== true && String(detailBox.ratio).replace(/\s/g, '') === '4/3' && detailBox.fit === 'contain',
+    JSON.stringify(detailBox));
+  /* 回到发布页，别影响后面还依赖"当前在发布页"的断言 */
+  await page.evaluate(() => { location.hash = '#/dashboard/publish'; });
+  await page.waitForTimeout(400);
   check('固定单价自动跟随最低价 + 固定价只显示一个价格', priceMode.synced === true && priceMode.single === '$24.99' && priceMode.range === '$24.99–$29.99', JSON.stringify(priceMode));
 
   const cropProbe = await page.evaluate(async () => {
