@@ -11,6 +11,31 @@ document.addEventListener('submit', e => {
 
 /* 发布页预览：以前还有一排"图片配色"色板可以点，现在商品图都用真实照片，
  * 占位图配色无关紧要，色板已删除，这里只用固定的默认色渲染预览。 */
+/* 价格模式联动：选"固定价格"时藏起最高价输入（提交时自动与最低价一致），
+ * 选"价格区间"再显示回来。 */
+function syncPriceMode() {
+  const sel = document.getElementById('priceModeSel');
+  const maxField = document.getElementById('priceMaxField');
+  if (!sel || !maxField) return;
+  const fixed = sel.value === 'fixed';
+  maxField.style.display = fixed ? 'none' : '';
+  const maxInput = maxField.querySelector('input[name="priceMax"]');
+  if (maxInput) {
+    maxInput.required = !fixed;
+    if (fixed) {
+      const min = document.querySelector('form[data-form="product-form"] input[name="priceMin"]');
+      if (min) maxInput.value = min.value;
+    }
+  }
+}
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'priceModeSel') syncPriceMode();
+  if (e.target && e.target.name === 'priceMin') syncPriceMode();
+}, true);   /* 用捕获：即使事件不冒泡（自动化测试里常见）也能收到 */
+document.addEventListener('input', e => {
+  if (e.target && e.target.name === 'priceMin') syncPriceMode();
+}, true);
+
 function updatePublishPreview() {
   const img = document.querySelector('#publishPreview img');
   const form = document.querySelector('form[data-form="product-form"]');

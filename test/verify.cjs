@@ -247,7 +247,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.030 shown', /v1\.030/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.040 shown', /v1\.040/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1077,7 +1077,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.030', /v1\.030/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.040', /v1\.040/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
@@ -1121,6 +1121,26 @@ function resolveBrowser() {
   }));
   check('发布页有"适用体型/材质"选填项（含不填选项）', attrFields.petSize === 4 && attrFields.material === 1, JSON.stringify(attrFields));
 
+  /* 固定价格：选"固定单价"后最高价输入隐藏，并自动跟随最低价；固定价在卡片上只显示一个价 */
+  const priceMode = await page.evaluate(() => {
+    const sel = document.getElementById('priceModeSel');
+    const maxField = document.getElementById('priceMaxField');
+    const minEl = document.querySelector('form[data-form="product-form"] input[name="priceMin"]');
+    if (!sel || !maxField || !minEl) return { missing: true };
+    minEl.value = '24.99';
+    sel.value = 'fixed';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const hiddenWhenFixed = maxField.style.display === 'none';
+    const synced = (maxField.querySelector('input[name="priceMax"]') || {}).value === '24.99';
+    sel.value = 'range';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const shownWhenRange = maxField.style.display !== 'none';
+    return { hiddenWhenFixed, synced, shownWhenRange, single: priceRangeLabel({ priceMin: 24.99, priceMax: 24.99 }),
+      range: priceRangeLabel({ priceMin: 24.99, priceMax: 29.99 }) };
+  });
+  check('发布页有"固定单价/价格区间"切换', priceMode.missing !== true && priceMode.hiddenWhenFixed === true && priceMode.shownWhenRange === true, JSON.stringify(priceMode));
+  check('固定单价自动跟随最低价 + 固定价只显示一个价格', priceMode.synced === true && priceMode.single === '$24.99' && priceMode.range === '$24.99–$29.99', JSON.stringify(priceMode));
+
   const cropProbe = await page.evaluate(async () => {
     if (typeof cropProductImage !== 'function') return { missing: true };
     const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHgQCAZ0d3gYAAAAASUVORK5CYII=';
@@ -1144,6 +1164,24 @@ function resolveBrowser() {
   });
   check('商品图裁剪器：能打开并给出预览与缩放', cropProbe.hasStage === true && cropProbe.hasZoom === true, JSON.stringify(cropProbe));
   check('商品图裁剪器：缩放可双向（能缩下去看整张）', cropProbe.canZoomOut === true && cropProbe.hasFit === true, JSON.stringify(cropProbe));
+
+  /* 回归：删掉一张待上传的图片后，页面不能被甩回顶部（用户反馈"强行滑到顶部"） */
+  const scrollAfterRemove = await page.evaluate(async () => {
+    const form = document.querySelector('form[data-form="product-form"]');
+    if (!form || typeof productImgFiles === 'undefined') return { skipped: true };
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHgQCAZ0d3gYAAAAASUVORK5CYII=';
+    for (let i = 0; i < 3; i++) productImgFiles.push({ name: 't' + i + '.png', dataUrl, file: null, type: 'image/png', size: 10 });
+    if (typeof refreshProductImgWrap === 'function') refreshProductImgWrap();
+    window.scrollTo(0, 900);
+    const before = window.scrollY;
+    const btn = document.querySelector('[data-action="product-img-remove"]');
+    if (btn) btn.click();
+    await new Promise(r => setTimeout(r, 200));
+    return { before, after: window.scrollY, left: productImgFiles.length, skipped: false };
+  });
+  check('删图后不跳回页首（滚动位置保持）',
+    scrollAfterRemove.skipped || (scrollAfterRemove.after >= scrollAfterRemove.before - 40 && scrollAfterRemove.left === 2),
+    JSON.stringify(scrollAfterRemove));
   check('商品图裁剪器：选「用原图」返回原文件并关闭', cropProbe.sameFile === true && cropProbe.closed === true, JSON.stringify(cropProbe));
 
   /* 选文件 → 真的弹出裁剪窗（这条才是用户实际走的路径；上轮只测了函数本身，漏了接线） */

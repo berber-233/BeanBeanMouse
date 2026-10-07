@@ -413,6 +413,13 @@ function fmtPrice(n) {
   if (!Number.isFinite(v)) return '0.00';
   return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+/* 价格展示：固定价（min=max）只显示一个价，区间价才显示 A–B。
+ * 用于对话里的商品卡等原来写死"$min–$max"的地方，避免出现 $24.99–$24.99。 */
+function priceRangeLabel(p) {
+  const min = fmtPrice(p && p.priceMin);
+  const max = fmtPrice(p && p.priceMax);
+  return Number(p && p.priceMax) > Number(p && p.priceMin) ? ('$' + min + '–$' + max) : ('$' + min);
+}
 
 /* 国家/地区标记：原来返回国旗 emoji（区域指示符对），但 **Windows 没有旗帜字形**，
  * 两端字母会被画成"方框字母"，用户看到的就是乱码（反馈过两轮）。
@@ -1091,7 +1098,18 @@ function handleAction(el) {
         const imageId = (p.imageIds || [])[idx] || '';
         if (api.config.mode === 'http' && imageId) {
           runBusy(el, () => api.products.removeImage(p.id, imageId)
-            .then(() => { toast(t('imgRemove')); return (typeof hydrateProducts === 'function') ? hydrateProducts() : null; })
+            .then(() => {
+              /* 只把这张图从本地商品对象里摘掉，然后重画"图片区"这一块。
+               * 以前这里调 hydrateProducts() → renderPage() 整页重绘，
+               * 结果删一张图页面被强行拉回顶部（用户反馈）。 */
+              const imgs = Array.isArray(p.images) ? p.images.slice() : [];
+              imgs.splice(idx, 1);
+              p.images = imgs;
+              if (Array.isArray(p.imageIds)) p.imageIds = p.imageIds.filter((_, i) => i !== idx);
+              saveState();
+              refreshProductImgWrap();
+              toast(t('imgRemoved'));
+            })
             .catch(e => toast(e.message || String(e))));
           break;
         }
@@ -1104,7 +1122,7 @@ function handleAction(el) {
         productImgFiles.splice(idx - base, 1);
       }
       refreshProductImgWrap();
-      renderPage();
+      /* 不整页重绘：只刷新图片区，滚动位置自然保持不变 */
       break;
     }
     case 'dismiss-trial': {

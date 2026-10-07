@@ -514,10 +514,18 @@ function pageMetaDesc(path) {
 }
 
 function renderPage() {
+  /* 发布/编辑商品时，页面里的任何重绘（后台刷新、删图等）都不能把用户甩回页首：
+   * 记下当前滚动位置，重绘后还回去（用户反馈"删照片会被强行滑到顶部"）。 */
+  const hadForm = !!document.querySelector('form[data-form="product-form"]');
+  const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
   render();
   /* 重渲染后把"发布商品"的草稿填回去：后台刷新（询盘/通知）会重建 DOM，
    * 之前正在填的表单会被清空——用户反馈"刷新界面让我白忙活，又重填了一遍"。 */
   try { restoreProductDraft(); } catch (e) { /* 忽略 */ }
+  try { if (typeof syncPriceMode === 'function') syncPriceMode(); } catch (e) { /* 忽略 */ }
+  if (hadForm && document.querySelector('form[data-form="product-form"]') && typeof window !== 'undefined') {
+    window.scrollTo(0, scrollY);
+  }
 }
 
 /* ---------- 发布商品：防重复提交 + 草稿保护 ---------- */
@@ -4360,7 +4368,7 @@ function chatProductCardHtml(pid) {
     + '<img src="' + productImg(p, 160, 120) + '" alt="" loading="lazy" decoding="async">'
     + '<span class="cp-info">'
     + '<b class="oneline" title="' + esc(langObj(p).title) + '">' + esc(langObj(p).title) + '</b>'
-    + '<span class="cp-meta oneline">' + esc(productCodeOf(p)) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' / ' + esc(p.unit || 'pcs') + '</span>'
+    + '<span class="cp-meta oneline">' + esc(productCodeOf(p)) + ' · ' + esc(priceRangeLabel(p)) + ' / ' + esc(p.unit || 'pcs') + '</span>'
     + '<span class="cp-meta oneline">' + t('moqLabel') + ' ' + p.moq + ' ' + esc(p.unit || 'pcs') + '</span>'
     + '</span>'
     + '<span class="cp-eye">' + icon('eye') + '</span>'
@@ -4980,7 +4988,7 @@ function serviceProductPickerHtml(convId) {
         return '<button type="button" class="pk-row" data-prod-row data-hay="' + esc(hay) + '" data-action="send-product" data-conv="' + esc(convId) + '" data-id="' + esc(p.id) + '">'
           + '<img src="' + productImg(p, 80, 80) + '" alt="" loading="lazy" decoding="async">'
           + '<span class="pk-info"><b class="oneline">' + esc(langObj(p).title) + '</b>'
-          + '<span class="small muted oneline">' + esc(productCodeOf(p)) + ' · $' + fmtPrice(p.priceMin) + '–' + fmtPrice(p.priceMax) + ' / ' + esc(p.unit || 'pcs') + '</span></span>'
+          + '<span class="small muted oneline">' + esc(productCodeOf(p)) + ' · ' + esc(priceRangeLabel(p)) + ' / ' + esc(p.unit || 'pcs') + '</span></span>'
           + '<span class="pk-send">' + t('sendProduct') + '</span></button>';
       }).join('')
       : '<p class="small muted" style="padding:10px">' + t('noProducts') + '</p>')
@@ -6488,8 +6496,14 @@ function renderPublishForm() {
     + '<p class="small muted" style="margin:6px 0 0">' + t('prodImgCropHint') + '</p>'
     + '<div id="productImgsWrap">' + productImgListHtml(p) + '</div></div>'
     + '<div class="form-section-title full">' + t('formSecPrice') + '</div>'
+    /* 价格有两种给法：区间（询价议价）或固定单价（直接对账/开单用）。
+     * 固定价在库里就是把 min/max 写成同一个数，账单和商品页都只显示一个价格。 */
+    + '<div class="field"><label>' + t('priceModeLabel') + '</label><select class="select" name="priceMode" id="priceModeSel">'
+    + '<option value="range"' + (!p || Number(p.priceMax) > Number(p.priceMin) ? ' selected' : '') + '>' + t('priceModeRange') + '</option>'
+    + '<option value="fixed"' + (p && Number(p.priceMax) === Number(p.priceMin) ? ' selected' : '') + '>' + t('priceModeFixed') + '</option>'
+    + '</select></div>'
     + '<div class="field"><label>' + t('priceMinField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMin" value="' + (p ? p.priceMin : '') + '" required></div>'
-    + '<div class="field"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
+    + '<div class="field" id="priceMaxField"><label>' + t('priceMaxField') + ' *</label><input class="input" type="number" min="0" step="0.01" name="priceMax" value="' + (p ? p.priceMax : '') + '" required></div>'
     + '<div class="field"><label>' + t('moqField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="moq" value="' + (p ? p.moq : '') + '" required><select class="select" name="unit" style="width:100px">' + UNITS.map(u => '<option value="' + u + '" ' + (p && p.unit === u ? 'selected' : '') + '>' + u + '</option>').join('') + '</select></div></div>'
     + '<div class="field"><label>' + t('leadTimeField') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="leadTime" value="' + (p ? p.leadTime : '') + '" required><span class="sep">' + t('days') + '</span></div></div>'
     + '<div class="field"><label>' + t('originLabel') + ' *</label><select class="select" name="country">' + Object.keys(COUNTRY_NAMES).map(c => '<option value="' + c + '" ' + (p && p.country === c ? 'selected' : '') + '>' + countryLabel(c) + '</option>').join('') + '</select></div>'
@@ -6524,7 +6538,10 @@ function submitProduct(f) {
   const fd = new FormData(f);
   const titleEn = (fd.get('titleEn') || '').trim();
   const titleZh = (fd.get('titleZh') || '').trim();
-  const priceMin = +fd.get('priceMin'), priceMax = +fd.get('priceMax');
+  const priceMode = fd.get('priceMode') === 'fixed' ? 'fixed' : 'range';
+  const priceMin = +fd.get('priceMin');
+  /* 固定价：最高价 = 最低价（账单、商品页都只显示一个价格） */
+  const priceMax = priceMode === 'fixed' ? priceMin : +fd.get('priceMax');
   const moq = +fd.get('moq'), leadTime = +fd.get('leadTime');
   const descEn = (fd.get('descEn') || '').trim();
   const descZh = (fd.get('descZh') || '').trim();
