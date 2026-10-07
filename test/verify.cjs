@@ -117,9 +117,10 @@ function resolveBrowser() {
   await page.waitForTimeout(100);
   check('help: panel closes', await page.locator('#helpPanel:visible').count() === 0);
   check('home: storefront section rendered', await page.locator('.storefront').count() === 1);
-  /* 2026-10-01 新增"犬通用"分类 → 9 个 */
-  check('pet0.2: 9 pet sub-categories', await page.locator('.sub-card').count() === 9);
-  check('pet0.2: sub-category icons use pixel assets', await page.locator('.sub-card img[src^="assets/pixel/sub/"]').count() === 9);
+  /* 2026-10-07 用户要求首页品类速览只留 4 个（犬通用、猫、小型犬、大型犬）；
+   * 其余细分仍在"产品市场"的筛选里可选。 */
+  check('首页品类速览只留 4 个主力细分', await page.locator('.sub-card').count() === 4, 'n=' + await page.locator('.sub-card').count());
+  check('4 个细分都用像素图标', await page.locator('.sub-card img[src^="assets/pixel/sub/"]').count() === 4);
   check('pet0.2: sub-category icon loads', await page.locator('.sub-card img').first().evaluate(img => img.complete && img.naturalWidth > 0));
   check('pet0.2: hero asks warm/pet framing', (await page.locator('.store-eyebrow').textContent()).length > 4);
   check('pet0.2: trust chips present', await page.locator('.trust-chip').count() === 4);

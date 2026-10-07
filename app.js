@@ -102,9 +102,12 @@ function productToFrontend(p) {
     rating: typeof p.rating === 'number' ? p.rating : 4.6,
     orders: typeof p.orders === 'number' ? p.orders : 0,
     hue: typeof p.hue === 'number' ? p.hue : 32,
-    pets: (Array.isArray(p.pets) && p.pets.length) ? p.pets : ((PET_ATTR_FALLBACK[sub] || {}).pets || []),
-    petSize: p.petSize || (PET_ATTR_FALLBACK[sub] || {}).petSize || 'medium',
-    material: p.material || (PET_ATTR_FALLBACK[sub] || {}).material || '',
+    /* 这里以前会按细分品类"编"出适用体型和材质（比如所有犬通用都写 medium / 某个材质），
+     * 真实商品上就是瞎写（用户质疑"是随机臆想出来的吗"）。现在只用卖家真正填过的值，
+     * 没填就留空，前端对应的行直接不显示。 */
+    pets: Array.isArray(p.pets) ? p.pets : [],
+    petSize: p.petSize || '',
+    material: p.material || '',
     status: p.status || 'on',
     paypalUrl: p.paypalUrl || p.paypal_url || '',
     /* 商品货号（SKU）：客服与仓库按货号找货、买家询盘时报货号 */
