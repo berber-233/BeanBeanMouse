@@ -591,6 +591,9 @@ async function productView(row) {
     updatedAt: row.updated_at,
     sellerName: (await get('SELECT name FROM users WHERE id = ?', row.seller_id) || {}).name || '',
     paypalUrl: row.paypal_url || '',
+    /* 适用体型 / 材质：卖家选填，没填就是空字符串（前端会隐藏对应行） */
+    petSize: row.pet_size || '',
+    material: row.material || '',
     terms: safeJson(row.terms, []),
     certs: safeJson(row.certs, []),
     translations,
@@ -1108,11 +1111,13 @@ async function route(m, segs, q, req, res) {
         return fail(res, 400, 'VALIDATION', '价格区间不合法');
       }
       await run(
-        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, paypal_url, code, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO products (id, seller_id, company_id, category, sub, hs_code, country, price_min, price_max, moq, unit, lead_time, terms, certs, src_lang, status, paypal_url, code, pet_size, material, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id, u.id, company ? company.id : null, body.category, String(body.sub || '').slice(0, 40), body.hsCode || '', body.country,
         priceMin, priceMax, moq, body.unit || 'pcs', leadTime,
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
-        'pending', String(body.paypalUrl || '').slice(0, 500) || null, code, now, now
+        'pending', String(body.paypalUrl || '').slice(0, 500) || null, code,
+        String(body.petSize || '').slice(0, 20) || null, String(body.material || '').slice(0, 120) || null,
+        now, now
       );
       for (const lang of Object.keys(trs)) {
         await run(
@@ -1167,11 +1172,13 @@ async function route(m, segs, q, req, res) {
       /* 修改后统一回到"待审核"（管理员改自己的商品也走审核流） */
       const nextStatus = 'pending';
       await run(
-        'UPDATE products SET category=?, sub=?, hs_code=?, country=?, price_min=?, price_max=?, moq=?, unit=?, lead_time=?, terms=?, certs=?, src_lang=?, status=?, paypal_url=?, reject_reason=NULL, updated_at=? WHERE id=?',
+        'UPDATE products SET category=?, sub=?, hs_code=?, country=?, price_min=?, price_max=?, moq=?, unit=?, lead_time=?, terms=?, certs=?, src_lang=?, status=?, paypal_url=?, pet_size=?, material=?, reject_reason=NULL, updated_at=? WHERE id=?',
         body.category, String(body.sub || '').slice(0, 40), String(body.hsCode || '').slice(0, 40), body.country,
         priceMin, priceMax, moq, String(body.unit || 'pcs').slice(0, 20), leadTime,
         JSON.stringify(body.terms || []), JSON.stringify(body.certs || []), body.srcLang || 'en',
-        nextStatus, String(body.paypalUrl || '').slice(0, 500) || null, now, p.id
+        nextStatus, String(body.paypalUrl || '').slice(0, 500) || null,
+        String(body.petSize || '').slice(0, 20) || null, String(body.material || '').slice(0, 120) || null,
+        now, p.id
       );
       /* 老商品（迁移前入库的）没有货号，编辑时补一个 */
       if (!p.code) {

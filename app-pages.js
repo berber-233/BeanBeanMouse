@@ -963,7 +963,10 @@ function renderProducts(params) {
     + (catSubs.length
       ? '<div class="filter-group"><h4>' + t('subFilter') + '</h4><div class="radio-row">'
         + '<label class="' + (sub === '' ? 'active' : '') + '"><input type="radio" name="sub" value="" ' + (sub === '' ? 'checked' : '') + '>' + t('allSubs') + '</label>'
-        + catSubs.map(s => '<label class="' + (sub === s.id ? 'active' : '') + '"><input type="radio" name="sub" value="' + s.id + '" ' + (sub === s.id ? 'checked' : '') + '>' + langObj(s) + '</label>').join('')
+        /* 每条细分带自己的像素图标：纯文字的筛选列表看着干，也不容易一眼分辨 */
+        + catSubs.map(s => '<label class="sub-opt ' + (sub === s.id ? 'active' : '') + '"><input type="radio" name="sub" value="' + s.id + '" ' + (sub === s.id ? 'checked' : '') + '>'
+          + '<img class="sub-ico-sm" src="assets/pixel/sub/' + esc(s.id.replace('pet-', '')) + '.png" alt="" width="22" height="22" loading="lazy" decoding="async">'
+          + '<span>' + langObj(s) + '</span></label>').join('')
         + '</div></div>'
       : '')
     + '<div class="filter-group"><h4>' + t('priceRange') + '</h4>'
@@ -6454,6 +6457,12 @@ function renderPublishForm() {
     + '<option value="">' + t('allSubs') + '</option>'
     + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
     + '</select></div>'
+    /* 选填：只在卖家真填了的时候才在商品页展示（以前系统按品类自动编，等于假数据） */
+    + '<div class="field"><label>' + t('petSizeLabel') + ' <span class="hint">' + t('optionalHint') + '</span></label><select class="select" name="petSize">'
+    + '<option value="">' + t('notFilled') + '</option>'
+    + Object.keys(PET_SIZE_LABELS).map(k => '<option value="' + k + '"' + (p && p.petSize === k ? ' selected' : '') + '>' + esc(langObj(PET_SIZE_LABELS[k])) + '</option>').join('')
+    + '</select></div>'
+    + '<div class="field"><label>' + t('materialLabel') + ' <span class="hint">' + t('optionalHint') + '</span></label><input class="input" name="material" maxlength="120" placeholder="' + esc(t('materialPlaceholder')) + '" value="' + esc(p ? (p.material || '') : '') + '"></div>'
     /* 这里原来是"图片配色（色板）"：现在商品图都用真实照片，选色只影响占位图，
      * 对发布没有任何作用（用户反馈"那不是纯多余吗"）。整块去掉。 */
     + '<div class="form-section-title full">' + t('formSecImages') + '</div>'
@@ -6530,6 +6539,8 @@ function submitProduct(f) {
     terms: fd.getAll('terms'), certs: fd.getAll('certs'),
     srcLang: srcLang,
     paypalUrl: String(fd.get('paypalUrl') || '').trim(),
+    petSize: String(fd.get('petSize') || '').trim(),
+    material: String(fd.get('material') || '').trim(),
     en: { title: titleEn, desc: descEn, features: [] },
     zh: { title: titleZh, desc: descZh, features: [] },
     rating: 0, orders: 0

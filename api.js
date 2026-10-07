@@ -263,6 +263,9 @@ function toServerProduct(p = {}) {
     status: p.status,
     paypalUrl: p.paypalUrl || p.paypal_url || '',
     code: p.code || '',
+    /* 适用体型 / 材质：选填，卖家填了才展示（以前是按品类自动编的假数据） */
+    petSize: p.petSize || '',
+    material: p.material || '',
     translations: {
       en: { title: en.title || '', description: en.desc || en.description || '', features: en.features || [] },
       zh: { title: zh.title || '', description: zh.desc || zh.description || '', features: zh.features || [] }

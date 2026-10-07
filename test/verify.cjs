@@ -243,7 +243,8 @@ function resolveBrowser() {
   /* 2026-10-01：平台转为自营+面向买家，页脚去掉"招商入驻"入口（页面本身保留） */
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
-  check('footer: version v1.000 shown', /v1\.000/.test(await page.locator('.version-line').textContent()));
+  /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
+  check('footer: version v1.010 shown', /v1\.010/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1071,7 +1072,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.000', /v1\.000/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.010', /v1\.010/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
@@ -1107,6 +1108,13 @@ function resolveBrowser() {
   }));
   check('发布页去掉了"图片配色"色板', publishUi.palette === 0 && publishUi.swatches === 0, JSON.stringify(publishUi));
   check('发布页保留图片上传入口', publishUi.fileInput === 1);
+
+  /* 适用体型 / 材质：选填，卖家填了才在商品页展示（以前系统按品类编假数据） */
+  const attrFields = await page.evaluate(() => ({
+    petSize: document.querySelectorAll('form[data-form="product-form"] select[name="petSize"] option').length,
+    material: document.querySelectorAll('form[data-form="product-form"] input[name="material"]').length
+  }));
+  check('发布页有"适用体型/材质"选填项（含不填选项）', attrFields.petSize === 4 && attrFields.material === 1, JSON.stringify(attrFields));
 
   const cropProbe = await page.evaluate(async () => {
     if (typeof cropProductImage !== 'function') return { missing: true };

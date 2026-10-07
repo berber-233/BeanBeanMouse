@@ -59,7 +59,7 @@ ensureColumns('companies', {
   business_scope: 'TEXT',
   reject_reason: 'TEXT'
 });
-ensureColumns('products', { sub: 'TEXT', paypal_url: 'TEXT', code: 'TEXT' });
+ensureColumns('products', { sub: 'TEXT', paypal_url: 'TEXT', code: 'TEXT', pet_size: 'TEXT', material: 'TEXT' });
 
 /* 商品货号（SKU）回填 + 唯一索引。
  * 注意：不能写进 schema.sqlite.sql —— 老库执行建表脚本时还没有 code 列

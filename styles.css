@@ -2346,3 +2346,8 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   background: var(--primary-050); color: var(--primary); font-size: 13px; font-weight: 700;
   border: 1px dashed var(--border-2);
 }
+
+/* ==================== 产品市场筛选：细分带图标（用户 2026-10-07） ==================== */
+.filter-panel .radio-row label.sub-opt { display: flex; align-items: center; gap: 8px; }
+.filter-panel .sub-ico-sm { width: 22px; height: 22px; image-rendering: pixelated; border-radius: 5px; background: var(--primary-050); padding: 1px; flex: 0 0 auto; }
+.filter-panel .radio-row label.sub-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
