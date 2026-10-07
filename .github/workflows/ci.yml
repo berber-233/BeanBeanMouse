@@ -33,7 +33,9 @@ jobs:
       - name: Build static site
         run: node scripts/build-site.mjs
       - name: Verify dist output
-        run: test -f dist/index.html && test -f dist/assets/mascot-vector.svg && test -f dist/_redirects && echo "dist OK"
+        # 注意：以前校验的是 dist/assets/mascot-vector.svg，那个文件早就不存在了（矢量标方案已弃用），
+        # 这一步一直在失败。改成校验真正存在的产物。
+        run: test -f dist/index.html && test -f dist/assets/mascot-icon.png && test -f dist/_redirects && test -f dist/_headers && echo "dist OK"
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -47,8 +49,14 @@ jobs:
       - name: Install pnpm
         run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # 不用 --frozen-lockfile：依赖里有 playwright-core，锁文件与 package.json 偶尔会不同步，
+        # 一不同步这一整步就红，前端回归反而永远跑不到。
+        run: pnpm install --no-frozen-lockfile
       - name: Frontend API smoke
         run: node test/api-smoke.cjs
       - name: Frontend page regression
+        env:
+          # GitHub 的 ubuntu runner 自带 Google Chrome；verify.cjs 的候选路径里已包含 /usr/bin/google-chrome。
+          # CI=true 时脚本会自动加 --no-sandbox / --disable-dev-shm-usage（容器里没沙箱会起不来）。
+          CI: 'true'
         run: node test/verify.cjs

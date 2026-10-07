@@ -31,7 +31,10 @@ function resolveBrowser() {
 (async () => {
   const browser = await chromium.launch({
     executablePath: resolveBrowser(),
-    headless: true
+    headless: true,
+    /* CI（GitHub Actions 等容器）里通常没有 GPU/共享内存，需要关沙箱并换临时目录，
+     * 否则 Chrome 会直接起不来。本地不受影响。 */
+    args: process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : []
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(5000);   // 缺元素快速失败（容错包装会记为 FAIL），避免整轮被 30s 默认超时拖死
@@ -244,7 +247,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.010 shown', /v1\.010/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.020 shown', /v1\.020/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1072,7 +1075,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.010', /v1\.010/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.020', /v1\.020/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });

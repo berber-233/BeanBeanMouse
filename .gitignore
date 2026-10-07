@@ -23,6 +23,11 @@ backend/.env
 .DS_Store
 Thumbs.db
 
+# QA 过程截图：只保留文档引用到的那几张，其余放本地（见 screenshots/README.md）
+screenshots/*
+!screenshots/README.md
+!screenshots/business-card-templates.png
+
 # Python 缓存
 __pycache__/
 *.pyc
