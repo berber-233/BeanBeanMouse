@@ -247,7 +247,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.060 shown', /v1\.060/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.070 shown', /v1\.070/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -524,7 +524,11 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   await safeClick('[data-action="open-inquiry"]');
   await page.waitForTimeout(300);
-  check('buyer: identity section in inquiry modal', await page.locator('.identity-box').count() === 1);
+  /* 2026-10-07 用户要求：询盘去掉"支付方式"和"询盘身份"（现阶段只做 PayPal），
+   * 保留"附上名片"，并新增选填的收货地址。这里断言新结构。 */
+  check('询盘弹窗去掉了支付方式与身份选择', await page.locator('[data-form="inquiry-form"] select[name="payment"]').count() === 0
+    && await page.locator('[data-form="inquiry-form"] input[name="identity"]').count() === 0);
+  check('询盘弹窗有选填的收货地址', await page.locator('[data-form="inquiry-form"] input[name="address"]').count() === 1);
   check('buyer: send-card option shown', await page.locator('input[name="sendCard"]').count() === 1);
   await page.setInputFiles('form[data-form="inquiry-form"] input[name="attachments"]', {
     name: 'specs.zip', mimeType: 'application/zip',
@@ -1080,7 +1084,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.060', /v1\.060/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.070', /v1\.070/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
@@ -1118,11 +1122,12 @@ function resolveBrowser() {
   check('发布页保留图片上传入口', publishUi.fileInput === 1);
 
   /* 适用体型 / 材质：选填，卖家填了才在商品页展示（以前系统按品类编假数据） */
+  /* 适用体型已改成多选（三个复选框，可多选也可全不选）；材质仍是选填文本框 */
   const attrFields = await page.evaluate(() => ({
-    petSize: document.querySelectorAll('form[data-form="product-form"] select[name="petSize"] option').length,
+    petSizeBoxes: document.querySelectorAll('form[data-form="product-form"] input[type="checkbox"][name="petSize"]').length,
     material: document.querySelectorAll('form[data-form="product-form"] input[name="material"]').length
   }));
-  check('发布页有"适用体型/材质"选填项（含不填选项）', attrFields.petSize === 4 && attrFields.material === 1, JSON.stringify(attrFields));
+  check('发布页"适用体型"是多选、材质是选填文本', attrFields.petSizeBoxes === 3 && attrFields.material === 1, JSON.stringify(attrFields));
 
   /* 固定价格：选"固定单价"后最高价输入隐藏，并自动跟随最低价；固定价在卡片上只显示一个价 */
   const priceMode = await page.evaluate(() => {

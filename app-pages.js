@@ -1839,14 +1839,10 @@ function openInquiryModal(pid) {
     + '<div class="field"><label>' + t('quantity') + ' *</label><div class="input-group"><input class="input" type="number" min="1" name="qty" value="' + p.moq + '" required><select class="select" name="unit" style="width:110px">' + UNITS.map(uu => '<option value="' + uu + '" ' + (uu === p.unit ? 'selected' : '') + '>' + uu + '</option>').join('') + '</select></div></div>'
     + '<div class="field"><label>' + t('message') + ' *</label><textarea class="textarea" name="message" required>' + esc(defaultMsg) + '</textarea></div>'
     + '<div class="trans-preview"><span class="trans-label">' + icon('sparkle') + ' ' + t('translateLabel') + '</span><p data-trans-target="msg">' + t('translating') + '</p><div class="trans-note">' + t('translateNote') + '</div></div>'
-    + '<div class="field"><label>' + t('payment') + ' <span class="hint">' + t('paymentHint') + '</span></label><select class="select" name="payment">' + PAYMENT_TERMS.map((pt, i) => '<option value="' + i + '">' + esc(langObj(pt)) + '</option>').join('') + '</select></div>'
-    + (u ? '<div class="identity-box">'
-      + '<div class="field"><label>' + t('identityLabel') + '</label><div class="check-group">'
-      + '<label class="check-pill"><input type="radio" name="identity" value="public" checked>' + t('identityPublic') + '</label>'
-      + '<label class="check-pill"><input type="radio" name="identity" value="hidden">' + t('identityHidden') + '</label>'
-      + '</div></div>'
-      + (hasBusinessCard() ? '<label class="checkbox-label send-card-label"><input type="checkbox" name="sendCard" value="1" checked>' + t('sendCard') + '</label>' : '')
-      + '</div>' : '')
+    /* 支付方式与"询盘身份"已去掉（用户反馈多余）：现阶段只做 PayPal，
+     * 身份也不再让买家选，只保留"随询盘发名片"。 */
+    + (u && hasBusinessCard() ? '<label class="checkbox-label send-card-label"><input type="checkbox" name="sendCard" value="1" checked>' + t('sendCard') + '</label>' : '')
+    + '<div class="field"><label>' + t('shipAddressLabel') + ' <span class="hint">' + t('optionalHint') + '</span></label><input class="input" name="address" maxlength="200" placeholder="' + esc(t('shipAddressPlaceholder')) + '"></div>'
     + '<div class="field attach-field needs-r2"><label>' + t('attachLabel') + ' <span class="hint">' + t('attachHint') + '</span></label>'
     + '<input type="file" name="attachments" multiple accept="image/jpeg,image/png,image/gif,image/webp,.zip,.rar,.7z" data-attach-store="inquiry">'
     + '<div class="attach-preview"></div></div>'
@@ -1877,16 +1873,20 @@ function submitInquiry(f) {
   const qty = Number(rawQty);
   const pid = f.dataset.id;
   const p = productById(pid);
-  const identity = (fd.get('identity') || 'public') === 'public';
-  const card = identity && fd.get('sendCard') === '1' && hasBusinessCard()
+  /* 身份不再让买家选（默认按账号身份展示）；只保留"附上名片" */
+  const identity = true;
+  const shipAddress = String(fd.get('address') || '').trim();
+  const messageWithAddress = shipAddress ? (message + '\n\n[' + t('shipAddressLabel') + '] ' + shipAddress) : message;
+  const card = fd.get('sendCard') === '1' && hasBusinessCard()
     ? (state.user.businessCard || ((state.profiles || {})[state.user.id] || {}).businessCard) : null;
   const inquiry = {
     id: 'i' + Date.now(),
     productId: pid, sellerId: p.sellerId,
     buyerId: state.user ? state.user.id : 'guest',
     name, email, company: (fd.get('company') || '').trim(), country: fd.get('country') || '',
-    qty, unit: fd.get('unit'), message,
-    payment: PAYMENT_TERMS[+(fd.get('payment') || 0)] || PAYMENT_TERMS[0],
+    qty, unit: fd.get('unit'), message: messageWithAddress,
+    /* 现阶段只有 PayPal：不再问买家，直接按默认方式记录 */
+    payment: PAYMENT_TERMS[0],
     attachments: pendingFiles.inquiry.slice(),
     buyerType: identity && state.user ? (state.user.accountType || 'company') : null,
     jobTitle: identity && state.user ? (state.user.jobTitle || '') : '',
@@ -6488,10 +6488,14 @@ function renderPublishForm() {
     + CATEGORIES.map(c => '<optgroup label="' + esc(langObj(c)) + '">' + (c.subs || []).map(s => '<option value="' + s.id + '"' + (p && p.sub === s.id ? ' selected' : '') + '>' + esc(langObj(s)) + ' · HS ' + esc(s.hs) + '</option>').join('') + '</optgroup>').join('')
     + '</select></div>'
     /* 选填：只在卖家真填了的时候才在商品页展示（以前系统按品类自动编，等于假数据） */
-    + '<div class="field"><label>' + t('petSizeLabel') + ' <span class="hint">' + t('optionalHint') + '</span></label><select class="select" name="petSize">'
-    + '<option value="">' + t('notFilled') + '</option>'
-    + Object.keys(PET_SIZE_LABELS).map(k => '<option value="' + k + '"' + (p && p.petSize === k ? ' selected' : '') + '>' + esc(langObj(PET_SIZE_LABELS[k])) + '</option>').join('')
-    + '</select></div>'
+    /* 适用体型改成多选（一只宠物用品常常同时适合小/中型，选一个不准确）：
+     * 用多选框，可多选也可全不选（不选就不在商品页展示）。 */
+    + '<div class="field"><label>' + t('petSizeLabel') + ' <span class="hint">' + t('optionalHint') + '</span></label><div class="check-group">'
+    + Object.keys(PET_SIZE_LABELS).map(k => {
+      const cur = String((p && p.petSize) || '').split(',').map(x => x.trim());
+      return '<label class="check-pill"><input type="checkbox" name="petSize" value="' + k + '"' + (cur.indexOf(k) >= 0 ? ' checked' : '') + '>' + esc(langObj(PET_SIZE_LABELS[k])) + '</label>';
+    }).join('')
+    + '</div></div>'
     + '<div class="field"><label>' + t('materialLabel') + ' <span class="hint">' + t('optionalHint') + '</span></label><input class="input" name="material" maxlength="120" placeholder="' + esc(t('materialPlaceholder')) + '" value="' + esc(p ? (p.material || '') : '') + '"></div>'
     /* 这里原来是"图片配色（色板）"：现在商品图都用真实照片，选色只影响占位图，
      * 对发布没有任何作用（用户反馈"那不是纯多余吗"）。整块去掉。 */
@@ -6578,7 +6582,8 @@ function submitProduct(f) {
     terms: fd.getAll('terms'), certs: fd.getAll('certs'),
     srcLang: srcLang,
     paypalUrl: String(fd.get('paypalUrl') || '').trim(),
-    petSize: String(fd.get('petSize') || '').trim(),
+    /* 多选：存成 "small,medium" 这样的字符串（后端就是用 TEXT 存的） */
+    petSize: fd.getAll('petSize').map(x => String(x).trim()).filter(Boolean).slice(0, 3).join(','),
     material: String(fd.get('material') || '').trim(),
     en: { title: titleEn, desc: descEn, features: [] },
     zh: { title: titleZh, desc: descZh, features: [] },
@@ -6877,6 +6882,11 @@ async function askSubmit() {
 }
 
 /* ---------- 宠物适配信息（pet0.2）：展示已有的 pets / petSize / material 字段 ---------- */
+/* 适用体型是多选（库里存 "small,medium"）→ 逐个翻译后用 / 连接 */
+function petSizeText(v) {
+  return String(v || '').split(',').map(x => x.trim()).filter(Boolean)
+    .map(k => langObj(petSizeLabel(k))).join(' / ');
+}
 const PET_ICON_FILE = { cat: 'cat', 'dog-small': 'dog-small', 'dog-large': 'dog-large', hamster: 'hamster', 'small-pet': 'hamster' };
 function petFitIcons(p) {
   return (p.pets || []).slice(0, 3).map(code => {
@@ -6887,7 +6897,10 @@ function petFitIcons(p) {
 /* 卡片：一行紧凑标签 */
 function petFitRow(p) {
   const icons = petFitIcons(p);
-  const size = p.petSize ? '<span class="fit-chip fit-size">' + esc(langObj(petSizeLabel(p.petSize))) + '</span>' : '';
+  /* petSize 支持多选（"small,medium"），展示时逐个翻译并用 / 连接 */
+  const size = p.petSize
+    ? '<span class="fit-chip fit-size">' + esc(petSizeText(p.petSize)) + '</span>'
+    : '';
   if (!icons && !size) return '';
   return '<div class="fit-row oneline" title="' + esc(t('fitTitle')) + '">' + icons + size + '</div>';
 }
@@ -6896,7 +6909,7 @@ function petFitBlock(p) {
   const pets = (p.pets || []).map(code => esc(langObj(petLabel(code)))).join(' / ');
   const rows = [
     pets ? [t('petsLabel'), pets] : null,
-    p.petSize ? [t('petSizeLabel'), esc(langObj(petSizeLabel(p.petSize)))] : null,
+    p.petSize ? [t('petSizeLabel'), esc(petSizeText(p.petSize))] : null,
     p.material ? [t('materialLabel'), esc(p.material)] : null
   ].filter(Boolean);
   if (!rows.length) return '';

@@ -2363,3 +2363,18 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .fake-qr.verify-qr svg { width: 100%; height: 100%; display: block; }
 /* 其它位置的二维码也一律不许超出容器 */
 .fake-qr svg, .ev-qr svg { max-width: 100%; max-height: 100%; }
+
+/* ==================== 手机端可点区域（用户 2026-10-07 要求打磨移动端） ====================
+ * 体检结果：各页无横向溢出；问题在顶部——语言按钮只有 28px 高、试用条关闭按钮 22×27、
+ * 品牌链接高 24px，手指点偏。统一抬到 36–44px 的舒适区。 */
+@media (max-width: 900px) {
+  .lang-btn { min-height: 36px; padding: 8px 14px; font-size: 13.5px; }
+  .lang-btn--more { padding: 8px 12px; }
+  .trial-dismiss { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; }
+  .brand { padding: 8px 0; }
+  .nav-toggle { width: 42px; height: 40px; font-size: 19px; }
+  .icon-btn { min-height: 38px; }
+  /* 手机上按钮整体给足高度，避免"点不中" */
+  .btn { min-height: 38px; }
+  .filter-panel .radio-row label, .check-pill { min-height: 36px; }
+}
