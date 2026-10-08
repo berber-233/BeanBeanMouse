@@ -2378,3 +2378,47 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   .btn { min-height: 38px; }
   .filter-panel .radio-row label, .check-pill { min-height: 36px; }
 }
+
+/* ==================== 手机端第二轮修正（用户 2026-10-08 反馈，逐条对应） ====================
+ * 1) 产品页图片区在手机上不再 sticky：桌面端"图片跟随滚动"是为了右栏太长时不留白，
+ *    但在手机上它会把图片钉在屏幕上、挡住上滑的内容（用户："固定一个界面，挡住上滑的部分"）。
+ * 2) 帮助悬浮球给产品页底部的"向豆豆鼠询问"条让位（两者都 fixed 在右下角，会互相盖住）。
+ * 3) hero/眉标长文本允许断词，避免"主页字挤到屏幕外"。
+ * 4) ≤480px 做一轮等比缩小（字号/间距/内边距整体收一档），而不是只放大可点区域。 */
+@media (max-width: 900px) {
+  /* 1) 取消产品页图片区的固定定位 */
+  .detail-layout .gallery { position: static !important; top: auto; }
+  /* 2) 帮助按钮上移，给底部操作条腾出位置（底部条约 64px 高） */
+  .has-detail-bar .help-widget,
+  body.has-mobile-detail-bar .help-widget { bottom: 84px; }
+}
+
+@media (max-width: 600px) {
+  /* 2-b) 兜底：产品详情页一律把帮助球抬高，避免任何底部条遮挡 */
+  .help-widget { bottom: 84px; }
+  /* 3) 长文本断词，别让英文单词把布局撑出屏幕 */
+  h1, h2, h3, .page-title, .store-eyebrow, .section-note, .product-card .title, .detail-main h1 {
+    overflow-wrap: anywhere; word-break: break-word; max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* 4) 小屏等比缩小：整体正文小一档、卡片内边距收紧 */
+  body { font-size: 15px; }
+  .container { padding: 0 14px; }
+  .page-title { font-size: 22px; }
+  .store-title, .hero-title, .storefront h1 { font-size: 24px; line-height: 1.3; }
+  .store-eyebrow { font-size: 12.5px; line-height: 1.5; }
+  .section { margin-bottom: 26px; }
+  .card.panel { padding: 14px; }
+  .detail-main { padding: 16px; }
+  .detail-main h1 { font-size: 19px; }
+  .product-card .body { padding: 12px 13px; }
+  .sub-card { min-width: 0; }
+  .store-hero, .storefront { padding-left: 14px; padding-right: 14px; }
+}
+
+/* ==================== 正式运行：不再显示"试验阶段"横幅（用户 2026-10-08） ====================
+ * 说明：横幅是 JS 控制显示的（dismiss 状态存在本地）。这里先用 CSS 彻底不让它出现，
+ * 属于止血；等工具恢复后我会把显示它的那个开关也一并关掉，并清掉本地 dismiss 的旧状态。 */
+#trialBanner { display: none !important; }

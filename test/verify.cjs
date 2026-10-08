@@ -101,7 +101,8 @@ function resolveBrowser() {
 
   check('i18n: first visit defaults to English', await page.evaluate(() => document.documentElement.lang) === 'en');
   check('i18n: first-visit language hint shown', await page.locator('#langHint').isVisible());
-  check('trial: beta banner visible on first visit', await page.locator('#trialBanner:visible').count() === 1);
+  /* 2026-10-08：正式运行，不再显示"试验阶段"横幅（用户要求），断言反过来。 */
+  check('试验阶段横幅不再显示（正式运行）', await page.locator('#trialBanner:visible').count() === 0);
   check('trial: partner mailto link present', (await page.locator('#trialBannerMail').getAttribute('href')).includes('mailto:'));
   await safeClick('[data-action="dismiss-lang-hint"]');
   await page.waitForTimeout(200);
@@ -247,7 +248,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.070 shown', /v1\.070/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.080 shown', /v1\.080/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1084,7 +1085,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.070', /v1\.070/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.080', /v1\.080/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
