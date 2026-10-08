@@ -2422,3 +2422,113 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
  * 说明：横幅是 JS 控制显示的（dismiss 状态存在本地）。这里先用 CSS 彻底不让它出现，
  * 属于止血；等工具恢复后我会把显示它的那个开关也一并关掉，并清掉本地 dismiss 的旧状态。 */
 #trialBanner { display: none !important; }
+
+/* ==================== 手机端第三轮：按移动端规范重排（用户 2026-10-08，实测数据驱动） ====================
+ * 实测问题（390×844）：头部 156px、首页总长 4822px、单张商品卡 546px、页脚 885px、
+ * 而主标题只有 15.5px（比正文 15px 还小）——层级和密度都是桌面版硬塞的结果。
+ * 这一轮统一：头部≤64px、类型层级修好、卡片两列、页脚两列、间距收紧。 */
+@media (max-width: 900px) {
+  /* ① 头部：一行放完（品牌 + 语言 + 用户 + 汉堡），不再堆成 156px */
+  .header-inner { min-height: 56px; height: auto; padding: 6px 14px !important; flex-wrap: nowrap; gap: 8px; }
+  .brand { flex: 1 1 auto; min-width: 0; padding: 0; }
+  .brand-name { font-size: 16px; }
+  .header-actions { width: auto !important; order: 0; margin-left: auto; gap: 6px; }
+  .lang-switch-wrap { width: auto; height: auto; }
+  .lang-switch { padding: 2px; }
+  .lang-btn { min-height: 32px; padding: 6px 10px; font-size: 12.5px; }
+  .lang-btn--more { padding: 6px 8px; }
+  .nav-toggle { width: 38px; height: 36px; font-size: 18px; }
+  .main-nav { order: 4; }
+}
+
+@media (max-width: 600px) {
+  /* ② 类型层级：主标题必须明显大于正文 */
+  h1, .store-title, .hero-title, .storefront h1, .page-title { font-size: 26px !important; line-height: 1.25 !important; }
+  h2 { font-size: 18px; line-height: 1.35; }
+  .store-eyebrow { font-size: 12.5px !important; }
+  .section-note { font-size: 13px; }
+  .btn { font-size: 14px !important; min-height: 42px; padding: 0 16px; }
+  .product-card .title { font-size: 13.5px; -webkit-line-clamp: 2; }
+
+  /* ③ 首页密度：hero 不再占满一屏，商品卡两列 */
+  .storefront { padding: 18px 14px 16px !important; }
+  .storefront > img, .store-hero img, .storefront .hero-art img { max-height: 180px; width: auto; margin: 0 auto; object-fit: contain; }
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+  .product-card { border-radius: 14px; }
+  .product-card .body { padding: 10px 12px; }
+  .product-card .meta, .product-card .price, .product-card .foot { font-size: 12.5px; }
+  .product-card .thumb { aspect-ratio: 4 / 3; }
+
+  /* ④ 板块与承诺卡：间距收紧、承诺卡两列 */
+  .section { margin-bottom: 20px !important; padding: 14px 0 !important; }
+  .promise-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+  .promise-card { padding: 12px !important; }
+  .promise-card h3 { font-size: 14.5px; }
+  .promise-card p { font-size: 12.5px; }
+  .cta-band { padding: 18px 16px !important; gap: 12px; }
+
+  /* ⑤ 页脚：链接两列，别占一屏半 */
+  .footer-inner { padding: 18px 14px !important; }
+  .footer-links { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+  .footer-links a, .footer-links button { font-size: 13px; padding: 5px 0; }
+  .demo-note, .footer-rights { font-size: 11.5px; line-height: 1.5; }
+
+  /* ⑥ 帮助球缩小一点，别挡内容 */
+  .help-btn, .help-widget { width: 54px !important; height: 54px !important; }
+}
+
+/* ==================== 手机端第四轮：密度与首屏（2026-10-08 第二轮实测） ====================
+ * 实测：hero 内部 848px（占掉整屏）、商品卡里两个装饰 chip 各 36px（是我上一轮把
+ * "最小可点区域 36px"错加到了非交互元素上）、页脚链接每行 45px。
+ * 这一轮：① 36px 只留给真正可点的元素 ② hero 压到 ~520px ③ 页脚行高收紧。 */
+@media (max-width: 600px) {
+  /* ① 可点区域只作用于交互元素；装饰性 chip 恢复到紧凑尺寸 */
+  .chip, .fit-chip, .sub-chip, .badge, .status-pill, .cert, .risk-chip { min-height: 0 !important; }
+  .product-card .chip, .product-card .sub-chip, .product-card .fit-chip {
+    font-size: 11px !important; padding: 2px 8px !important; line-height: 1.5 !important;
+  }
+  .product-card .thumb .badge { font-size: 10px !important; padding: 2px 6px !important; }
+
+  /* ② 首屏：hero 不再吃掉一整屏 */
+  .store-inner { padding: 14px 14px 14px !important; gap: 10px !important; }
+  .store-inner h1, .store-title { margin: 6px 0 8px !important; font-size: 24px !important; }
+  .store-inner p, .store-sub { margin: 0 0 10px !important; font-size: 13.5px !important; line-height: 1.55 !important; }
+  .store-inner .btn, .store-cta .btn { min-height: 40px !important; }
+  .store-inner > div, .store-cta { gap: 8px !important; }
+  .trust-chip { font-size: 11px !important; padding: 3px 8px !important; }
+  .store-eyebrow { margin-bottom: 6px !important; }
+
+  /* ③ 页脚：每行压到 ~28px */
+  .footer-links { gap: 0 12px !important; }
+  .footer-links a, .footer-links button { padding: 3px 0 !important; margin: 0 !important; line-height: 1.5 !important; font-size: 12.5px !important; }
+  .footer-brand { margin-bottom: 8px !important; }
+  .site-footer .footer-inner > * { margin-bottom: 8px !important; }
+
+  /* ④ 商品卡底部信息再压一档 */
+  .product-card .body { gap: 6px !important; }
+  .product-card .foot { padding: 8px 12px !important; }
+}
+
+/* ==================== 手机端第五轮：按真实结构压缩（2026-10-08 第三次实测） ====================
+ * 实测：.store-copy 560px + .store-art 223px = 822px 首屏；页脚每个链接行 42px（被拉伸）。
+ * 这一轮针对真实类名下手。 */
+@media (max-width: 600px) {
+  /* 首屏文案块：按钮并排、段落限 3 行、标题收紧 */
+  .store-copy { display: flex; flex-direction: column; gap: 8px !important; }
+  .store-copy > * { margin: 0 !important; }
+  .store-copy h1 { font-size: 24px !important; line-height: 1.28 !important; }
+  .store-copy p { font-size: 13.5px !important; line-height: 1.5 !important; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  /* 按钮行 / 徽标行：横向排布，省掉一半纵向空间 */
+  .store-copy > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px !important; }
+  .store-copy > div .btn { flex: 0 1 auto; min-height: 38px !important; padding: 0 14px !important; font-size: 13.5px !important; }
+  .store-copy .trust-chip, .store-copy .chip { font-size: 11px !important; padding: 3px 8px !important; }
+  /* 主视觉图压到 150px 高，保留形象但不吃屏 */
+  .store-art { max-height: 160px; overflow: hidden; }
+  .store-art img { max-height: 150px; width: auto; margin: 0 auto; object-fit: contain; }
+
+  /* 页脚链接行：不再被拉伸成 42px */
+  .footer-links a, .footer-links button { min-height: 0 !important; height: auto !important; align-items: center; padding: 3px 0 !important; }
+  .footer-links { grid-auto-rows: minmax(0, auto) !important; }
+  .demo-note { padding-top: 8px !important; }
+  .footer-rights { padding-top: 8px !important; }
+}
