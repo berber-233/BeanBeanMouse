@@ -57,7 +57,7 @@ const SITE_ENTITY = {
   contact: '',                    // 不公示个人姓名
   phone: '13725078850',
   wechat: 'beanbeanmouse',
-  email: 'beanbeanmouse.trade@outlook.com'
+  email: 'hello@beanbeanmouse.com'
 };
 function siteEntityFilled() { return !!(SITE_ENTITY.name || SITE_ENTITY.nameEn); }
 /* 主体类型标签：公司 / 个体户 / 个人主体 */
@@ -2138,8 +2138,8 @@ const QUICK_REPLY_LIB = [
   },
   {
     scene: 'handoff', titleZh: '转邮件对细节', titleEn: 'Switch to email',
-    zh: '细节比较多，用邮件对一遍更清楚：beanbeanmouse.trade@outlook.com（微信同号：beanbeanmouse）。你把公司名、收货地址和需要的文件列一下，我把报价单和资料一并回你邮箱。',
-    en: 'There is a lot of detail, so email is easier to keep straight: beanbeanmouse.trade@outlook.com. Send your company name, delivery address and the documents you need, and I will reply to your mailbox with the quotation and files.'
+    zh: '细节比较多，用邮件对一遍更清楚：hello@beanbeanmouse.com（微信同号：beanbeanmouse）。你把公司名、收货地址和需要的文件列一下，我把报价单和资料一并回你邮箱。',
+    en: 'There is a lot of detail, so email is easier to keep straight: hello@beanbeanmouse.com. Send your company name, delivery address and the documents you need, and I will reply to your mailbox with the quotation and files.'
   },
   {
     scene: 'sourcing', titleZh: '要的货没上架', titleEn: 'Item not listed yet',
@@ -2169,7 +2169,7 @@ const I18N = {
     trust2Title: '询盘直达', trust2Desc: '站内询盘 + 邮件双通道通知，时差不再是障碍。',
     trust3Title: '多语言支持', trust3Desc: '中英双语界面与产品信息，服务全球买家。',
     sellerCtaTitle: '成为供应商，免费入驻', sellerCtaDesc: '发布产品立即获得全球买家询盘，按效果付费，前期零成本。', sellerCtaBtn: '进入卖家工作台',
-    footerTagline: '宠物用品自营出口 · 豆豆鼠 BeanBeanMouse', rights: '© 2026 BeanBeanMouse 豆豆鼠 · 个人主体经营 · beanbeanmouse.trade@outlook.com',
+    footerTagline: '宠物用品自营出口 · 豆豆鼠 BeanBeanMouse', rights: '© 2026 BeanBeanMouse 豆豆鼠 · 个人主体经营 · hello@beanbeanmouse.com',
     resultsCount: '个结果', filters: '筛选', category: '品类', priceRange: '价格区间 (USD)', minPrice: '最低价', maxPrice: '最高价',
     moq: '最小起订量', origin: '产地', certs: '认证', clearFilters: '清除筛选', sort: '排序',
   sortRecommended: '综合推荐', sortNewest: '最新上架', sortPriceAsc: '价格从低到高', sortPriceDesc: '价格从高到低',
@@ -2584,7 +2584,7 @@ const I18N = {
     optionalHint: '选填',
     notFilled: '不填（不在商品页展示）',
     materialPlaceholder: '例：ABS + 不锈钢 / 短绒面料',
-  versionLabel: '版本 v1.100',
+  versionLabel: '版本 v1.110',
   demoNote: '图片与价格说明：部分商品图暂为概念图（真实拍摄图会陆续替换），站内价格为指导性 FOB 价；实际以询盘确认的正式报价单为准。',
   askTitle: '向豆豆鼠询价（批发 / OEM）', askQ1: '你要面向哪类宠物市场？', askQ2: '要采购哪一类用品？', askQ3: '采购量、目的国与联系方式',
   askCountry: '目的国 / 收货地', askCountryPh: '例如：德国 · 汉堡', askNote: '还想补充什么？', askNotePh: '例如：需要印我们的 logo，包装要英文',
@@ -2729,7 +2729,7 @@ const I18N = {
     trust2Title: 'Inquiry delivery', trust2Desc: 'In-app + email notifications bridge time zones.',
     trust3Title: 'Multilingual', trust3Desc: 'Bilingual UI and product data serve global buyers.',
     sellerCtaTitle: 'Become a supplier — free to join', sellerCtaDesc: 'Get inquiries from global buyers with zero upfront cost.', sellerCtaBtn: 'Open seller dashboard',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com',
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com',
     resultsCount: 'results', filters: 'Filters', category: 'Category', priceRange: 'Price range (USD)', minPrice: 'Min', maxPrice: 'Max',
     moq: 'Min. order', origin: 'Origin', certs: 'Certifications', clearFilters: 'Clear filters', sort: 'Sort',
   sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price low → high', sortPriceDesc: 'Price high → low',
@@ -3145,7 +3145,7 @@ const I18N = {
   optionalHint: 'optional',
   notFilled: 'Leave blank (hidden on the product page)',
   materialPlaceholder: 'e.g. ABS + stainless steel / plush fabric',
-  versionLabel: 'Version v1.100',
+  versionLabel: 'Version v1.110',
   demoNote: 'Images & pricing: some product images are concept visuals for now (real photos are being added), and listed prices are indicative FOB prices. The formal quotation confirmed by enquiry prevails.',
   askTitle: 'Wholesale / OEM enquiry', askQ1: 'Which pet market are you buying for?', askQ2: 'Which product category do you need?', askQ3: 'Order quantity, destination and contact',
   askCountry: 'Destination', askCountryPh: 'e.g. Hamburg, Germany', askNote: 'Anything else?', askNotePh: 'e.g. need our logo printed, English packaging',
@@ -3319,7 +3319,7 @@ Object.assign(I18N, {
     sendInquiry: '見積依頼を送信', moqLabel: '最小注文数量', verified: '認証済みサプライヤー',
     favorite: 'お気に入り', favorited: 'お気に入り済み', filters: 'フィルター', clearFilters: 'フィルターをクリア',
     noResults: '該当する製品が見つかりません', noResultsHint: '条件を変えてお試しください',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   },
   ko: {
     home: '홈', marketplace: '제품 시장', navNews: '무역 정보', dashboard: '대시보드',
@@ -3332,7 +3332,7 @@ Object.assign(I18N, {
     sendInquiry: '견적 문의 보내기', moqLabel: '최소 주문량', verified: '인증된 공급업체',
     favorite: '즐겨찾기', favorited: '즐겨찾기됨', filters: '필터', clearFilters: '필터 지우기',
     noResults: '일치하는 제품이 없습니다', noResultsHint: '조건을 조정해 보세요',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   },
   es: {
     home: 'Inicio', marketplace: 'Mercado', navNews: 'Noticias', dashboard: 'Panel',
@@ -3345,7 +3345,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Cantidad mínima', verified: 'Proveedor verificado',
     favorite: 'Favorito', favorited: 'Favorito añadido', filters: 'Filtros', clearFilters: 'Limpiar filtros',
     noResults: 'No se encontraron productos', noResultsHint: 'Ajusta los filtros e inténtalo de nuevo',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   },
   fr: {
     home: 'Accueil', marketplace: 'Marché', navNews: 'Actualités', dashboard: 'Tableau de bord',
@@ -3358,7 +3358,7 @@ Object.assign(I18N, {
     sendInquiry: 'Envoyer une demande', moqLabel: 'Quantité minimale', verified: 'Fournisseur vérifié',
     favorite: 'Favori', favorited: 'Déjà favori', filters: 'Filtres', clearFilters: 'Effacer les filtres',
     noResults: 'Aucun produit trouvé', noResultsHint: 'Essayez d’ajuster les filtres',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   },
   de: {
     home: 'Startseite', marketplace: 'Marktplatz', navNews: 'Handelsnachrichten', dashboard: 'Dashboard',
@@ -3371,7 +3371,7 @@ Object.assign(I18N, {
     sendInquiry: 'Anfrage senden', moqLabel: 'Mindestbestellmenge', verified: 'Verifizierter Lieferant',
     favorite: 'Favorit', favorited: 'Als Favorit gespeichert', filters: 'Filter', clearFilters: 'Filter zurücksetzen',
     noResults: 'Keine passenden Produkte', noResultsHint: 'Passen Sie die Filter an',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   },
   pt: {
     home: 'Início', marketplace: 'Mercado', navNews: 'Notícias', dashboard: 'Painel',
@@ -3384,7 +3384,7 @@ Object.assign(I18N, {
     sendInquiry: 'Enviar consulta', moqLabel: 'Quantidade mínima', verified: 'Fornecedor verificado',
     favorite: 'Favorito', favorited: 'Favoritado', filters: 'Filtros', clearFilters: 'Limpar filtros',
     noResults: 'Nenhum produto encontrado', noResultsHint: 'Ajuste os filtros e tente novamente',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   },
   ru: {
     home: 'Главная', marketplace: 'Рынок', navNews: 'Новости', dashboard: 'Панель',
@@ -3397,7 +3397,7 @@ Object.assign(I18N, {
     sendInquiry: 'Отправить запрос', moqLabel: 'Мин. объём заказа', verified: 'Проверенный поставщик',
     favorite: 'Избранное', favorited: 'В избранном', filters: 'Фильтры', clearFilters: 'Сбросить фильтры',
     noResults: 'Товары не найдены', noResultsHint: 'Измените условия фильтра',
-    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · beanbeanmouse.trade@outlook.com'
+    footerTagline: 'Pet supplies, exported direct — BeanBeanMouse', rights: '© 2026 BeanBeanMouse · individual operator · hello@beanbeanmouse.com'
   }
 });
 

@@ -36,7 +36,7 @@
     // 阿里云邮件推送（DirectMail）：AccessKey 存在 Pages Secret 里，这里只放非敏感项
     "ALIYUN_DM_ACCOUNT": "no-reply@mail.beanbeanmouse.com",
     "ALIYUN_DM_FROM_ALIAS": "BeanBeanMouse",
-    "ALIYUN_DM_REPLY_TO": "beanbeanmouse.trade@outlook.com",
+    "ALIYUN_DM_REPLY_TO": "hello@beanbeanmouse.com",
     "ALIYUN_DM_REGION": "cn-hangzhou",
     "MAIL_FROM": "no-reply@mail.beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",

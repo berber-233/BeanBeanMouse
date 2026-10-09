@@ -828,7 +828,7 @@ function renderVideos() {
 function renderAbout() {
   document.title = t('aboutTitle') + ' · BeanBeanMouse';
   const c = [
-    { k: 'aboutContactEmail', v: 'beanbeanmouse.trade@outlook.com', href: 'mailto:beanbeanmouse.trade@outlook.com' },
+    { k: 'aboutContactEmail', v: 'hello@beanbeanmouse.com', href: 'mailto:hello@beanbeanmouse.com' },
     { k: 'aboutContactWechat', v: 'beanbeanmouse', href: '' },
     { k: 'aboutContactPhone', v: '13725078850', href: 'tel:13725078850' },
     { k: 'aboutContactWhatsapp', v: '+86 137 2507 8850', href: 'https://wa.me/8613725078850' },

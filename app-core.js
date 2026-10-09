@@ -123,7 +123,7 @@ function l10nAttrs(id, key, srcLang, srcText) {
 }
 
 /* 商务合作邮箱：对外统一用这个（不再暴露个人 QQ 邮箱） */
-const SITE_PARTNER_EMAIL = 'beanbeanmouse.trade@outlook.com';
+const SITE_PARTNER_EMAIL = 'hello@beanbeanmouse.com';
 const TRIAL_DISMISS_KEY = 'bbm_trial_dismissed_v1';
 function initTrialBanner() {
   const el = document.getElementById('trialBanner');

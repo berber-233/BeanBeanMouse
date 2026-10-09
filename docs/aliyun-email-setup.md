@@ -94,7 +94,7 @@
    ```
 
    （`@` 后面必须是第 4 步验证通过的那个域名）
-4. 回信地址填你自己的常用邮箱：`beanbeanmouse.trade@outlook.com`（客户回信会到这里）
+4. 回信地址填你自己的常用邮箱：`hello@beanbeanmouse.com`（客户回信会到这里）
 5. 发件人昵称填：`豆豆鼠 BeanBeanMouse`
 
 ---
@@ -149,7 +149,7 @@
    - `MAIL_TRANSPORT` = `aliyun`
    - `MAIL_READY` = `1`（**这一项打开后，登录页才会出现"忘记密码"入口**）
    - `ALIYUN_DM_ACCOUNT` = 你的发信地址、`ALIYUN_DM_FROM_ALIAS` = 发件人昵称
-   - `ALIYUN_DM_REPLY_TO` = `beanbeanmouse.trade@outlook.com`
+   - `ALIYUN_DM_REPLY_TO` = `hello@beanbeanmouse.com`
 3. 重新部署，然后用站点自己的接口发一封测试信给你，并检查后台 `/admin/mail-status` 是否 `sent`
 4. 通知你验收：注册一个新邮箱 → 收到验证邮件；点"忘记密码" → 收到重置邮件
 

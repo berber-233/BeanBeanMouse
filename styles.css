@@ -2509,6 +2509,26 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   .product-card .foot { padding: 8px 12px !important; }
 }
 
+/* ==================== 手机端第六轮：审核/管理页的操作按钮换行（2026-10-09） ====================
+ * 回归测试实测：#/dashboard/review 在 390px 下横向溢出 69px，原因是审核卡片里的
+ * 一排操作按钮（查看详情/编辑/下架…）不换行，直接撑破卡片和视口。 */
+@media (max-width: 900px) {
+  .review-card { display: block !important; }
+  .review-card > img.thumb, .review-card .thumb {
+    width: 100% !important; max-width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; margin-bottom: 10px;
+  }
+  .review-card .actions, .row-actions, .inquiry-item .actions, .card .actions {
+    display: flex !important; flex-wrap: wrap !important; gap: 8px !important; width: 100%;
+  }
+  .review-card .actions .btn, .row-actions .btn, .review-card .actions a.btn,
+  .card .actions .btn, .inquiry-item .actions .btn {
+    flex: 1 1 calc(50% - 8px); min-width: 0; justify-content: center; white-space: normal; text-align: center;
+  }
+  /* 表格类管理页：允许横向滚动而不是撑破页面 */
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .card.panel, .review-card, .inquiry-item { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+}
+
 /* ==================== 手机端第五轮：按真实结构压缩（2026-10-08 第三次实测） ====================
  * 实测：.store-copy 560px + .store-art 223px = 822px 首屏；页脚每个链接行 42px（被拉伸）。
  * 这一轮针对真实类名下手。 */
