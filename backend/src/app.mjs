@@ -2411,6 +2411,29 @@ async function route(m, segs, q, req, res) {
       const failed = (await get("SELECT COUNT(*) AS c FROM mail_outbox WHERE status = 'failed'")).c;
       return send(res, 200, { ...info, failed, recent });
     }
+    /* 邮件自测（管理员）：给任意地址发一封测试信，用来验证"发信通道 + 收信路由"整条链路。
+     * 之前判断邮件是否正常只能靠"注册一个账号去收验证信"，太笨重（用户 2026-10-09 反馈收不到信）。 */
+    if (b === 'mail-test' && m === 'POST') {
+      const u = await requirePerm(res, req, 'system');
+      if (!u) return;
+      const body = await readBody(req);
+      const to = String(body.to || '').trim();
+      if (!EMAIL_RE.test(to)) return fail(res, 400, 'VALIDATION', '收件地址格式不正确');
+      const stamp = new Date().toISOString();
+      try {
+        await sendMail({
+          to,
+          subject: '[BeanBeanMouse] 邮件通道自测 / mail channel test',
+          body: '这是一封自动测试邮件（' + stamp + '）。\n\n如果你在收件箱看到它，说明：\n'
+            + '1) 站点发信通道正常；\n2) 若收件地址是 @beanbeanmouse.com，说明域名的收信转发也已打通。\n\n'
+            + 'This is an automated test. If you can read it, outbound mail works — and if it reached a '
+            + '@beanbeanmouse.com address, inbound forwarding works too.\n\n— BeanBeanMouse 自动测试'
+        });
+        return send(res, 200, { ok: true, to, sentAt: stamp, transport: mailerInfo().transport });
+      } catch (e) {
+        return fail(res, 502, 'MAIL_SEND_FAILED', String((e && e.message) || e));
+      }
+    }
     /* 邮件凭据自检：只回长度和哈希前缀，不回明文——用来确认"存进去的 Secret 没被加料"。
      * 踩过的坑：用管道写 Cloudflare Secret 时可能带上换行，症状是阿里云回 SignatureDoesNotMatch。 */
     if (b === 'mail-config-check' && m === 'GET') {
