@@ -1403,7 +1403,12 @@ async function route(m, segs, q, req, res) {
       const seller = await get('SELECT * FROM users WHERE id = ?', p.seller_id);
       if (seller) {
         await notifyUser(seller.id, 'inquiry', '收到新询盘', '产品 ' + (body.productId) + ' 收到新询盘：' + String(body.message).slice(0, 120));
-        try { await sendMail({ to: seller.email, subject: '[BeanBeanMouse] 收到新询盘', body: String(body.message) }); }
+        /* 自营模式下商品挂在管理员账号下，通知信以前发到 admin@beanbeanmouse.com，
+         * 要经 Cloudflare 转发一跳才到运营者手上。现在直投 ENV.OPERATOR_EMAIL
+         * （用户 2026-10-09 要求：少一个依赖、更稳）。卖家不是管理员时照旧发给卖家自己。 */
+        const opTo = String(ENV.OPERATOR_EMAIL || '').trim();
+        const mailTo = (seller.role === 'admin' && opTo) ? opTo : seller.email;
+        try { await sendMail({ to: mailTo, subject: '[BeanBeanMouse] 收到新询盘', body: String(body.message) }); }
         catch (e) { console.error('邮件发送失败（不影响询盘）:', e.message); }
       }
       /* 自营模式下商品挂在平台名下，管理员也必须收到站内提醒，

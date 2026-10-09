@@ -37,6 +37,9 @@
     "ALIYUN_DM_ACCOUNT": "no-reply@mail.beanbeanmouse.com",
     "ALIYUN_DM_FROM_ALIAS": "BeanBeanMouse",
     "ALIYUN_DM_REPLY_TO": "hello@beanbeanmouse.com",
+    // 运营通知收件地址：新询盘等通知直投这里（自营模式下商品挂在管理员账号下，
+    // 不走 admin@beanbeanmouse.com → Cloudflare 转发那一跳）
+    "OPERATOR_EMAIL": "beanbeanmouse.trade@outlook.com",
     "ALIYUN_DM_REGION": "cn-hangzhou",
     "MAIL_FROM": "no-reply@mail.beanbeanmouse.com",
     "APP_URL": "https://beanbeanmouse.com",

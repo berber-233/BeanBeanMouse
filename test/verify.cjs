@@ -248,7 +248,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.110 shown', /v1\.110/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.110 shown', /v1\.120/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1085,7 +1085,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.110', /v1\.110/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.110', /v1\.120/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
