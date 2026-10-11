@@ -1771,7 +1771,10 @@ body {
 
 /* ==================== pet0.2：门面 / 视频墙 / 关于我们 / 暖色点缀 ==================== */
 .storefront {
-  background: linear-gradient(180deg, #FFF7E8 0%, #FFEFD6 58%, #FFF9EC 100%);
+  /* 用户两次指出"这一块很明显的黄色很突兀"——根因就是这里：
+   * 原来是 #FFF7E8 → #FFEFD6 → #FFF9EC 的黄色渐变带（我前两次改的是别处的渐变，没动到这里）。
+   * 现在改为透明，让整页底层像素底纹透上来，全站统一一个色系。 */
+  background: transparent;
   border-bottom: 1px solid var(--border);
   padding: 30px 0 26px;
 }
@@ -1796,7 +1799,7 @@ body {
 .store-art { position: relative; }
 .store-art img {
   width: 100%; height: auto; display: block; border-radius: 16px;
-  border: 1px solid var(--border-2); box-shadow: var(--shadow-lg); background: #FFF6E8;
+  border: 1px solid var(--border-2); box-shadow: var(--shadow-lg); background: var(--card, #FFFDF7);
 }
 .store-art-note {
   position: absolute; left: 14px; bottom: 14px; background: rgba(255,255,255,.92);
