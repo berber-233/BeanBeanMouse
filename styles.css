@@ -2535,11 +2535,13 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .hero-banner { position: relative; width: 100%; overflow: hidden; background: #26304A; line-height: 0; }
 .hero-banner img {
   display: block; width: 100%; height: auto;
-  max-height: 62vh; object-fit: cover; object-position: center center;
+  /* 不再裁切：以前 max-height:62vh + cover 会把上下砍掉（用户反馈"像被砍了头和脚"）。
+   * 现在按原图比例完整显示，上下自然各留出余量。 */
+  object-fit: contain; object-position: center center;
 }
 .hero-banner::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 26%;
-  background: linear-gradient(180deg, rgba(255,249,236,0) 0%, rgba(255,249,236,.55) 45%, rgba(255,249,236,.92) 78%, #FFF9EC 100%);
+  background: linear-gradient(180deg, transparent 0%, var(--bg-55, rgba(255,249,236,.55)) 45%, var(--bg-92, rgba(255,249,236,.92)) 78%, var(--bg, #FFF9EC) 100%);
   pointer-events: none;
 }
 /* 顶部与头部栏同色系的细过渡，避免"图片直接切在棕色导航条下面" */
@@ -2549,9 +2551,39 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   pointer-events: none; z-index: 1;
 }
 @media (max-width: 900px) {
-  .hero-banner img { max-height: 46vh; }
   .hero-banner::after { height: 32%; }
 }
+
+/* ==================== 页脚过渡图（用户 2026-10-11：最下面要一张与底部衔接的过渡图） ==================== */
+.footer-strip-wrap { position: relative; margin-top: 44px; line-height: 0; }
+.footer-strip { display: block; width: 100%; height: auto; }
+/* 顶部从页面底色淡入图片，底部淡出到页脚底色，两头都无缝 */
+.footer-strip-wrap::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 16%;
+  background: linear-gradient(180deg, var(--bg, #FFF9EC) 0%, var(--bg-55, rgba(255,249,236,.55)) 55%, transparent 100%);
+  pointer-events: none;
+}
+.footer-strip-wrap::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 16%;
+  background: linear-gradient(180deg, transparent 0%, var(--navy-900, #16233F) 100%);
+  pointer-events: none;
+}
+@media (max-width: 900px) { .footer-strip-wrap { margin-top: 30px; } }
+
+/* ==================== 四时段背景：凌晨 / 白天 / 黄昏 / 夜晚（按本地实时切换） ====================
+ * 只调页面底色与过渡色，不动文字颜色，保证任何时段都清晰可读。 */
+html[data-daypart="dawn"]  { --bg: #FDF0EE; --bg-55: rgba(253,240,238,.55); --bg-92: rgba(253,240,238,.92); --daypart-accent: #E9A6A0; }
+html[data-daypart="day"]   { --bg: #FFF9EC; --bg-55: rgba(255,249,236,.55); --bg-92: rgba(255,249,236,.92); --daypart-accent: #F5C064; }
+html[data-daypart="dusk"]  { --bg: #FDEEE0; --bg-55: rgba(253,238,224,.55); --bg-92: rgba(253,238,224,.92); --daypart-accent: #E9915A; }
+html[data-daypart="night"] { --bg: #EAEEF7; --bg-55: rgba(234,238,247,.55); --bg-92: rgba(234,238,247,.92); --daypart-accent: #8FA6D8; }
+body { background-color: var(--bg); transition: background-color .6s ease; }
+/* 时段标识：右下角帮助球旁的小圆点，鼠标悬浮显示当前时段（不影响布局） */
+.daypart-dot {
+  position: fixed; left: 14px; bottom: 18px; z-index: 40;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--daypart-accent, #F5C064);
+  box-shadow: 0 0 0 3px rgba(255,255,255,.55); pointer-events: none;
+}
+@media (max-width: 900px) { .daypart-dot { display: none; } }
 
 /* 首屏"下拉"提示：贴在大图底部渐变之上，轻柔呼吸动画 */
 .hero-scroll {
