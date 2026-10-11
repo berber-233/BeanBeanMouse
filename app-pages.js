@@ -716,7 +716,12 @@ function renderHome() {
     ? ['仓鼠笼', '猫爬架', '大型犬胸背带', '猫砂', '智能喂食器']
     : ['hamster cage', 'cat tree', 'large dog harness', 'cat litter', 'smart feeder'];
   const subIco = id => 'assets/pixel/sub/' + id.replace('pet-', '') + '.png';
-  return '<section class="storefront">'
+  /* 首屏大图（像素风金丝熊，Seedream 5.0 pro 生成）：进门第一眼是它，
+   * 底部用渐变融进页面底色，滚下去就是功能区，不留硬边。 */
+  return '<section class="hero-banner">'
+    + '<img src="assets/pet/hero-storefront.jpg" alt="' + esc(t('heroBannerAlt')) + '" width="1920" height="1080" fetchpriority="high" decoding="async">'
+    + '</section>'
+    + '<section class="storefront">'
     + '<div class="store-inner">'
     + '<div class="store-copy">'
     + '<p class="store-eyebrow">' + esc(t('sfEyebrow')) + '</p>'
