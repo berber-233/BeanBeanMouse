@@ -1,6 +1,5 @@
 /* BeanBeanMouse 启动与杂项事件——由拆分脚本生成 */
 /* ---------- 全局事件（表单与杂项） ---------- */
-/* 首屏"向下滑动"提示：平滑滚到下一屏（不用 # 锚点，避免和路径路由打架） */
 /* 四时段背景：按本地时间切换凌晨/白天/黄昏/夜晚（每 5 分钟自检一次，跨时段自动换） */
 (function applyDaypart() {
   const pick = h => (h >= 4 && h < 7) ? 'dawn' : (h >= 7 && h < 17) ? 'day' : (h >= 17 && h < 20) ? 'dusk' : 'night';
@@ -21,12 +20,6 @@
   set();
   setInterval(set, 5 * 60 * 1000);
 })();
-document.addEventListener('click', e => {
-  const el = e.target.closest && e.target.closest('[data-action="scroll-next"]');
-  if (!el) return;
-  e.preventDefault();
-  window.scrollBy({ top: Math.round(window.innerHeight * 0.82), behavior: 'smooth' });
-});
 document.addEventListener('submit', e => {
   const f = e.target;
   if (f.dataset.form === 'home-search') {

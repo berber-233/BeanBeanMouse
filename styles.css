@@ -2556,7 +2556,14 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 
 /* ==================== 页脚过渡图（用户 2026-10-11：最下面要一张与底部衔接的过渡图） ==================== */
 .footer-strip-wrap { position: relative; margin-top: 44px; line-height: 0; }
-.footer-strip { display: block; width: 100%; height: auto; }
+.footer-strip {
+  display: block; width: 100%; height: auto;
+  /* 压矮一点（用户反馈"图高了一些"）：上限 190px，裁掉顶部多余天空，保留地平线与海港主体 */
+  max-height: 190px; object-fit: cover; object-position: center bottom;
+}
+/* 关键：页脚自带 margin-top:50px，会和过渡图之间留出一条可见的缝（用户反馈"不丝滑"）。
+ * 紧跟在过渡图后面的页脚把这段外边距去掉，让图和页脚真正贴在一起。 */
+.footer-strip-wrap + .site-footer { margin-top: 0; }
 /* 顶部从页面底色淡入图片，底部淡出到页脚底色，两头都无缝 */
 .footer-strip-wrap::before {
   content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 16%;
@@ -2564,11 +2571,11 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   pointer-events: none;
 }
 .footer-strip-wrap::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 16%;
-  background: linear-gradient(180deg, transparent 0%, var(--navy-900, #16233F) 100%);
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 24%;
+  background: linear-gradient(180deg, transparent 0%, rgba(22,35,63,.35) 45%, var(--navy-900, #16233F) 100%);
   pointer-events: none;
 }
-@media (max-width: 900px) { .footer-strip-wrap { margin-top: 30px; } }
+@media (max-width: 900px) { .footer-strip-wrap { margin-top: 30px; } .footer-strip { max-height: 150px; } }
 
 /* ==================== 四时段背景：凌晨 / 白天 / 黄昏 / 夜晚（按本地实时切换） ====================
  * 只调页面底色与过渡色，不动文字颜色，保证任何时段都清晰可读。 */

@@ -720,11 +720,7 @@ function renderHome() {
    * 底部用渐变融进页面底色，滚下去就是功能区，不留硬边。 */
   return '<section class="hero-banner">'
     + '<img src="assets/pet/hero-storefront.jpg" alt="' + esc(t('heroBannerAlt')) + '" width="1920" height="1080" fetchpriority="high" decoding="async">'
-    /* 展示页的"下拉"提示：用按钮而不是 #锚点，避免干扰路径路由 */
-    + '<button type="button" class="hero-scroll" data-action="scroll-next" aria-label="' + esc(t('heroScrollHint')) + '">'
-    + '<span>' + esc(t('heroScrollHint')) + '</span>'
-    + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
-    + '</button>'
+    /* "向下滑动"提示已按用户反馈移除（多余）：滚动本身就很自然 */
     + '</section>'
     + '<section class="storefront">'
     + '<div class="store-inner">'
