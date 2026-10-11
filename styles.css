@@ -2535,13 +2535,20 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .hero-banner { position: relative; width: 100%; overflow: hidden; background: #26304A; line-height: 0; }
 .hero-banner img {
   display: block; width: 100%; height: auto;
-  /* 不再裁切：以前 max-height:62vh + cover 会把上下砍掉（用户反馈"像被砍了头和脚"）。
-   * 现在按原图比例完整显示，上下自然各留出余量。 */
-  object-fit: contain; object-position: center center;
+  /* 主体完整保留、只裁掉画面最底部约 7%（那一条有零碎杂物，且是"脚下空白"的来源）。
+   * 主体脚线在 89.5% 处，裁到 93% 仍留有余量，不会被砍脚。 */
+  max-height: calc(56.25vw * 0.93);
+  object-fit: cover; object-position: center top;
 }
 .hero-banner::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 26%;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-55, rgba(255,249,236,.55)) 45%, var(--bg-92, rgba(255,249,236,.92)) 78%, var(--bg, #FFF9EC) 100%);
+  /* 三段式过渡：深藏青 → 暖棕雾（和品牌暖棕呼应）→ 页面底色，比"直接淡出到米白"自然得多 */
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 22%;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(38,48,74,.30) 22%,
+    rgba(138,90,43,.28) 52%,
+    var(--bg-55, rgba(255,249,236,.55)) 76%,
+    var(--bg, #FFF9EC) 100%);
   pointer-events: none;
 }
 /* 顶部与头部栏同色系的细过渡，避免"图片直接切在棕色导航条下面" */
