@@ -719,7 +719,8 @@ function renderHome() {
   /* 首屏大图（像素风金丝熊，Seedream 5.0 pro 生成）：进门第一眼是它，
    * 底部用渐变融进页面底色，滚下去就是功能区，不留硬边。 */
   return '<section class="hero-banner">'
-    + '<img src="assets/pet/hero-storefront.jpg" alt="' + esc(t('heroBannerAlt')) + '" width="1920" height="1080" fetchpriority="high" decoding="async">'
+    /* 文件名带 v2：/assets/* 是 7 天 immutable 缓存，换图必须换文件名，否则用户永远看到旧图 */
+    + '<img src="assets/pet/hero-storefront-v2.jpg" alt="' + esc(t('heroBannerAlt')) + '" width="1920" height="1080" fetchpriority="high" decoding="async">'
     /* "向下滑动"提示已按用户反馈移除（多余）：滚动本身就很自然 */
     + '</section>'
     + '<section class="storefront">'

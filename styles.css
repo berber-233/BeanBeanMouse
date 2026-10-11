@@ -2565,16 +2565,19 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .footer-strip-wrap { position: relative; margin-top: 44px; line-height: 0; }
 .footer-strip {
   display: block; width: 100%; height: auto;
-  /* 压矮一点（用户反馈"图高了一些"）：上限 190px，裁掉顶部多余天空，保留地平线与海港主体 */
-  max-height: 190px; object-fit: cover; object-position: center bottom;
+  /* 换成 8:1 的扁长图后按原图比例完整显示即可（不裁切，所以不会出现"上面被遮住一块"）；
+   * max-height 只作极端宽屏下的安全上限。 */
+  max-height: 240px; object-fit: contain; object-position: center;
 }
 /* 关键：页脚自带 margin-top:50px，会和过渡图之间留出一条可见的缝（用户反馈"不丝滑"）。
  * 紧跟在过渡图后面的页脚把这段外边距去掉，让图和页脚真正贴在一起。 */
 .footer-strip-wrap + .site-footer { margin-top: 0; }
 /* 顶部从页面底色淡入图片，底部淡出到页脚底色，两头都无缝 */
 .footer-strip-wrap::before {
-  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 16%;
-  background: linear-gradient(180deg, var(--bg, #FFF9EC) 0%, var(--bg-55, rgba(255,249,236,.55)) 55%, transparent 100%);
+  /* 顶部只做很轻的一道融合（8% 高度）：图本身顶部就是深色天空，不需要大面积覆盖，
+   * 以前 16% 的盖层会让人以为图被"遮挡了一部分"。 */
+  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 8%;
+  background: linear-gradient(180deg, var(--bg, #FFF9EC) 0%, transparent 100%);
   pointer-events: none;
 }
 .footer-strip-wrap::after {
