@@ -694,7 +694,8 @@ const VIDEO_SHOWCASE = [
 ];
 
 function storefrontArt() {
-  return 'assets/pet/hero-desk-hamster.png';
+  /* 换成像素风打包场景：原来那张是写实渲染风，和新的像素大图/深藏青背景不协调（用户反馈） */
+  return 'assets/pet/pack-desk-v1.jpg';
 }
 
 function renderHome() {
@@ -781,7 +782,7 @@ function renderHome() {
     + '</div>'
     /* 关于我们预告 */
     + '<section class="section about-teaser">'
-    + '<div class="about-teaser-art"><img src="assets/pet/about-hamster.png" alt="" width="360" height="360" loading="lazy" decoding="async"></div>'
+    + '<div class="about-teaser-art"><img src="assets/pet/pack-desk-v1.jpg" alt="" width="360" height="270" loading="lazy" decoding="async"></div>'
     + '<div class="about-teaser-copy"><h2>' + t('aboutTeaserTitle') + '</h2><p>' + t('aboutTeaserDesc') + '</p>'
     + '<a class="btn btn-accent" href="/about" data-nav="/about">' + t('aboutMore') + '</a></div></section>'
     + '</div>';
@@ -844,7 +845,7 @@ function renderAbout() {
   ];
   return '<div class="container page">'
     + '<section class="section about-hero">'
-    + '<div class="about-art"><img src="assets/pet/about-hamster.png" alt="' + esc(t('aboutArtAlt')) + '" width="520" height="520" decoding="async"></div>'
+    + '<div class="about-art"><img src="assets/pet/pack-desk-v1.jpg" alt="' + esc(t('aboutArtAlt')) + '" width="520" height="390" decoding="async"></div>'
     + '<div class="about-copy"><h1>' + t('aboutTitle') + '</h1>'
     + '<p>' + t('aboutP1') + '</p><p>' + t('aboutP2') + '</p>'
     + '<h2 class="about-sub">' + t('aboutContactTitle') + '</h2>'
