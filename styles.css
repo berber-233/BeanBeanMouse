@@ -2553,6 +2553,27 @@ html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
   .hero-banner::after { height: 32%; }
 }
 
+/* 首屏"下拉"提示：贴在大图底部渐变之上，轻柔呼吸动画 */
+.hero-scroll {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 6%;
+  z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(38,48,74,.72); color: #FFF6E8; border: 1px solid rgba(255,246,232,.35);
+  border-radius: 999px; padding: 8px 16px; font-size: 13px; font-family: inherit; cursor: pointer;
+  animation: heroBounce 2.4s ease-in-out infinite;
+}
+.hero-scroll svg { animation: heroChevron 2.4s ease-in-out infinite; }
+/* 鼠标移上去/键盘聚焦时停住动画：手指瞄准时按钮别乱动（顺带让自动化测试能点中） */
+.hero-scroll:hover, .hero-scroll:focus-visible { animation: none; }
+.hero-scroll:hover svg, .hero-scroll:focus-visible svg { animation: none; opacity: 1; }
+@keyframes heroBounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(4px); } }
+@keyframes heroChevron { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hero-scroll, .hero-scroll svg { animation: none; } }
+@media (max-width: 600px) { .hero-scroll { font-size: 12px; padding: 7px 12px; bottom: 7%; } }
+
+/* 小图：区块标题旁的像素图标 + 空态大图（2026-10-11 按用户建议补齐） */
+.sec-ico { width: 34px; height: 34px; border-radius: 9px; margin-right: 9px; vertical-align: -7px; image-rendering: pixelated; }
+.sec-ico-lg { width: 104px; height: 104px; border-radius: 16px; image-rendering: pixelated; }
+
 /* ==================== 手机端第五轮：按真实结构压缩（2026-10-08 第三次实测） ====================
  * 实测：.store-copy 560px + .store-art 223px = 822px 首屏；页脚每个链接行 42px（被拉伸）。
  * 这一轮针对真实类名下手。 */

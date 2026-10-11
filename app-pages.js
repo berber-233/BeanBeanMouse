@@ -720,6 +720,11 @@ function renderHome() {
    * 底部用渐变融进页面底色，滚下去就是功能区，不留硬边。 */
   return '<section class="hero-banner">'
     + '<img src="assets/pet/hero-storefront.jpg" alt="' + esc(t('heroBannerAlt')) + '" width="1920" height="1080" fetchpriority="high" decoding="async">'
+    /* 展示页的"下拉"提示：用按钮而不是 #锚点，避免干扰路径路由 */
+    + '<button type="button" class="hero-scroll" data-action="scroll-next" aria-label="' + esc(t('heroScrollHint')) + '">'
+    + '<span>' + esc(t('heroScrollHint')) + '</span>'
+    + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>'
+    + '</button>'
     + '</section>'
     + '<section class="storefront">'
     + '<div class="store-inner">'
@@ -750,7 +755,7 @@ function renderHome() {
     + '</section>'
     + '<div class="container page">'
     /* 8 个细分 */
-    + '<section class="section"><div class="section-head"><h2>' + t('catStripTitle') + '</h2><a href="/products" class="small" data-nav="/products">' + t('viewAllCats') + ' →</a></div>'
+    + '<section class="section"><div class="section-head"><h2><img class="sec-ico" src="assets/pet/icon-subs.jpg" alt="" width="34" height="34" loading="lazy" decoding="async">' + t('catStripTitle') + '</h2><a href="/products" class="small" data-nav="/products">' + t('viewAllCats') + ' →</a></div>'
     + '<div class="sub-grid">' + subs.map(s => {
       const count = live.filter(p => p.sub === s.id).length;
       return '<a class="sub-card" href="/products?cat=pet&sub=' + s.id + '" data-nav="/products?cat=pet&sub=' + s.id + '">'
@@ -765,13 +770,14 @@ function renderHome() {
     + '<a href="/products" class="small" data-nav="/products">' + t('viewAll') + ' →</a></span></div>'
     + '<div class="product-grid">' + featured.map(productCard).join('') + '</div></section>'
     /* 服务承诺 */
-    + '<section class="section"><div class="section-head"><h2>' + t('promiseTitle') + '</h2></div>'
+    + '<section class="section"><div class="section-head"><h2><img class="sec-ico" src="assets/pet/icon-promise.jpg" alt="" width="34" height="34" loading="lazy" decoding="async">' + t('promiseTitle') + '</h2></div>'
     + '<div class="promise-grid">' + [
       ['promise1T', 'promise1D'], ['promise2T', 'promise2D'], ['promise3T', 'promise3D'], ['promise4T', 'promise4D']
     ].map(x => '<div class="promise-card"><h3>' + t(x[0]) + '</h3><p>' + t(x[1]) + '</p></div>').join('') + '</div></section>'
     + '<div class="cta-band">'
     + '<div><h2>' + t('contactBandTitle') + '</h2><p>' + t('contactBandDesc') + '</p></div>'
     + '<div class="flex gap-10" style="flex-wrap:wrap">'
+    + '<a class="btn btn-primary btn-lg" href="/products" data-nav="/products">' + t('ctaEnterMarket') + '</a>'
     + '<a class="btn btn-accent btn-lg" href="mailto:' + esc(SITE_ENTITY.email) + '">' + t('contactEmailBtn') + '</a>'
     + '<a class="btn btn-ghost btn-lg" href="https://wa.me/8613725078850" target="_blank" rel="noopener noreferrer">' + t('contactWhatsappBtn') + '</a>'
     + '</div>'
@@ -950,7 +956,7 @@ function renderProducts(params) {
   const related = kw ? relatedProducts(kw, cat, sub) : [];
   const grid = list.length
     ? '<div class="product-grid">' + list.map(productCard).join('') + '</div>'
-    : '<div class="empty-state"><div class="ico"><img class="pixel-ico" src="assets/pixel/ui/search.png" alt="" width="56" height="56" loading="lazy" decoding="async"></div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>'
+    : '<div class="empty-state"><div class="ico"><img class="sec-ico-lg" src="assets/pet/icon-empty.jpg" alt="" width="104" height="104" loading="lazy" decoding="async"></div><h3>' + t('noResults') + '</h3><p>' + t('noResultsHint') + '</p></div>'
       + (related.length
         ? '<section class="related-section"><div class="section-head"><h2>' + icon('sparkle') + ' ' + t('relatedTitle') + '</h2><p class="small muted">' + t('relatedSub') + '</p></div>'
           + '<div class="product-grid">' + related.map(productCard).join('') + '</div></section>'

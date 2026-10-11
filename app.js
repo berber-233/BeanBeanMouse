@@ -1,5 +1,12 @@
 /* BeanBeanMouse 启动与杂项事件——由拆分脚本生成 */
 /* ---------- 全局事件（表单与杂项） ---------- */
+/* 首屏"向下滑动"提示：平滑滚到下一屏（不用 # 锚点，避免和路径路由打架） */
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-action="scroll-next"]');
+  if (!el) return;
+  e.preventDefault();
+  window.scrollBy({ top: Math.round(window.innerHeight * 0.82), behavior: 'smooth' });
+});
 document.addEventListener('submit', e => {
   const f = e.target;
   if (f.dataset.form === 'home-search') {

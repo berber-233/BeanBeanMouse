@@ -173,7 +173,13 @@ function resolveBrowser() {
   await page.waitForTimeout(300);
   check('products: no-result shows empty state or related recommendations',
     (await page.locator('.empty-state').count()) >= 1 || (await page.locator('.related-section .product-card').count()) > 0);
-  check('pixel-ui: empty state uses pixel icon', await page.locator('.empty-state .ico img[src*="pixel/ui/"]').count() >= 1);
+  /* 2026-10-11：产品市场"无结果"空态换成主题像素插图（assets/pet/icon-empty.jpg，仓鼠从空箱探头），
+   * 不再是通用放大镜小图。断言改成"空态有一张能加载的主题插图"。 */
+  check('pixel-ui: 空态展示主题插图且能加载', await page.evaluate(() => {
+    const img = document.querySelector('.empty-state .ico img');
+    if (!img) return false;
+    return /assets\/pet\/icon-|assets\/pixel\//.test(img.getAttribute('src') || '') && img.complete && img.naturalWidth > 0;
+  }));
 
   // ---- 贸易资讯 ----
   await page.evaluate(() => { location.hash = '#/news'; });
@@ -248,7 +254,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.140 shown', /v1\.140/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.150 shown', /v1\.150/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -1085,7 +1091,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.140', /v1\.140/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.150', /v1\.150/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
