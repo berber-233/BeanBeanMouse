@@ -1775,7 +1775,9 @@ body {
    * 原来是 #FFF7E8 → #FFEFD6 → #FFF9EC 的黄色渐变带（我前两次改的是别处的渐变，没动到这里）。
    * 现在改为透明，让整页底层像素底纹透上来，全站统一一个色系。 */
   background: transparent;
-  border-bottom: 1px solid var(--border);
+  /* 这条 border-bottom 是黄底时代的"分块线"，背景透明后它就是一条没有意义的孤线
+   * （用户 2026-10-12 问"下面有个分界线是什么意思"）。去掉。 */
+  border-bottom: 0;
   padding: 30px 0 26px;
 }
 .store-inner {
