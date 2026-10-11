@@ -86,7 +86,10 @@ async function apiRequest(path, options = {}) {
   }
   /* 写操作成功后自动刷新"登录范围内的数据"（订单/售后/推广/品类需求等），
    * 否则界面还停在本地的旧列表上，看起来像"改了没反应"。 */
-  if (method !== 'GET') scheduleSessionRefresh();
+  /* 例外：翻译只是取一段文本，不属于"会话数据变更"。以前它也算 POST 会触发刷新，
+   * 300ms 后整页重绘把发布表单重建，译文写进已被替换的 DOM ——
+   * 用户看到的就是"提示已翻译，但目标框里空白"（2026-10-11 反馈）。 */
+  if (method !== 'GET' && path.indexOf('/translate') !== 0) scheduleSessionRefresh();
   return res.json();
 }
 

@@ -1504,31 +1504,45 @@ async function translateProductForm(btn) {
   const to = btn && btn.dataset.to === 'zh' ? 'zh' : 'en';
   const target = to === 'zh' ? 'zh-CN' : 'en';
   const srcTitle = form.querySelector('[name="' + (to === 'en' ? 'titleZh' : 'titleEn') + '"]');
-  const dstTitle = form.querySelector('[name="' + (to === 'en' ? 'titleEn' : 'titleZh') + '"]');
   const srcDesc = form.querySelector('[name="' + (to === 'en' ? 'descZh' : 'descEn') + '"]');
-  const dstDesc = form.querySelector('[name="' + (to === 'en' ? 'descEn' : 'descZh') + '"]');
-  const out = form.querySelector('[data-translate-result]');
-  const setOut = txt => { if (out) out.textContent = txt || ''; };
+  /* 目标字段只记"字段名"，不记 DOM 节点：翻译要几秒，期间若发生重绘，
+   * 旧节点已被替换，往它写值等于写进空气（提示成功但框里空白）。写入前重新查一次。 */
+  const dstTitleName = to === 'en' ? 'titleEn' : 'titleZh';
+  const dstDescName = to === 'en' ? 'descEn' : 'descZh';
+  const findField = name => {
+    const f = document.querySelector('form[data-form="product-form"]');
+    return f ? f.querySelector('[name="' + name + '"]') : null;
+  };
+  const findOut = () => {
+    const f = document.querySelector('form[data-form="product-form"]');
+    return f ? f.querySelector('[data-translate-result]') : null;
+  };
+  const setOut = txt => { const el = findOut(); if (el) el.textContent = txt || ''; };
   /* 翻译要几秒：按钮进入"翻译中"状态并禁用，避免用户以为没反应（用户反馈"卡一下然后失败"） */
   const originalLabel = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.classList.add('busy'); btn.textContent = t('translatingNow'); }
   setOut(t('translatingNow'));
   try {
     const parts = [
-      [srcTitle, dstTitle, srcTitle ? srcTitle.value.trim() : ''],
-      [srcDesc, dstDesc, srcDesc ? srcDesc.value.trim() : '']
+      [srcTitle, dstTitleName, srcTitle ? srcTitle.value.trim() : ''],
+      [srcDesc, dstDescName, srcDesc ? srcDesc.value.trim() : '']
     ];
     /* 标题与描述并行翻译（串行会等两倍时间） */
     /* 加超时：翻译通道偶尔很慢，之前没有上限，按钮会一直卡在"翻译中"（用户反馈会卡）。 */
     const withTimeout = (p, ms) => Promise.race([
       p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
     ]);
-    const jobs = parts.filter(([s, d, txt]) => s && d && txt).map(async ([srcEl, dstEl, text]) => {
+    const jobs = parts.filter(([s, d, txt]) => s && d && txt).map(async ([srcEl, dstName, text]) => {
       /* 注意：翻译 API 是 api.translate.text(text, target, source) */
       const r = await withTimeout(api.translate.text(text, target, to === 'en' ? 'zh-CN' : 'en'), 25000);
       /* 服务端所有通道都失败时会回退成"原文照抄"（provider=offline），
        * 这种情况不能当成功，否则用户以为翻译好了。 */
-      if (r && r.text && r.provider !== 'offline' && r.text !== text) { dstEl.value = r.text; return 1; }
+      if (r && r.text && r.provider !== 'offline' && r.text !== text) {
+        const cur = findField(dstName);
+        if (!cur) return 0;                     /* 表单已经不在了（页面切走），不算成功 */
+        cur.value = r.text;
+        return 1;
+      }
       return 0;
     });
     const done = (await Promise.all(jobs)).reduce((a, b) => a + b, 0);

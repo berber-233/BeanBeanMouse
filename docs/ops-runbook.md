@@ -142,3 +142,27 @@ node work\clean-demo-products.mjs --apply       # 真执行
 - 有询盘引用的商品**只能下架**（后端不允许删，否则历史询盘会对不上）；其余直接删除。
 - 脚本按 `product_id` 判断引用关系（后端询盘行是下划线命名，别写成 `productId`）。
 - 走完市场会变空，这是预期：巡检里的"商品接口"只校验返回结构，空库不会报红。
+
+---
+
+## 10. 部署踩坑：npx wrangler 在本机会崩（2026-10-11 起）
+
+**症状**：`npx wrangler pages deploy ...` 大概率直接 fail-fast（退出码 `-1073740791`），
+日志只有一行 `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 94`。
+试过 wrangler 4.122 / 3.112 都一样，换 Node 也一样 —— 是 `npx → npm → node` 这层子进程链的问题。
+
+**可用的写法**（少两层子进程，实测一次成功）：
+
+```powershell
+node scripts\build-site.mjs
+cmd /c "node node_modules\wrangler\bin\wrangler.js pages deploy dist --project-name beanbean-mouse --commit-dirty=true > work\deploy.log 2>&1"
+Get-Content work\deploy.log -Tail 5     # 必须看到 ✨ Deployment complete 才算成功
+```
+
+**判断部署是否真的生效**：命令退出码 0 不等于上线成功，务必回头查线上文件：
+
+```powershell
+node work\check-fix2.cjs      # 或自己 fetch 线上 js/css 搜新代码片段
+```
+
+这一轮就是靠它发现"前几次部署其实没成功"，别再只看退出码。
