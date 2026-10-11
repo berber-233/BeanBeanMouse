@@ -13,7 +13,8 @@
   --danger: #B03535;
   --danger-050: #FDECEC;
   --bg: #FFF9EC;
-  --card: #FFFFFF;
+  /* 卡片从纯白改成暖白：和奶油色页面底不再"黄一块白一块"（用户反馈不协调） */
+  --card: #FFFDF7;
   --text: #3D2E1A;
   --text-2: #6B5638;
   --muted: #6F5C3E;
@@ -575,7 +576,7 @@ button { font-family: inherit; }
 .login-page { padding: 46px 20px 64px; }
 .login-card {
   position: relative; max-width: 880px; margin: 0 auto; padding: 40px 34px 30px;
-  background: linear-gradient(160deg, #FFFDF8, #FFF6E0 70%, #FDF1D8);
+  background: linear-gradient(160deg, #FFFDF8, #FDF6E6 75%, #FBF2E0);
   border: 1px solid var(--border-2); border-radius: 22px; box-shadow: var(--shadow-lg);
   text-align: center;
 }
@@ -2567,14 +2568,37 @@ html[data-daypart="day"] .hero-banner::before   { background: linear-gradient(18
 html[data-daypart="dusk"] .hero-banner::before  { background: linear-gradient(180deg, rgba(233,145,90,.46) 0%, rgba(233,145,90,0) 100%); }
 html[data-daypart="night"] .hero-banner::before { background: linear-gradient(180deg, rgba(38,48,74,.58) 0%, rgba(38,48,74,0) 100%); }
 
-/* 页脚过渡图上方的天空条：夜晚星空 / 黄昏云霞（用生成的像素贴图），其余时段不显示 */
-.sky-layer {
-  position: absolute; left: 0; right: 0; top: -110px; height: 110px;
-  background-size: cover; background-position: center bottom; opacity: 0; pointer-events: none;
-  transition: opacity .8s ease;
+/* 撤掉"页脚上方贴一条星空图"的做法（用户反馈：那不是背景，是粘上去的一张丑图）。
+ * 时段细节改为作用在**整页最底层**的背景上，见下方 .page-bg。 */
+.sky-layer { display: none !important; }
+
+/* ==================== 整页像素风底图（置于所有内容之下，用户 2026-10-12 要求） ====================
+ * 背景图就是背景：固定铺满视口、在最底层，正文与卡片都在它上面，
+ * 从根上避免"黄一块白一块"以及"图上贴图"的杂乱感。 */
+.page-bg {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-color: var(--bg, #FFF9EC);
+  background-image: url("assets/pet/bg-tile-v1.jpg");
+  background-repeat: repeat;
+  background-size: 720px auto;
+  opacity: .5;
+  transition: opacity .8s ease, background-color .6s ease;
 }
-html[data-daypart="night"] .sky-layer-night { opacity: .95; }
-html[data-daypart="dusk"]  .sky-layer-dusk  { opacity: .9; }
+/* 夜晚：在最底层再叠一层极淡的 CSS 星空（不用图片，避免"贴图感"），并压深底色 */
+html[data-daypart="night"] .page-bg {
+  opacity: .42;
+  background-image:
+    radial-gradient(1.5px 1.5px at 18% 22%, rgba(255,255,255,.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 62% 12%, rgba(255,255,255,.45) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 84% 38%, rgba(255,255,255,.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 34% 64%, rgba(255,255,255,.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 82%, rgba(255,255,255,.3) 50%, transparent 51%),
+    url("assets/pet/bg-tile-v1.jpg");
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 720px auto;
+}
+html[data-daypart="dusk"] .page-bg { opacity: .5; background-color: #FDEEE0; }
+html[data-daypart="dawn"] .page-bg { opacity: .5; background-color: #FDF0EE; }
 
 /* ==================== 产品市场优化（用户 2026-10-12） ==================== */
 /* 桌面端：筛选栏固定跟随、商品 3 列（原来 2 列偏空）；工具行排整齐 */
