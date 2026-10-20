@@ -5417,7 +5417,7 @@ function sideNav(items, activeTab) {
   return '<aside class="card dash-side">'
     + '<div class="side-user"><span class="side-avatar' + (u.role === 'admin' ? ' avatar-admin' : '') + '">'
     + (u.role === 'admin'
-      ? '<img src="/assets/pet/avatar/admin-c3-128.png" alt="" width="128" height="128" decoding="async">'
+      ? '<img src="assets/pet/avatar/admin-c3-128.png" alt="" width="128" height="128" decoding="async">'
       : esc(String(u.name || '?')[0].toUpperCase()))
     + '</span>'
     + '<div class="side-user-txt"><div class="name">' + esc(u.name) + '</div>'

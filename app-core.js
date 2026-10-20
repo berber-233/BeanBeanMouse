@@ -1455,7 +1455,7 @@ function renderHeader() {
       '<button type="button" class="user-chip" data-action="toggle-user-menu" aria-haspopup="true" aria-expanded="false" title="' + esc(u.email || u.name || '') + '">'
       /* 管理员用专属像素头像（C3 版）；普通用户保持首字母头像 */
       + (u.role === 'admin'
-        ? '<span class="avatar avatar-admin"><img src="/assets/pet/avatar/admin-c3-128.png" alt="" width="128" height="128" decoding="async"></span>'
+        ? '<span class="avatar avatar-admin"><img src="assets/pet/avatar/admin-c3-128.png" alt="" width="128" height="128" decoding="async"></span>'
         : '<span class="avatar">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span>')
       + '<span>' + esc(u.name) + '</span>'
       + '<span class="role-tag">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span>'
