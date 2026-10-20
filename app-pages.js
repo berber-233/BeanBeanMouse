@@ -5415,7 +5415,11 @@ function renderDashboard(path) {
 function sideNav(items, activeTab) {
   const u = state.user;
   return '<aside class="card dash-side">'
-    + '<div class="side-user"><span class="side-avatar">' + esc(String(u.name || '?')[0].toUpperCase()) + '</span>'
+    + '<div class="side-user"><span class="side-avatar' + (u.role === 'admin' ? ' avatar-admin' : '') + '">'
+    + (u.role === 'admin'
+      ? '<img src="/assets/pet/avatar/admin-c3-128.png" alt="" width="128" height="128" decoding="async">'
+      : esc(String(u.name || '?')[0].toUpperCase()))
+    + '</span>'
     + '<div class="side-user-txt"><div class="name">' + esc(u.name) + '</div>'
     + '<div class="sub">' + esc((u.role === 'seller' ? langObj(sellerById(u.sellerId)).company : u.buyerCompany || u.email)) + '</div></div>'
     + '<span class="side-role">' + (u.role === 'seller' ? t('roleSeller') : u.role === 'admin' ? t('adminRoleTag') : t('roleBuyer')) + '</span></div>'
