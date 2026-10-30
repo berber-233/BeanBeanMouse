@@ -2606,6 +2606,43 @@ html[data-daypart="dusk"] .page-bg { opacity: .5; background-color: #FDEEE0; }
 html[data-daypart="dawn"] .page-bg { opacity: .5; background-color: #FDF0EE; }
 
 /* ==================== 产品市场优化（用户 2026-10-12） ==================== */
+/* ==================== 工作台：单行化与 App 式移动布局（用户 2026-10-30） ====================
+ * 实测：桌面无折行；手机端真正折行的是审计日志表格（日期 3 行、UUID 4 行）与一个图表标题。
+ * 设计取舍：桌面保持信息密度；手机端侧栏改为横向滚动的胶囊导航，表格改为横向滚动不折行。 */
+.side-nav a { white-space: nowrap; }
+.side-nav a svg { flex: 0 0 auto; }
+.dash-side .side-user .name, .dash-side .side-user .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-card .n { white-space: nowrap; }
+.stat-card .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.sub-tabs::-webkit-scrollbar { display: none; }
+.sub-tab { white-space: nowrap; }
+
+@media (max-width: 820px) {
+  /* 侧栏变成 App 式横向导航条 */
+  .dash-side { position: static; padding: 10px 12px; }
+  .dash-side .side-user { display: flex; align-items: center; gap: 8px; padding: 2px 2px 10px; margin-bottom: 8px; }
+  .side-user-txt { min-width: 0; }
+  .dash-side .side-user .sub { display: none; }
+  .side-role { margin-left: auto; }
+  .side-nav { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 2px; scrollbar-width: none; }
+  .side-nav::-webkit-scrollbar { display: none; }
+  .side-nav a { flex: 0 0 auto; border-left: 0; border-radius: 999px; padding: 8px 12px; font-size: 13px; background: var(--primary-050); }
+  .side-nav a.active { background: var(--primary); color: #fff; }
+  .side-nav a.active .badge-dot { background: var(--accent); color: #3A2A00; }
+  .side-nav .badge-dot { margin-left: 4px; }
+  /* 标题独占一行，提示文字换到下一行，不再挤压标题 */
+  .panel-head { flex-wrap: wrap; gap: 6px; }
+  .panel-head h2 { flex: 1 0 100%; font-size: 15px; line-height: 1.35; letter-spacing: -.1px; }
+  /* 图表类卡片内边距再收一档，给标题留出完整一行 */
+  .stat-grid--two .panel, .stat-grid--two .card { padding: 12px; }
+  /* 管理表格：宁可横向滚动，也不把日期/单号折成三四行 */
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table th, .table td { white-space: nowrap; }
+  .table { min-width: 680px; }
+  .stat-grid { gap: 10px; }
+  .stat-card { padding: 14px; gap: 10px; }
+}
 /* 管理员像素头像：填满头像圆位、像素化渲染，不拉伸变形 */
 .avatar.avatar-admin img, .side-avatar.avatar-admin img {
   width: 100%; height: 100%; display: block; object-fit: cover;
