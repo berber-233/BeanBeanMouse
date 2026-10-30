@@ -5956,7 +5956,7 @@ function systemCheckHtml() {
   }
   const d = sysCheckData;
   const row = (label, ok, detail) => '<div class="sys-row"><span class="sys-dot ' + (ok ? 'ok' : 'warn') + '"></span>'
-    + '<b>' + esc(label) + '</b><span class="small muted">' + esc(detail) + '</span></div>';
+    + '<b title="' + esc(label) + '">' + esc(label) + '</b><span class="small muted" title="' + esc(detail) + '">' + esc(detail) + '</span></div>';
   return '<div class="card panel sys-check" id="sysCheck"><div class="panel-head"><h2>' + icon('shield') + ' ' + t('sysCheckTitle') + '</h2>'
     + '<button type="button" class="btn btn-sm" data-action="reload-session-data">' + t('refresh') + '</button></div>'
     + '<div class="sys-grid">'
