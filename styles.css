@@ -1297,16 +1297,115 @@ body.modal-open { overflow: hidden; }
 .conv-export { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .conv-export .small { margin-right: 4px; }
 
-/* ---------- 名片 3D 查看（旋转 / 翻转 / 背面 / 炫彩流光） ---------- */
-.card3d { perspective: 1400px; display: flex; justify-content: center; padding: 8px 0; }
-.card3d-inner { position: relative; width: min(560px, 92vw); aspect-ratio: 7 / 4; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.2, .7, .3, 1); cursor: grab; }
-.card3d-inner:active { cursor: grabbing; }
-.card3d-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 44px rgba(0, 0, 0, .35); background: #1A1D25; }
-.card3d-face.front img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.card3d-face.back { transform: rotateY(180deg); }
-.holo { position: absolute; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: overlay; border-radius: 14px; background: linear-gradient(115deg, transparent 16%, rgba(255,120,180,.30) 30%, rgba(120,220,255,.30) 44%, rgba(255,220,120,.28) 58%, rgba(170,140,255,.26) 70%, transparent 84%); background-size: 230% 230%; animation: holoFlow 5.5s linear infinite; }
-@keyframes holoFlow { 0% { background-position: 0% 50%; } 100% { background-position: 230% 50%; } }
-.card-back { position: relative; width: 100%; height: 100%; padding: 24px 28px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; }
+/* ---------- 名片：WebGL2 平面反射金属材质 + 全向 360° 查看 ---------- */
+.card3d {
+  perspective: 1500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: min(430px, 62vh);
+  padding: 24px 0;
+  outline: none;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+}
+.card3d:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); border-radius: 18px; }
+.card3d-inner {
+  --card-ratio: 7 / 4;
+  position: relative;
+  width: min(560px, 88vw);
+  aspect-ratio: var(--card-ratio);
+  transform-style: preserve-3d;
+  cursor: grab;
+  filter: drop-shadow(0 26px 34px rgba(7, 17, 31, .32));
+  will-change: transform;
+}
+.card3d.is-dragging .card3d-inner { cursor: grabbing; }
+.card3d-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #09182c;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.card3d-face.front { transform: translateZ(1.2px); }
+.card3d-face.back { transform: rotateY(180deg) translateZ(1.2px); }
+.metal-card-canvas,
+.metal-card-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+.metal-card-fallback { z-index: 1; object-fit: cover; display: block; transition: opacity .25s ease; }
+.metal-card-fallback.is-hidden { opacity: 0; }
+.metal-card-canvas { z-index: 2; opacity: 0; display: block; transition: opacity .28s ease; }
+.metal-card-stage.is-webgl-ready .metal-card-canvas { opacity: 1; }
+.metal-card-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(112deg, rgba(255,255,255,.28), transparent 24%, transparent 66%, rgba(255,226,166,.14) 82%, transparent),
+    radial-gradient(circle at 16% 8%, rgba(255,255,255,.20), transparent 24%);
+  mix-blend-mode: screen;
+  opacity: .48;
+}
+.metal-card-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 240, 203, .54);
+  box-shadow:
+    inset 0 0 0 1px rgba(8, 28, 52, .52),
+    inset 0 1px 0 rgba(255,255,255,.26),
+    inset 0 -1px 0 rgba(3, 10, 18, .54);
+}
+.metal-card-legend {
+  position: absolute;
+  right: 18px;
+  top: 16px;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  color: #FFF1CC;
+  text-shadow: 0 1px 8px rgba(4, 12, 24, .84);
+}
+.metal-card-legend span {
+  font: 600 8px/1.1 Georgia, "Times New Roman", serif;
+  letter-spacing: .2em;
+  opacity: .82;
+}
+.metal-card-legend b {
+  font: 600 10px/1.2 ui-monospace, Consolas, monospace;
+  letter-spacing: .1em;
+}
+.metal-card-note { margin: 7px 0 13px; text-align: center; }
+.card-back { position: relative; width: 100%; height: 100%; padding: 24px 28px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; overflow: hidden; }
+.metal-card-back::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(118deg, rgba(255,255,255,.18), transparent 28%, transparent 62%, rgba(255,216,145,.16));
+  mix-blend-mode: screen;
+}
+.card-back.portrait-pass { padding: 42px 34px 36px; }
+.card-back.portrait-pass .cb-mark { margin-top: 36px; }
+.card-back.portrait-pass .cb-motto { max-width: 320px; line-height: 1.7; }
+.card-back.portrait-pass .cb-qr svg { width: 94px; height: 94px; }
+.card-back.portrait-pass .cb-foot { padding-top: 14px; }
 .cb-frame { position: absolute; inset: 10px; border: 1px solid; border-radius: 10px; pointer-events: none; }
 .cb-mark { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 16px; position: relative; }
 .cb-mark img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
@@ -1318,7 +1417,32 @@ body.modal-open { overflow: hidden; }
 .cb-qr span { font-size: 10px; letter-spacing: 2px; }
 .cb-foot { width: 100%; border-top: 1px solid; padding-top: 8px; font-family: Georgia, serif; font-size: 12px; letter-spacing: 2px; position: relative; }
 .cb-holder { font-size: 11px; letter-spacing: 1px; opacity: .85; position: relative; }
+.cb-serial { font-family: ui-monospace, Consolas, monospace; letter-spacing: .12em; }
 .card3d-controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 6px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .card3d { min-height: min(360px, 56vh); padding: 14px 0; }
+  .card3d-inner { width: min(92vw, 390px); }
+  .card3d-face { border-radius: 18px; }
+  .metal-card-legend { top: 10px; right: 12px; }
+  .metal-card-legend span { font-size: 6px; }
+  .metal-card-legend b { font-size: 8px; }
+  .card-back { padding: 12px 16px; }
+  .cb-mark { margin-top: 8px; gap: 2px; }
+  .cb-mark img { width: 34px; height: 34px; }
+  .cb-mark b { font-size: 13px; }
+  .cb-mark span, .cb-motto { font-size: 8px; }
+  .cb-qr svg { width: 52px; height: 52px; }
+  .cb-qr span { font-size: 7px; }
+  .cb-foot { padding-top: 4px; font-size: 8px; }
+  .cb-holder { font-size: 7px; }
+  .card-back.portrait-pass { padding: 24px 22px; }
+  .card-back.portrait-pass .cb-mark { margin-top: 12px; }
+  .card-back.portrait-pass .cb-qr svg { width: 72px; height: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .metal-card-fallback,
+  .metal-card-canvas { transition: none; }
+}
 
 /* ---------- 站内消息与通知 ---------- */
 .messages-layout { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 14px; min-height: 420px; }

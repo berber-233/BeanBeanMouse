@@ -34,7 +34,7 @@ function resolveBrowser() {
     headless: true,
     /* CI（GitHub Actions 等容器）里通常没有 GPU/共享内存，需要关沙箱并换临时目录，
      * 否则 Chrome 会直接起不来。本地不受影响。 */
-    args: process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : []
+    args: process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--enable-unsafe-swiftshader'] : []
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(5000);   // 缺元素快速失败（容错包装会记为 FAIL），避免整轮被 30s 默认超时拖死
@@ -254,7 +254,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.310 shown', /v1\.310/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.320 shown', /v1\.320/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -504,12 +504,19 @@ function resolveBrowser() {
   });
   await page.waitForTimeout(500);
   check('buyer: business card uploaded', await page.locator('.card-preview-box img').count() === 1);
-  check('buyer: card template options shown', await page.locator('[data-action="card-template"]').count() === 5);
+  check('buyer: card template options shown', await page.locator('[data-action="card-template"]').count() === 6);
   const cardBefore = await page.locator('.card-preview-box img').getAttribute('src');
   await page.locator('[data-action="card-template"]').first().click();
   await page.waitForTimeout(600);
   const cardAfter = await page.locator('.card-preview-box img').getAttribute('src');
   check('buyer: template generates new card', !!cardAfter && cardAfter !== cardBefore && cardAfter.length > 1000);
+  const cardRatio = await page.evaluate(src => new Promise(resolve => {
+    const image = new Image();
+    image.onload = () => resolve(image.naturalWidth / image.naturalHeight);
+    image.onerror = () => resolve(0);
+    image.src = src;
+  }), cardAfter);
+  check('buyer: reflective pass uses 320:500 portrait ratio', Math.abs(cardRatio - 0.64) < 0.02);
 
   await page.evaluate(() => { location.hash = '#/dashboard'; });
   await page.waitForTimeout(300);
@@ -748,12 +755,42 @@ function resolveBrowser() {
   await page.locator('[data-action="view-card"]').first().click();
   await page.waitForTimeout(300);
   check('seller: business card modal opens', await page.locator('#cardViewImg').count() === 1);
-  const wmSrc = await page.locator('#cardViewImg').getAttribute('src');
-  check('seller: business card watermarked', !!wmSrc && wmSrc !== cardSrc && wmSrc.indexOf('data:image/') === 0);
+  const cardViewSrc = await page.locator('#cardViewImg').getAttribute('src');
+  check('seller: business card has no watermark', !!cardViewSrc && cardViewSrc === cardSrc);
+  check('seller: business card stays downloadable', await page.locator('#cardViewDownload').getAttribute('href') === cardSrc);
+  const reflective = await page.evaluate(() => {
+    const canvas = document.querySelector('.metal-card-canvas');
+    const stage = document.getElementById('card3d');
+    return {
+      canvas: !!canvas,
+      webgl2: !!(canvas && canvas.getContext('webgl2')),
+      mounted: !!window.__activeReflectiveCard,
+      ready: !!(stage && stage.classList.contains('is-webgl-ready')),
+      serial: (document.querySelector('.metal-card-legend b') || {}).textContent || ''
+    };
+  });
+  check('seller: reflective card uses WebGL2', reflective.canvas && reflective.webgl2 && reflective.mounted && reflective.ready);
+  check('seller: reflective card shows member serial', /^\d{4} \d{4} \d{4}$/.test(reflective.serial));
+  check('seller: full rotation reset control present', await page.locator('[data-action="card-reset"]').count() === 1);
   await safeClick('[data-action="card-flip"]');
-  await page.waitForTimeout(350);
+  await page.waitForTimeout(650);
   const flipT = await page.locator('#card3dInner').getAttribute('style');
-  check('seller: card flips to back view', (flipT || '').indexOf('180') >= 0);
+  check('seller: card flips to back view', /rotateY\((?:1[5-8]\d|170)/.test(flipT || ''));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+  const mobileCard = await page.evaluate(() => {
+    const stage = document.getElementById('card3d');
+    const rig = document.getElementById('card3dInner');
+    const rect = rig ? rig.getBoundingClientRect() : null;
+    return {
+      noOverflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
+      fits: !!rect && rect.width <= window.innerWidth && rect.height <= window.innerHeight,
+      resetVisible: !!document.querySelector('[data-action="card-reset"]')
+    };
+  });
+  check('mobile: reflective card fits viewport', mobileCard.noOverflow && mobileCard.fits && mobileCard.resetVisible);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForTimeout(200);
   await safeCloseModal();
   await page.waitForTimeout(200);
 
@@ -1091,7 +1128,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.310', /v1\.310/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.320', /v1\.320/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });

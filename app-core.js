@@ -959,18 +959,25 @@ function handleAction(el) {
       if (i) openCardModal(i);
       break;
     }
-    /* 名片放大查看（之前预览很小，客户得用放大镜看） */
     case 'zoom-card': {
-      const img = document.querySelector('.card-preview-box img, .card3d-face.front img');
-      const src = img ? img.getAttribute('src') : '';
-      if (!src) break;
-      showModal('<div class="modal-head"><h3>' + t('businessCard') + '</h3>'
-        + '<button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
-        + '<div class="modal-body"><img class="card-zoom-img" src="' + src + '" alt="' + esc(t('businessCard')) + '">'
-        + '<p class="small muted">' + t('cardZoomHint') + '</p></div>');
+      const src = businessCardOf();
+      if (!src || !state.user) break;
+      const profile = (state.profiles || {})[state.user.id] || {};
+      openCardModal({
+        card: src,
+        cardName: state.user.businessCardName || profile.businessCardName || 'business-card',
+        name: state.user.name || '',
+        company: profile.company || state.user.company || '',
+        buyerId: state.user.id
+      });
       break;
     }
-    case 'card-flip': card3d.flipped = !card3d.flipped; card3dTransform(); break;
+    case 'card-flip':
+      if (window.__activeReflectiveCard) window.__activeReflectiveCard.flip();
+      break;
+    case 'card-reset':
+      if (window.__activeReflectiveCard) window.__activeReflectiveCard.reset();
+      break;
     case 'view-attach': {
       const i = state.inquiries.find(x => x.id === el.dataset.id);
       if (i) openAttachModal(findInquiryAttachment(i, el.dataset.name));
@@ -1347,6 +1354,10 @@ function modalFocusables() {
     .filter(el => el.offsetParent !== null || el === document.activeElement);
 }
 function showModal(html) {
+  if (window.__activeReflectiveCard && window.__activeReflectiveCard.destroy) {
+    window.__activeReflectiveCard.destroy();
+    window.__activeReflectiveCard = null;
+  }
   setTimeout(mountTurnstile, 0);
   lastFocusedEl = document.activeElement;
   document.body.classList.add('modal-open');
@@ -1364,6 +1375,10 @@ function showModal(html) {
   }
 }
 function closeModal() {
+  if (window.__activeReflectiveCard && window.__activeReflectiveCard.destroy) {
+    window.__activeReflectiveCard.destroy();
+    window.__activeReflectiveCard = null;
+  }
   $('#modalRoot').innerHTML = '';
   document.body.classList.remove('modal-open');
   if (lastFocusedEl && lastFocusedEl.focus) lastFocusedEl.focus();

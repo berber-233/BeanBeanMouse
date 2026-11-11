@@ -676,7 +676,7 @@ let oneLangProductId = null, oneLangCode = '';
 }
 {
   const r = await req('/card-templates', { method: 'GET' });
-  check('card-templates -> 5 presets', r.status === 200 && Array.isArray(r.data) && r.data.length === 5);
+  check('card-templates -> 6 presets', r.status === 200 && Array.isArray(r.data) && r.data.length === 6);
   const s = await req('/compliance/screen', { method: 'POST', body: { text: 'Military drone with night vision' } });
   check('compliance screen -> flags', s.status === 200 && s.data.clean === false && s.data.hits.length >= 3);
   const e = await req('/logistics/estimate', { method: 'POST', body: { mode: 'sea', weight: 500, volume: 3, container: 'LCL' } });

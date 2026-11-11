@@ -1993,6 +1993,21 @@ function businessCardOf() {
   return state.user.businessCard || ((state.profiles || {})[state.user.id] || {}).businessCard || null;
 }
 function hasBusinessCard() { return !!businessCardOf(); }
+function cardSerialOf(seed) {
+  let hash = 2166136261;
+  const source = String(seed || 'BeanBeanMouse');
+  for (let i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const groups = [];
+  for (let i = 0; i < 3; i++) {
+    hash ^= 0x9E3779B9 + i;
+    hash = Math.imul(hash, 16777619);
+    groups.push(String(hash >>> 0).padStart(10, '0').slice(-4));
+  }
+  return groups.join(' ');
+}
 
 /* 名片图片先缩到合理尺寸再存：名片直接以图片数据存在个人资料里（不走对象存储），
  * 原图动辄几 MB，压一下既省数据库也加载更快。 */
@@ -2040,51 +2055,6 @@ function renderBusinessCardPreview(wrap) {
       + '<div class="flex gap-10"><a class="btn btn-sm" href="' + card + '" download="' + esc(state.user.businessCardName || 'business-card') + '">' + t('downloadCard') + '</a>'
       + '<button type="button" class="btn btn-sm" data-action="card-remove">' + t('cardRemoveBtn') + '</button></div></div>'
     : '<p class="small muted">' + t('cardNoCard') + '</p>';
-}
-function cardWatermarkLine(name) {
-  return (state.lang === 'zh' ? '豆豆鼠展示 · ' : 'BeanBeanMouse · ') + (name || '');
-}
-function watermarkImage(dataUrl, name) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const maxW = 1600;
-        const scale = Math.min(1, maxW / Math.max(1, img.naturalWidth || 1));
-        const w = Math.round((img.naturalWidth || 1) * scale);
-        const h = Math.round((img.naturalHeight || 1) * scale);
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const line = cardWatermarkLine(name);
-        const fontPx = Math.max(11, Math.round(h * 0.034));
-        ctx.save();
-        ctx.globalAlpha = 0.075;
-        ctx.font = '600 ' + fontPx + 'px "Segoe UI", Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(30, 20, 5, 0.55)';
-        ctx.shadowBlur = 3;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.translate(w / 2, h / 2);
-        ctx.rotate(-Math.PI / 6);
-        const stepX = Math.max(150, Math.round(w * 0.42));
-        const stepY = Math.max(80, Math.round(h * 0.30));
-        for (let y = -h; y <= h * 2; y += stepY) {
-          for (let x = -w; x <= w * 2; x += stepX) {
-            ctx.fillText(line, x, y);
-          }
-        }
-        ctx.globalAlpha = 0.13;
-        ctx.fillText(line, 0, 0);
-        ctx.restore();
-        resolve(c.toDataURL(String(dataUrl || '').indexOf('image/png') >= 0 ? 'image/png' : 'image/jpeg', 0.92));
-      } catch (err) { reject(err); }
-    };
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
 }
 function templateCompanyEn(company) {
   const map = {
@@ -2151,7 +2121,9 @@ async function renderCardTemplate(tplId, fields, opts) {
     const letters = String(companyEn || '').replace(/[^A-Za-z]/g, '').toUpperCase();
     return (letters.slice(0, 2) || 'BB');
   };
-  const W = 1050, H = 600;
+  const portraitPass = tplId === 'reflective-pass';
+  const W = portraitPass ? 640 : 1050;
+  const H = portraitPass ? 1000 : 600;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
@@ -2174,7 +2146,79 @@ async function renderCardTemplate(tplId, fields, opts) {
     ctx.fillStyle = color;
     ctx.fillText(str, x, y);
   };
-  if (tplId === 'classic-gold') {
+  if (tplId === 'reflective-pass') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#07182F');
+    g.addColorStop(0.34, '#17446E');
+    g.addColorStop(0.58, '#B9823E');
+    g.addColorStop(0.76, '#FFF2CF');
+    g.addColorStop(1, '#101A2B');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    const blue = ctx.createLinearGradient(0, 0, W, H * 0.62);
+    blue.addColorStop(0, 'rgba(2,15,35,.9)');
+    blue.addColorStop(0.62, 'rgba(15,57,96,.66)');
+    blue.addColorStop(1, 'rgba(4,13,28,0)');
+    ctx.fillStyle = blue;
+    ctx.fillRect(0, 0, W, H);
+
+    const glow = ctx.createRadialGradient(W * 0.82, H * 0.24, 8, W * 0.82, H * 0.24, W * 0.58);
+    glow.addColorStop(0, 'rgba(255,246,210,.8)');
+    glow.addColorStop(0.24, 'rgba(234,177,96,.34)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(W * 0.17, H * 0.12);
+    ctx.rotate(-0.34);
+    ctx.fillStyle = 'rgba(236,247,255,.48)';
+    ctx.fillRect(0, -H, 12, H * 2);
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(255,238,197,.55)';
+    ctx.lineWidth = 2;
+    rr(ctx, 24, 24, W - 48, H - 48, 22);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(209,162,90,.22)';
+    ctx.lineWidth = 1;
+    rr(ctx, 38, 38, W - 76, H - 76, 17);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.letterSpacing = '4px';
+    yh('BEANBEANMOUSE', 64, 82, 13, '600', '#F7E8C3', 'Georgia, serif');
+    ctx.restore();
+    yh(t('reflectivePassTitle'), W - 64, 82, 14, '500', '#E8CA90', '"Microsoft YaHei","Segoe UI"');
+
+    yh(String(name || '').slice(0, 18), 64, 340, 52, o.font === 'sans' ? '600' : '500', '#FFF9E9', nf);
+    yh((title || '').toUpperCase(), 64, 382, 13, '500', '#D8C6A5', 'Georgia, serif');
+
+    ctx.strokeStyle = 'rgba(244,212,150,.48)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(64, 430);
+    ctx.lineTo(W - 64, 430);
+    ctx.stroke();
+
+    yh(company || 'BEANBEANMOUSE MEMBER', 64, 478, 20, '600', '#FFF5DD', '"Microsoft YaHei","Segoe UI"');
+    [
+      cardLine('cardLblEmail', email || '—'),
+      cardLine('cardLblPhone', contact || '—'),
+      address ? cardLine('cardLblAddr', address) : ''
+    ].filter(Boolean).forEach((line, i) => yh(line, 64, 526 + i * 32, 15, '400', '#CFC5B4', '"Segoe UI", Arial'));
+
+    ctx.save();
+    ctx.letterSpacing = '2px';
+    yh(t('cardSerialLabel'), 64, 846, 11, '500', '#CFC0A3', 'Georgia, serif');
+    yh(cardSerialOf(state.user && (state.user.id || state.user.email)), 64, 894, 25, '600', '#FFF4D4', 'ui-monospace, Consolas, monospace');
+    ctx.restore();
+    ctx.save();
+    ctx.letterSpacing = '3px';
+    yh('BEANBEANMOUSE.COM', 64, 952, 11, '500', '#B8AA90', 'Georgia, serif');
+    ctx.restore();
+  } else if (tplId === 'classic-gold') {
     const g = ctx.createLinearGradient(0, 0, W, H);
     g.addColorStop(0, '#FFFDF6'); g.addColorStop(0.6, '#FFF6E0'); g.addColorStop(1, '#FBEBC9');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -2303,7 +2347,7 @@ async function renderCardTemplate(tplId, fields, opts) {
     yh(company || 'COMPANY', 84, 340, 20, '600', '#3D2E1A', '"Microsoft YaHei","Segoe UI"');
   }
   if (o.logo) {
-    const pos = tplId === 'classic-gold' ? [100, 84, 34] : [56, 56, 26];
+    const pos = tplId === 'reflective-pass' ? [W - 94, 128, 28] : tplId === 'classic-gold' ? [100, 84, 34] : [56, 56, 26];
     await drawLogoImage(ctx, o.logo, pos[0], pos[1], pos[2]);
   }
   return c.toDataURL('image/png');
@@ -2420,30 +2464,6 @@ function passwordPanelHtml() {
     + '<p class="small muted" data-pwd-result hidden></p>'
     + '</form></div>';
 }
-const card3d = { rx: -6, ry: 0, flipped: false };
-function card3dTransform() {
-  const el = document.getElementById('card3dInner');
-  if (el) el.style.transform = 'rotateX(' + card3d.rx + 'deg) rotateY(' + (card3d.flipped ? 180 + card3d.ry : card3d.ry) + 'deg)';
-}
-function bindCard3dDrag() {
-  const stage = document.getElementById('card3d');
-  if (!stage) return;
-  let dragging = false, sx = 0, sy = 0;
-  stage.addEventListener('pointerdown', e => {
-    dragging = true;
-    sx = e.clientX; sy = e.clientY;
-    stage.setPointerCapture(e.pointerId);
-  });
-  stage.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    card3d.ry = Math.max(-75, Math.min(75, card3d.ry + (e.clientX - sx) * 0.45));
-    card3d.rx = Math.max(-40, Math.min(40, card3d.rx - (e.clientY - sy) * 0.35));
-    sx = e.clientX; sy = e.clientY;
-    card3dTransform();
-  });
-  stage.addEventListener('pointerup', () => { dragging = false; });
-  stage.addEventListener('pointercancel', () => { dragging = false; });
-}
 function cardTemplateIdOf(i) {
   const m = String(i.cardName || '').match(/card-([a-z0-9-]+)\.png/i);
   return m ? m[1] : '';
@@ -2451,7 +2471,8 @@ function cardTemplateIdOf(i) {
 function cardBackHtml(i) {
   const tplId = cardTemplateIdOf(i);
   const tpl = (typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []).find(t => t.id === tplId);
-  const dark = ['luxe-ink', 'modern-blue'].includes(tplId);
+  const dark = ['reflective-pass', 'luxe-ink', 'modern-blue'].includes(tplId);
+  const portrait = tplId === 'reflective-pass' ? ' portrait-pass' : '';
   const bg = tpl ? tpl.swatch : 'linear-gradient(158deg,#1A1D25,#20242E 50%,#151820)';
   const fg = dark ? '#E9E2D0' : '#3D2E1A';
   const sub = dark ? '#A99F8C' : '#8A7654';
@@ -2460,57 +2481,44 @@ function cardBackHtml(i) {
   const holder = (i.company ? i.company + ' · ' : '') + (i.name || '');
   /* 真二维码（扫码直接进官网）。以前这里是手画的假方块，扫不出来 —— 纯装饰。 */
   const qr = realQrSvg('https://beanbeanmouse.com', 2);
-  return '<div class="card-back" style="background:' + bg + ';color:' + fg + '">'
+  return '<div class="card-back' + portrait + '" style="background:' + bg + ';color:' + fg + '">'
     + '<div class="cb-frame" style="border-color:' + line + '"></div>'
     + '<div class="cb-mark"><img src="assets/mascot-main.jpg" alt="" loading="lazy" decoding="async"><b>BeanBeanMouse</b><span>豆豆鼠宠物用品</span></div>'
     + '<div class="cb-motto" style="color:' + sub + '">以精工，致远方 —— 让每一笔跨国生意更简单。</div>'
     + '<div class="cb-qr">' + qr + '<span style="color:' + sub + '">扫码进入官网</span></div>'
     + '<div class="cb-foot" style="border-top-color:' + line + ';color:' + sub + '">beanbeanmouse.com</div>'
-    + '<div class="cb-holder" style="color:' + sub + '">' + esc(holder) + '</div>'
+    + '<div class="cb-holder" style="color:' + sub + '">' + esc(holder) + '<br><span class="cb-serial">' + esc(cardSerialOf(i.buyerId || i.id || i.email || i.name)) + '</span></div>'
     + '</div>';
 }
-async function openCardModal(i) {
+function openCardModal(i) {
   if (!i || !i.card) return;
-  card3d.rx = -6; card3d.ry = 0; card3d.flipped = false;
+  const serial = cardSerialOf(i.buyerId || i.id || i.email || i.name);
   showModal('<div class="modal-head"><h3> ' + t('businessCard') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'
     + '<div class="modal-body">'
-    + '<div class="card3d" id="card3d"><div class="card3d-inner" id="card3dInner">'
-    + '<div class="card3d-face front"><div class="holo"></div>'
-    + '<img id="cardViewImg" class="card-watermarked" src="' + i.card + '" alt="' + esc(i.cardName || t('businessCard')) + '">'
+    + '<div class="card3d metal-card-stage" id="card3d" tabindex="0" role="group" aria-label="' + esc(t('businessCard')) + '">'
+    + '<div class="card3d-inner metal-card-rig" id="card3dInner">'
+    + '<div class="card3d-face front metal-card-face metal-card-front">'
+    + '<img id="cardViewImg" class="metal-card-fallback" src="' + i.card + '" alt="' + esc(i.cardName || t('businessCard')) + '">'
+    + '<canvas class="metal-card-canvas" aria-hidden="true"></canvas>'
+    + '<div class="metal-card-sheen" aria-hidden="true"></div>'
+    + '<div class="metal-card-edge" aria-hidden="true"></div>'
+    + '<div class="metal-card-legend"><span>' + t('reflectivePassSub') + '</span><b>' + esc(serial) + '</b></div>'
     + '</div>'
-    + '<div class="card3d-face back">' + cardBackHtml(i) + '</div>'
+    + '<div class="card3d-face back metal-card-face metal-card-back">' + cardBackHtml(i) + '</div>'
     + '</div></div>'
     + '<div class="card3d-controls">'
-    + '<button type="button" class="btn btn-sm" data-action="zoom-card">' + icon('search') + ' ' + t('cardZoom') + '</button>'
     + '<button type="button" class="btn btn-sm btn-primary" data-action="card-flip">' + icon('refresh') + ' ' + t('cardFlip') + '</button>'
+    + '<button type="button" class="btn btn-sm" data-action="card-reset">' + icon('refresh') + ' ' + t('cardReset') + '</button>'
     + '<span class="small muted">' + t('cardDragHint') + '</span>'
     + '</div>'
-    + '<p class="small muted" style="text-align:center">' + t('cardWatermarkNote') + '</p>'
+    + '<p class="small muted metal-card-note">' + t('cardMaterialNote') + '</p>'
     + '<div class="doc-actions"><a class="btn btn-primary" id="cardViewDownload" href="' + i.card + '" download="' + esc(i.cardName || 'business-card') + '">' + t('downloadCard') + '</a>'
     + '<button type="button" class="btn" data-action="close-modal">' + t('close') + '</button></div>'
     + '</div></div>');
-  bindCard3dDrag();
-  card3dTransform();
   const stage3d = document.getElementById('card3d');
-  if (stage3d) {
-    stage3d.tabIndex = 0;
-    stage3d.setAttribute('role', 'group');
-    stage3d.setAttribute('aria-label', t('businessCard'));
-    stage3d.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        card3d.flipped = !card3d.flipped;
-        card3dTransform();
-      }
-    });
+  if (stage3d && window.createReflectiveCard3D) {
+    window.__activeReflectiveCard = window.createReflectiveCard3D(stage3d, { imageUrl: i.card });
   }
-  try {
-    const wm = await watermarkImage(i.card, i.name || '');
-    const img = document.getElementById('cardViewImg');
-    if (img) img.src = wm;
-    const dl = document.getElementById('cardViewDownload');
-    if (dl) dl.href = wm;
-  } catch (e) { /* 水印失败时保留原图展示 */ }
 }
 function registerFormHtml() {
   return '<div class="modal-head"><h3>' + t('regTitle') + '</h3><button type="button" class="modal-x" data-action="close-modal" aria-label="' + t('close') + '">' + icon('x') + '</button></div>'

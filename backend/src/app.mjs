@@ -658,6 +658,7 @@ async function verifyEvidenceChain(orderId) {
 /* ---------- v0.2 模块静态数据 ---------- */
 const EXPORT_ITEMS = ['customs-reg', 'fx-account', 'tax-rebate', 'export-license', 'inspection', 'co-qualification', 'dangerous-goods'];
 const CARD_TEMPLATES = [
+  { id: 'reflective-pass', zh: '镜面通行证', en: 'Reflective Pass', swatch: 'linear-gradient(135deg,#071A33 0%,#17446E 36%,#D1A25A 58%,#FFF7DF 76%,#111B2C 100%)' },
   { id: 'classic-gold', zh: '经典暖金', en: 'Classic Gold', swatch: 'linear-gradient(135deg,#FFF6E0,#FBEBC9)' },
   { id: 'luxe-ink', zh: '低调奢华', en: 'Luxe Ink', swatch: 'linear-gradient(135deg,#20242E,#14171E)' },
   { id: 'minimal-white', zh: '简约留白', en: 'Minimal White', swatch: 'linear-gradient(135deg,#FFFFFF,#F2F2F2)' },
