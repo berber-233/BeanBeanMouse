@@ -1317,8 +1317,20 @@ body.modal-open { overflow: hidden; }
   width: min(560px, 88vw);
   aspect-ratio: var(--card-ratio);
   transform-style: preserve-3d;
+  cursor: default;
+}
+.card3d-inner::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: inherit;
+  transform: translateZ(-2.4px);
+  background: linear-gradient(145deg, #061224, #173857 52%, #0A1421);
+  box-shadow: 0 22px 38px rgba(7, 17, 31, .28);
+}
+.card3d.is-interactive .card3d-inner {
   cursor: grab;
-  filter: drop-shadow(0 26px 34px rgba(7, 17, 31, .32));
   will-change: transform;
 }
 .card3d.is-dragging .card3d-inner { cursor: grabbing; }
@@ -1331,8 +1343,8 @@ body.modal-open { overflow: hidden; }
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.card3d-face.front { transform: translateZ(1.2px); }
-.card3d-face.back { transform: rotateY(180deg) translateZ(1.2px); }
+.card3d-face.front { transform: translateZ(2px); }
+.card3d-face.back { transform: rotateY(180deg) translateZ(2px); }
 .metal-card-canvas,
 .metal-card-fallback {
   position: absolute;
@@ -1352,11 +1364,11 @@ body.modal-open { overflow: hidden; }
   pointer-events: none;
   border-radius: inherit;
   background:
-    linear-gradient(112deg, rgba(255,255,255,.28), transparent 24%, transparent 66%, rgba(255,226,166,.14) 82%, transparent),
-    radial-gradient(circle at 16% 8%, rgba(255,255,255,.20), transparent 24%);
-  mix-blend-mode: screen;
-  opacity: .48;
+    linear-gradient(112deg, rgba(255,255,255,.24), transparent 24%, transparent 66%, rgba(255,226,166,.12) 82%, transparent),
+    radial-gradient(circle at 16% 8%, rgba(255,255,255,.17), transparent 24%);
+  opacity: .3;
 }
+.card3d.is-interactive .metal-card-sheen { opacity: .4; }
 .metal-card-edge {
   position: absolute;
   inset: 0;
@@ -1398,8 +1410,7 @@ body.modal-open { overflow: hidden; }
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(118deg, rgba(255,255,255,.18), transparent 28%, transparent 62%, rgba(255,216,145,.16));
-  mix-blend-mode: screen;
+  background: linear-gradient(118deg, rgba(255,255,255,.14), transparent 28%, transparent 62%, rgba(255,216,145,.12));
 }
 .card-back.portrait-pass { padding: 42px 34px 36px; }
 .card-back.portrait-pass .cb-mark { margin-top: 36px; }
@@ -1418,6 +1429,33 @@ body.modal-open { overflow: hidden; }
 .cb-foot { width: 100%; border-top: 1px solid; padding-top: 8px; font-family: Georgia, serif; font-size: 12px; letter-spacing: 2px; position: relative; }
 .cb-holder { font-size: 11px; letter-spacing: 1px; opacity: .85; position: relative; }
 .cb-serial { font-family: ui-monospace, Consolas, monospace; letter-spacing: .12em; }
+.card-view-switch {
+  display: flex;
+  width: max-content;
+  margin: 12px auto 0;
+  padding: 3px;
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  background: #F4EDDE;
+  box-shadow: inset 0 1px 2px rgba(72, 48, 14, .08);
+}
+.card-view-switch button {
+  min-width: 104px;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.card-view-switch button.on {
+  background: #172B45;
+  color: #FFF2D4;
+  box-shadow: 0 3px 10px rgba(16, 37, 63, .22);
+}
+.card-view-switch button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .card3d-controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 6px; flex-wrap: wrap; }
 @media (max-width: 720px) {
   .card3d { min-height: min(360px, 56vh); padding: 14px 0; }
@@ -1438,6 +1476,8 @@ body.modal-open { overflow: hidden; }
   .card-back.portrait-pass { padding: 24px 22px; }
   .card-back.portrait-pass .cb-mark { margin-top: 12px; }
   .card-back.portrait-pass .cb-qr svg { width: 72px; height: 72px; }
+  .card-view-switch { width: 100%; }
+  .card-view-switch button { flex: 1; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .metal-card-fallback,

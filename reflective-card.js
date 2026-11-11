@@ -20,7 +20,6 @@
     uniform vec2 uResolution;
     uniform vec2 uAngleTilt;
     uniform vec2 uPointer;
-    uniform float uTime;
     uniform float uHasCard;
     in vec2 vUv;
     out vec4 outColor;
@@ -68,7 +67,7 @@
       vec3 metalBase = mix(card, card * vec3(0.92, 0.96, 1.0) + 0.025, uHasCard);
       float edge = smoothstep(0.46, 0.5, abs(uv.x - 0.5)) + smoothstep(0.47, 0.5, abs(uv.y - 0.5));
       float fresnel = pow(1.0 - max(dot(normal, -incident), 0.0), 2.2);
-      float movingBand = smoothstep(0.88, 1.0, sin((uv.x + uv.y + uTime * 0.055) * 9.0) * 0.5 + 0.5);
+      float movingBand = smoothstep(0.88, 1.0, sin((uv.x + uv.y + uAngleTilt.y * 0.16) * 9.0) * 0.5 + 0.5);
       vec3 reflection = environment * (0.16 + fresnel * 0.62 + edge * 0.12);
       vec3 specular = vec3(1.0, 0.91, 0.72) * movingBand * (0.055 + fresnel * 0.14);
       vec3 color = metalBase * 0.88 + reflection + specular;
@@ -134,6 +133,7 @@
       ? window.matchMedia('(prefers-reduced-motion: reduce)')
       : null;
     const state = {
+      mode: 'static',
       baseX: -5,
       baseY: -10,
       hoverX: 0,
@@ -154,6 +154,7 @@
       moved: false,
       running: true,
       ready: false,
+      renderCount: 0,
       flipAnimation: null,
       raf: 0,
       lastFrame: 0
@@ -172,7 +173,6 @@
     let cardTexture = null;
     let environmentTexture = null;
     let cardImage = null;
-    let environmentLastPaint = 0;
     const uniforms = {};
 
     const rawEnvironment = document.createElement('canvas');
@@ -191,7 +191,10 @@
     function resizeCanvas() {
       if (!gl) return false;
       const rect = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const deviceDpr = window.devicePixelRatio || 1;
+      const dpr = state.mode === 'static'
+        ? Math.min(2.5, Math.max(2, deviceDpr))
+        : Math.min(2, Math.max(1.5, deviceDpr));
       const width = Math.max(1, Math.round(rect.width * dpr));
       const height = Math.max(1, Math.round(rect.height * dpr));
       if (canvas.width === width && canvas.height === height) return false;
@@ -201,11 +204,10 @@
       return true;
     }
 
-    function paintEnvironment(time) {
+    function paintEnvironment() {
       if (!rawContext || !horizontalContext || !verticalContext || !gl) return;
       const width = rawEnvironment.width;
       const height = rawEnvironment.height;
-      const orbit = reducedMotionQuery && reducedMotionQuery.matches ? 0 : Math.sin(time * 0.00035);
       const blue = rawContext.createLinearGradient(0, 0, width, height);
       blue.addColorStop(0, '#06162F');
       blue.addColorStop(0.46, '#0A2A53');
@@ -214,7 +216,7 @@
       rawContext.fillRect(0, 0, width, height);
 
       rawContext.save();
-      rawContext.translate(width * (0.28 + orbit * 0.05), height * 0.26);
+      rawContext.translate(width * 0.28, height * 0.26);
       rawContext.rotate(-0.16);
       rawContext.fillStyle = 'rgba(235, 244, 255, 0.94)';
       rawContext.fillRect(-4, -height, 8, height * 2);
@@ -222,8 +224,8 @@
       rawContext.fillRect(13, -height, 2, height * 2);
       rawContext.restore();
 
-      const warmX = width * (0.74 - orbit * 0.08);
-      const warmY = height * (0.43 + orbit * 0.04);
+      const warmX = width * 0.74;
+      const warmY = height * 0.43;
       const warm = rawContext.createRadialGradient(warmX, warmY, 2, warmX, warmY, width * 0.48);
       warm.addColorStop(0, 'rgba(255, 244, 199, 1)');
       warm.addColorStop(0.2, 'rgba(243, 182, 95, 0.92)');
@@ -293,11 +295,10 @@
         uniforms.resolution = gl.getUniformLocation(program, 'uResolution');
         uniforms.angleTilt = gl.getUniformLocation(program, 'uAngleTilt');
         uniforms.pointer = gl.getUniformLocation(program, 'uPointer');
-        uniforms.time = gl.getUniformLocation(program, 'uTime');
         uniforms.hasCard = gl.getUniformLocation(program, 'uHasCard');
         gl.uniform1i(uniforms.card, 0);
         gl.uniform1i(uniforms.environment, 1);
-        paintEnvironment(performance.now());
+        paintEnvironment();
         return true;
       } catch (error) {
         console.warn('[reflective-card] WebGL2 unavailable:', error.message);
@@ -323,6 +324,9 @@
         state.ready = true;
         stage.classList.add('is-webgl-ready');
         if (fallback) fallback.classList.add('is-hidden');
+        updateTransform();
+        render();
+        if (state.mode === 'interactive') startLoop();
       };
       image.onerror = () => {
         stage.classList.add('is-webgl-fallback');
@@ -344,13 +348,10 @@
       return { angleX, angleY };
     }
 
-    function render(time) {
+    function render() {
       if (!gl || !state.ready || !program) return;
       resizeCanvas();
-      if (time - environmentLastPaint > 32) {
-        paintEnvironment(time);
-        environmentLastPaint = time;
-      }
+      state.renderCount++;
       const angles = updateTransform();
       const radiansX = angles.angleX * Math.PI / 180;
       const radiansY = angles.angleY * Math.PI / 180;
@@ -362,16 +363,28 @@
       gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
       gl.uniform2f(uniforms.angleTilt, Math.sin(radiansY) * 0.82, Math.sin(radiansX) * 0.82);
       gl.uniform2f(uniforms.pointer, state.pointerX, state.pointerY);
-      gl.uniform1f(uniforms.time, reducedMotionQuery && reducedMotionQuery.matches ? 0 : time);
       gl.uniform1f(uniforms.hasCard, cardImage ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    function stopLoop() {
+      if (state.raf) cancelAnimationFrame(state.raf);
+      state.raf = 0;
+      state.lastFrame = 0;
+    }
+
+    function startLoop() {
+      if (!state.running || state.raf) return;
+      state.lastFrame = 0;
+      state.raf = requestAnimationFrame(frame);
     }
 
     function frame(time) {
       if (!state.running) return;
       const delta = state.lastFrame ? Math.min(0.034, (time - state.lastFrame) / 1000) : 0.016;
       state.lastFrame = time;
-      if (!state.dragging) {
+      let springActive = false;
+      if (state.mode === 'interactive' && !state.dragging) {
         const stiffness = 120;
         const damping = 16;
         const forceX = (state.targetHoverX - state.hoverX) * stiffness - state.hoverVX * damping;
@@ -380,10 +393,18 @@
         state.hoverVY += forceY * delta;
         state.hoverX += state.hoverVX * delta;
         state.hoverY += state.hoverVY * delta;
+        springActive = Math.abs(state.targetHoverX - state.hoverX) + Math.abs(state.targetHoverY - state.hoverY) > 0.025
+          || Math.abs(state.hoverVX) + Math.abs(state.hoverVY) > 0.04;
       }
+      const flipActive = !!state.flipAnimation;
       updateTransform();
-      render(time);
-      state.raf = requestAnimationFrame(frame);
+      render();
+      if (flipActive || (state.mode === 'interactive' && (state.dragging || springActive))) {
+        state.raf = requestAnimationFrame(frame);
+      } else {
+        state.raf = 0;
+        state.lastFrame = 0;
+      }
     }
 
     function reset() {
@@ -397,7 +418,8 @@
       state.targetHoverY = 0;
       state.flipAnimation = null;
       updateTransform();
-      render(performance.now());
+      render();
+      if (state.mode === 'static') stopLoop();
     }
 
     function flip() {
@@ -407,9 +429,43 @@
         to: current + 180,
         started: performance.now()
       };
+      startLoop();
+    }
+
+    function syncModeUi() {
+      const panel = stage.closest('.modal') || document;
+      stage.classList.toggle('is-interactive', state.mode === 'interactive');
+      stage.classList.toggle('is-static', state.mode !== 'interactive');
+      stage.dataset.mode = state.mode;
+      panel.querySelectorAll('[data-action="card-view-mode"]').forEach(button => {
+        const active = button.dataset.mode === state.mode;
+        button.classList.toggle('on', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const hint = panel.querySelector('#cardModeHint');
+      if (hint) {
+        const text = state.mode === 'interactive' ? hint.dataset.interactive : hint.dataset.static;
+        if (text) hint.textContent = text;
+      }
+    }
+
+    function setMode(mode) {
+      state.mode = mode === 'interactive' ? 'interactive' : 'static';
+      state.dragging = false;
+      stage.classList.remove('is-dragging');
+      if (state.mode === 'static') {
+        stopLoop();
+        reset();
+      } else {
+        state.lastFrame = 0;
+        render();
+        startLoop();
+      }
+      syncModeUi();
     }
 
     function onPointerMove(event) {
+      if (state.mode !== 'interactive') return;
       const rect = stage.getBoundingClientRect();
       const nx = Math.max(-1, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1) * 2 - 1));
       const ny = Math.max(-1, Math.min(1, (event.clientY - rect.top) / Math.max(rect.height, 1) * 2 - 1));
@@ -425,16 +481,19 @@
         state.lastPointerY = event.clientY;
         state.moved = state.moved || Math.abs(event.clientX - state.downX) + Math.abs(event.clientY - state.downY) > 5;
         updateTransform();
+        render();
         return;
       }
 
       if (!reducedMotionQuery || !reducedMotionQuery.matches) {
         state.targetHoverY = nx * 12;
         state.targetHoverX = -ny * 12;
+        startLoop();
       }
     }
 
     function onPointerDown(event) {
+      if (state.mode !== 'interactive') return;
       if (event.button != null && event.button !== 0) return;
       state.dragging = true;
       state.pointerId = event.pointerId;
@@ -447,6 +506,7 @@
       state.flipAnimation = null;
       stage.classList.add('is-dragging');
       setPointerCaptureSafe(stage, event.pointerId);
+      startLoop();
     }
 
     function finishPointer(event) {
@@ -464,6 +524,7 @@
       if (!state.dragging) {
         state.targetHoverX = 0;
         state.targetHoverY = 0;
+        if (state.mode === 'interactive') startLoop();
       }
     }
 
@@ -472,16 +533,16 @@
       if (key === 'Enter' || key === ' ') {
         event.preventDefault();
         flip();
-      } else if (key === 'ArrowLeft') {
+      } else if (state.mode === 'interactive' && key === 'ArrowLeft') {
         event.preventDefault();
         state.baseY -= 15;
-      } else if (key === 'ArrowRight') {
+      } else if (state.mode === 'interactive' && key === 'ArrowRight') {
         event.preventDefault();
         state.baseY += 15;
-      } else if (key === 'ArrowUp') {
+      } else if (state.mode === 'interactive' && key === 'ArrowUp') {
         event.preventDefault();
         state.baseX -= 15;
-      } else if (key === 'ArrowDown') {
+      } else if (state.mode === 'interactive' && key === 'ArrowDown') {
         event.preventDefault();
         state.baseX += 15;
       } else if (key === 'Home') {
@@ -491,7 +552,7 @@
       state.baseX = normalizeAngle(state.baseX);
       state.baseY = normalizeAngle(state.baseY);
       updateTransform();
-      render(performance.now());
+      render();
     }
 
     function destroy() {
@@ -503,6 +564,7 @@
       stage.removeEventListener('pointercancel', finishPointer);
       stage.removeEventListener('pointerleave', onPointerLeave);
       stage.removeEventListener('keydown', onKeyDown);
+      stopLoop();
       if (gl) {
         if (cardTexture) gl.deleteTexture(cardTexture);
         if (environmentTexture) gl.deleteTexture(environmentTexture);
@@ -511,7 +573,7 @@
         const loseContext = gl.getExtension('WEBGL_lose_context');
         if (loseContext) loseContext.loseContext();
       }
-      stage.classList.remove('is-webgl-ready', 'is-dragging');
+      stage.classList.remove('is-webgl-ready', 'is-dragging', 'is-interactive', 'is-static');
     }
 
     if (gl && initializeWebGL()) {
@@ -522,8 +584,9 @@
       stage.addEventListener('pointercancel', finishPointer);
       stage.addEventListener('pointerleave', onPointerLeave);
       stage.addEventListener('keydown', onKeyDown);
+      syncModeUi();
       updateTransform();
-      state.raf = requestAnimationFrame(frame);
+      render();
     } else {
       stage.classList.add('is-webgl-fallback');
       updateTransform();
@@ -532,9 +595,20 @@
     return {
       flip: flip,
       reset: reset,
+      setMode: setMode,
       destroy: destroy,
+      getState: function () {
+        return {
+          mode: state.mode,
+          rafActive: !!state.raf,
+          renderCount: state.renderCount,
+          ready: state.ready,
+          width: canvas.width,
+          height: canvas.height
+        };
+      },
       snapshot: function () {
-        render(performance.now());
+        render();
         return state.ready ? canvas.toDataURL('image/png') : '';
       }
     };

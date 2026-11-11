@@ -254,7 +254,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.320 shown', /v1\.320/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.330 shown', /v1\.330/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -766,11 +766,45 @@ function resolveBrowser() {
       webgl2: !!(canvas && canvas.getContext('webgl2')),
       mounted: !!window.__activeReflectiveCard,
       ready: !!(stage && stage.classList.contains('is-webgl-ready')),
+      mode: stage ? stage.dataset.mode : '',
       serial: (document.querySelector('.metal-card-legend b') || {}).textContent || ''
     };
   });
   check('seller: reflective card uses WebGL2', reflective.canvas && reflective.webgl2 && reflective.mounted && reflective.ready);
   check('seller: reflective card shows member serial', /^\d{4} \d{4} \d{4}$/.test(reflective.serial));
+  check('seller: card defaults to static high-quality view', reflective.mode === 'static'
+    && await page.locator('[data-action="card-view-mode"]').count() === 2);
+  const stillOne = await page.evaluate(() => window.__activeReflectiveCard.getState());
+  await page.waitForTimeout(450);
+  const stillTwo = await page.evaluate(() => window.__activeReflectiveCard.getState());
+  check('seller: static view does not redraw continuously', !stillTwo.rafActive && stillTwo.renderCount === stillOne.renderCount);
+  await safeClick('[data-action="card-view-mode"][data-mode="interactive"]');
+  await page.waitForTimeout(450);
+  const interactiveMode = await page.evaluate(() => ({
+    state: window.__activeReflectiveCard.getState(),
+    className: document.getElementById('card3d').className,
+    hint: document.getElementById('cardModeHint').textContent
+  }));
+  check('seller: 360 mode activates rotation state', interactiveMode.state.mode === 'interactive'
+    && interactiveMode.className.includes('is-interactive')
+    && !interactiveMode.state.rafActive);
+  const cardBox = await page.locator('#card3d').boundingBox();
+  await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(cardBox.x + cardBox.width / 2 + 120, cardBox.y + cardBox.height / 2 - 65, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const dragged = await page.evaluate(() => ({
+    transform: document.getElementById('card3dInner').style.transform,
+    state: window.__activeReflectiveCard.getState()
+  }));
+  check('seller: 360 mode supports two-axis drag', /rotateX\((?!-5deg)/.test(dragged.transform)
+    && /rotateY\((?!-10deg)/.test(dragged.transform) && !dragged.state.rafActive);
+  await safeClick('[data-action="card-view-mode"][data-mode="static"]');
+  await page.waitForTimeout(300);
+  check('seller: can return to static view', await page.evaluate(() =>
+    document.getElementById('card3d').dataset.mode === 'static'
+      && !window.__activeReflectiveCard.getState().rafActive));
   check('seller: full rotation reset control present', await page.locator('[data-action="card-reset"]').count() === 1);
   await safeClick('[data-action="card-flip"]');
   await page.waitForTimeout(650);
@@ -1128,7 +1162,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.320', /v1\.320/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.330', /v1\.330/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });

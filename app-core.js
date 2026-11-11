@@ -978,6 +978,9 @@ function handleAction(el) {
     case 'card-reset':
       if (window.__activeReflectiveCard) window.__activeReflectiveCard.reset();
       break;
+    case 'card-view-mode':
+      if (window.__activeReflectiveCard) window.__activeReflectiveCard.setMode(el.dataset.mode);
+      break;
     case 'view-attach': {
       const i = state.inquiries.find(x => x.id === el.dataset.id);
       if (i) openAttachModal(findInquiryAttachment(i, el.dataset.name));
