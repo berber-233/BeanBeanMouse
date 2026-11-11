@@ -2148,75 +2148,84 @@ async function renderCardTemplate(tplId, fields, opts) {
   };
   if (tplId === 'reflective-pass') {
     const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, '#07182F');
-    g.addColorStop(0.34, '#17446E');
-    g.addColorStop(0.58, '#B9823E');
-    g.addColorStop(0.76, '#FFF2CF');
-    g.addColorStop(1, '#101A2B');
+    g.addColorStop(0, '#11161C');
+    g.addColorStop(0.42, '#20262D');
+    g.addColorStop(0.7, '#171C22');
+    g.addColorStop(1, '#0B0F13');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    const blue = ctx.createLinearGradient(0, 0, W, H * 0.62);
-    blue.addColorStop(0, 'rgba(2,15,35,.9)');
-    blue.addColorStop(0.62, 'rgba(15,57,96,.66)');
-    blue.addColorStop(1, 'rgba(4,13,28,0)');
-    ctx.fillStyle = blue;
+    /* 细腻拉丝，而不是大面积彩色镜面：横向 1px 明暗线只负责表现表面纹理。 */
+    for (let y = 0; y < H; y += 3) {
+      ctx.fillStyle = y % 6 === 0 ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,.05)';
+      ctx.fillRect(0, y, W, 1);
+    }
+    const cool = ctx.createRadialGradient(W * 0.14, H * 0.16, 0, W * 0.14, H * 0.16, W * 0.72);
+    cool.addColorStop(0, 'rgba(112,136,154,.16)');
+    cool.addColorStop(0.45, 'rgba(50,66,78,.05)');
+    cool.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = cool;
     ctx.fillRect(0, 0, W, H);
-
-    const glow = ctx.createRadialGradient(W * 0.82, H * 0.24, 8, W * 0.82, H * 0.24, W * 0.58);
-    glow.addColorStop(0, 'rgba(255,246,210,.8)');
-    glow.addColorStop(0.24, 'rgba(234,177,96,.34)');
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
+    const champagne = ctx.createRadialGradient(W * 0.9, H * 0.08, 0, W * 0.9, H * 0.08, W * 0.5);
+    champagne.addColorStop(0, 'rgba(194,166,112,.18)');
+    champagne.addColorStop(0.38, 'rgba(125,104,72,.05)');
+    champagne.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = champagne;
     ctx.fillRect(0, 0, W, H);
-
     ctx.save();
-    ctx.translate(W * 0.17, H * 0.12);
-    ctx.rotate(-0.34);
-    ctx.fillStyle = 'rgba(236,247,255,.48)';
-    ctx.fillRect(0, -H, 12, H * 2);
+    ctx.translate(W * 0.2, 0);
+    ctx.rotate(-0.22);
+    const sheen = ctx.createLinearGradient(-40, 0, 80, 0);
+    sheen.addColorStop(0, 'rgba(255,255,255,0)');
+    sheen.addColorStop(0.5, 'rgba(231,237,241,.08)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(-40, -H, 120, H * 2);
     ctx.restore();
 
-    ctx.strokeStyle = 'rgba(255,238,197,.55)';
-    ctx.lineWidth = 2;
-    rr(ctx, 24, 24, W - 48, H - 48, 22);
+    ctx.strokeStyle = 'rgba(215,198,159,.36)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, 22, 22, W - 44, H - 44, 24);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(209,162,90,.22)';
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
     ctx.lineWidth = 1;
-    rr(ctx, 38, 38, W - 76, H - 76, 17);
+    rr(ctx, 34, 34, W - 68, H - 68, 18);
     ctx.stroke();
 
+    yh('BBM', 64, 100, 34, '600', '#D7C49A', 'Georgia, serif');
     ctx.save();
-    ctx.letterSpacing = '4px';
-    yh('BEANBEANMOUSE', 64, 82, 13, '600', '#F7E8C3', 'Georgia, serif');
+    ctx.letterSpacing = '3px';
+    yh(t('reflectivePassSub'), 64, 126, 10, '500', '#8D9399', 'Georgia, serif');
     ctx.restore();
-    yh(t('reflectivePassTitle'), W - 64, 82, 14, '500', '#E8CA90', '"Microsoft YaHei","Segoe UI"');
+    ctx.textAlign = 'right';
+    yh(t('reflectivePassTitle'), W - 64, 92, 14, '500', '#B9A47D', '"Microsoft YaHei","Segoe UI"');
+    ctx.textAlign = 'left';
 
-    yh(String(name || '').slice(0, 18), 64, 340, 52, o.font === 'sans' ? '600' : '500', '#FFF9E9', nf);
-    yh((title || '').toUpperCase(), 64, 382, 13, '500', '#D8C6A5', 'Georgia, serif');
+    yh(String(name || '').slice(0, 18), 64, 354, 52, o.font === 'sans' ? '600' : '500', '#F1EEE7', nf);
+    yh((title || '').toUpperCase(), 64, 394, 12, '500', '#9DA2A6', 'Georgia, serif');
 
-    ctx.strokeStyle = 'rgba(244,212,150,.48)';
+    ctx.strokeStyle = 'rgba(191,169,125,.30)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(64, 430);
-    ctx.lineTo(W - 64, 430);
+    ctx.moveTo(64, 440);
+    ctx.lineTo(W - 64, 440);
     ctx.stroke();
 
-    yh(company || 'BEANBEANMOUSE MEMBER', 64, 478, 20, '600', '#FFF5DD', '"Microsoft YaHei","Segoe UI"');
+    yh(company || 'BEANBEANMOUSE MEMBER', 64, 488, 19, '600', '#DEDAD1', '"Microsoft YaHei","Segoe UI"');
     [
       cardLine('cardLblEmail', email || '—'),
       cardLine('cardLblPhone', contact || '—'),
       address ? cardLine('cardLblAddr', address) : ''
-    ].filter(Boolean).forEach((line, i) => yh(line, 64, 526 + i * 32, 15, '400', '#CFC5B4', '"Segoe UI", Arial'));
+    ].filter(Boolean).forEach((line, i) => yh(line, 64, 536 + i * 31, 14, '400', '#A8AAAB', '"Segoe UI", Arial'));
 
     ctx.save();
     ctx.letterSpacing = '2px';
-    yh(t('cardSerialLabel'), 64, 846, 11, '500', '#CFC0A3', 'Georgia, serif');
-    yh(cardSerialOf(state.user && (state.user.id || state.user.email)), 64, 894, 25, '600', '#FFF4D4', 'ui-monospace, Consolas, monospace');
+    yh(t('cardSerialLabel'), 64, 850, 10, '500', '#7E858B', 'Georgia, serif');
+    yh(cardSerialOf(state.user && (state.user.id || state.user.email)), 64, 894, 24, '600', '#D8C49A', 'ui-monospace, Consolas, monospace');
     ctx.restore();
     ctx.save();
     ctx.letterSpacing = '3px';
-    yh('BEANBEANMOUSE.COM', 64, 952, 11, '500', '#B8AA90', 'Georgia, serif');
+    yh('BEANBEANMOUSE.COM', 64, 952, 10, '500', '#72797F', 'Georgia, serif');
     ctx.restore();
   } else if (tplId === 'classic-gold') {
     const g = ctx.createLinearGradient(0, 0, W, H);
@@ -2464,30 +2473,18 @@ function passwordPanelHtml() {
     + '<p class="small muted" data-pwd-result hidden></p>'
     + '</form></div>';
 }
-function cardTemplateIdOf(i) {
-  const m = String(i.cardName || '').match(/card-([a-z0-9-]+)\.png/i);
-  return m ? m[1] : '';
-}
 function cardBackHtml(i) {
-  const tplId = cardTemplateIdOf(i);
-  const tpl = (typeof CARD_TEMPLATES !== 'undefined' ? CARD_TEMPLATES : []).find(t => t.id === tplId);
-  const dark = ['reflective-pass', 'luxe-ink', 'modern-blue'].includes(tplId);
-  const portrait = tplId === 'reflective-pass' ? ' portrait-pass' : '';
-  const bg = tpl ? tpl.swatch : 'linear-gradient(158deg,#1A1D25,#20242E 50%,#151820)';
-  const fg = dark ? '#E9E2D0' : '#3D2E1A';
-  const sub = dark ? '#A99F8C' : '#8A7654';
-  const accent = dark ? '#C8A25B' : '#C8860B';
-  const line = dark ? 'rgba(200,162,91,.35)' : 'rgba(200,134,11,.3)';
-  const holder = (i.company ? i.company + ' · ' : '') + (i.name || '');
-  /* 真二维码（扫码直接进官网）。以前这里是手画的假方块，扫不出来 —— 纯装饰。 */
-  const qr = realQrSvg('https://beanbeanmouse.com', 2);
-  return '<div class="card-back' + portrait + '" style="background:' + bg + ';color:' + fg + '">'
-    + '<div class="cb-frame" style="border-color:' + line + '"></div>'
-    + '<div class="cb-mark"><img src="assets/mascot-main.jpg" alt="" loading="lazy" decoding="async"><b>BeanBeanMouse</b><span>豆豆鼠宠物用品</span></div>'
-    + '<div class="cb-motto" style="color:' + sub + '">以精工，致远方 —— 让每一笔跨国生意更简单。</div>'
-    + '<div class="cb-qr">' + qr + '<span style="color:' + sub + '">扫码进入官网</span></div>'
-    + '<div class="cb-foot" style="border-top-color:' + line + ';color:' + sub + '">beanbeanmouse.com</div>'
-    + '<div class="cb-holder" style="color:' + sub + '">' + esc(holder) + '<br><span class="cb-serial">' + esc(cardSerialOf(i.buyerId || i.id || i.email || i.name)) + '</span></div>'
+  const serial = cardSerialOf(i.buyerId || i.id || i.email || i.name);
+  return '<div class="premium-card-back">'
+    + '<div class="pcb-brushed" aria-hidden="true"></div>'
+    + '<div class="pcb-frame" aria-hidden="true"></div>'
+    + '<div class="pcb-content">'
+    + '<span class="pcb-monogram">BBM</span>'
+    + '<div class="pcb-emblem"><span class="pcb-ring" aria-hidden="true"></span>'
+    + '<img src="assets/mascot-icon.png" alt="" loading="eager" decoding="async"></div>'
+    + '<span class="pcb-wordmark">BEANBEANMOUSE</span>'
+    + '<span class="pcb-serial">' + esc(serial) + '</span>'
+    + '</div>'
     + '</div>';
 }
 function openCardModal(i) {
@@ -2497,6 +2494,10 @@ function openCardModal(i) {
     + '<div class="modal-body">'
     + '<div class="card3d metal-card-stage is-static" id="card3d" tabindex="0" role="group" aria-label="' + esc(t('businessCard')) + '" data-mode="static">'
     + '<div class="card3d-inner metal-card-rig" id="card3dInner">'
+    + '<div class="metal-card-side metal-card-side-top" aria-hidden="true"></div>'
+    + '<div class="metal-card-side metal-card-side-bottom" aria-hidden="true"></div>'
+    + '<div class="metal-card-side metal-card-side-left" aria-hidden="true"></div>'
+    + '<div class="metal-card-side metal-card-side-right" aria-hidden="true"></div>'
     + '<div class="card3d-face front metal-card-face metal-card-front">'
     + '<img id="cardViewImg" class="metal-card-fallback" src="' + i.card + '" alt="' + esc(i.cardName || t('businessCard')) + '">'
     + '<canvas class="metal-card-canvas" aria-hidden="true"></canvas>'

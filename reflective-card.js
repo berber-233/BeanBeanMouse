@@ -46,14 +46,14 @@
       float n = valueNoise(uv * vec2(95.0, 70.0));
       float nx = valueNoise((uv + vec2(e, 0.0)) * vec2(95.0, 70.0));
       float ny = valueNoise((uv + vec2(0.0, e)) * vec2(95.0, 70.0));
-      return vec2(nx - n, ny - n) * 18.0;
+      return vec2(nx - n, ny - n) * 7.0;
     }
 
     void main() {
       vec2 uv = vUv;
       vec2 micro = noiseSlope(uv);
       vec2 angleTilt = uAngleTilt * 0.36;
-      vec3 normal = normalize(vec3(micro + angleTilt + uPointer * 0.035, 1.0));
+      vec3 normal = normalize(vec3(micro + angleTilt + uPointer * 0.018, 1.0));
       vec3 incident = normalize(vec3(0.0, 0.0, -1.0));
       vec3 reflected = reflect(incident, normal);
       vec2 q = reflected.xy / max(reflected.z, 0.2);
@@ -61,19 +61,19 @@
 
       vec3 environment = texture(uEnvironmentTexture, reflectionUv).rgb;
       float luminance = dot(environment, vec3(0.2126, 0.7152, 0.0722));
-      environment = mix(vec3(luminance), environment, 0.42);
+      environment = mix(vec3(luminance), environment, 0.28);
 
       vec3 card = texture(uCardTexture, uv).rgb;
-      vec3 metalBase = mix(card, card * vec3(0.92, 0.96, 1.0) + 0.025, uHasCard);
+      vec3 metalBase = mix(card, card * vec3(0.97, 0.99, 1.0) + 0.004, uHasCard);
       float edge = smoothstep(0.46, 0.5, abs(uv.x - 0.5)) + smoothstep(0.47, 0.5, abs(uv.y - 0.5));
-      float fresnel = pow(1.0 - max(dot(normal, -incident), 0.0), 2.2);
+      float fresnel = pow(1.0 - max(dot(normal, -incident), 0.0), 2.8);
       float movingBand = smoothstep(0.88, 1.0, sin((uv.x + uv.y + uAngleTilt.y * 0.16) * 9.0) * 0.5 + 0.5);
-      vec3 reflection = environment * (0.16 + fresnel * 0.62 + edge * 0.12);
-      vec3 specular = vec3(1.0, 0.91, 0.72) * movingBand * (0.055 + fresnel * 0.14);
-      vec3 color = metalBase * 0.88 + reflection + specular;
+      vec3 reflection = environment * (0.065 + fresnel * 0.2 + edge * 0.06);
+      vec3 specular = vec3(0.82, 0.78, 0.68) * movingBand * (0.018 + fresnel * 0.045);
+      vec3 color = metalBase * 0.965 + reflection + specular;
 
       float vignette = smoothstep(0.82, 0.18, distance(uv, vec2(0.5)));
-      color *= mix(0.82, 1.03, vignette);
+      color *= mix(0.92, 1.01, vignette);
       outColor = vec4(color, 1.0);
     }`;
 
@@ -209,27 +209,27 @@
       const width = rawEnvironment.width;
       const height = rawEnvironment.height;
       const blue = rawContext.createLinearGradient(0, 0, width, height);
-      blue.addColorStop(0, '#06162F');
-      blue.addColorStop(0.46, '#0A2A53');
-      blue.addColorStop(1, '#020A18');
+      blue.addColorStop(0, '#0A1016');
+      blue.addColorStop(0.46, '#293139');
+      blue.addColorStop(1, '#05080B');
       rawContext.fillStyle = blue;
       rawContext.fillRect(0, 0, width, height);
 
       rawContext.save();
       rawContext.translate(width * 0.28, height * 0.26);
       rawContext.rotate(-0.16);
-      rawContext.fillStyle = 'rgba(235, 244, 255, 0.94)';
+      rawContext.fillStyle = 'rgba(232, 238, 242, 0.8)';
       rawContext.fillRect(-4, -height, 8, height * 2);
-      rawContext.fillStyle = 'rgba(255, 255, 255, 0.24)';
+      rawContext.fillStyle = 'rgba(255, 255, 255, 0.16)';
       rawContext.fillRect(13, -height, 2, height * 2);
       rawContext.restore();
 
       const warmX = width * 0.74;
       const warmY = height * 0.43;
       const warm = rawContext.createRadialGradient(warmX, warmY, 2, warmX, warmY, width * 0.48);
-      warm.addColorStop(0, 'rgba(255, 244, 199, 1)');
-      warm.addColorStop(0.2, 'rgba(243, 182, 95, 0.92)');
-      warm.addColorStop(0.58, 'rgba(174, 92, 39, 0.4)');
+      warm.addColorStop(0, 'rgba(240, 224, 189, .78)');
+      warm.addColorStop(0.2, 'rgba(181, 152, 102, .46)');
+      warm.addColorStop(0.58, 'rgba(101, 82, 56, .16)');
       warm.addColorStop(1, 'rgba(45, 20, 8, 0)');
       rawContext.fillStyle = warm;
       rawContext.fillRect(0, 0, width, height);
@@ -237,7 +237,7 @@
       rawContext.save();
       rawContext.translate(width * 0.54, height * 0.72);
       rawContext.rotate(0.62);
-      rawContext.fillStyle = 'rgba(202, 230, 255, 0.72)';
+      rawContext.fillStyle = 'rgba(204, 218, 228, 0.52)';
       rawContext.fillRect(-width, -3, width * 2, 6);
       rawContext.restore();
 

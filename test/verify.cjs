@@ -254,7 +254,7 @@ function resolveBrowser() {
   check('footer: customs link', await page.locator('[data-nav="/customs"]').count() >= 1);
   check('footer: insurance & contracts & partnership links', await page.locator('[data-nav="/insurance"]').count() + await page.locator('[data-nav="/contracts"]').count() + await page.locator('footer a[href^="mailto:"]').count() === 3);
   /* 版本规则：每次推送 +0.01（用户 2026-10-07 定） */
-  check('footer: version v1.330 shown', /v1\.330/.test(await page.locator('.version-line').textContent()));
+  check('footer: version v1.340 shown', /v1\.340/.test(await page.locator('.version-line').textContent()));
   check('footer: new trade tool links', await page.locator('[data-nav="/export"]').count() >= 1 && await page.locator('[data-nav="/logistics"]').count() >= 1 && await page.locator('[data-nav="/compliance"]').count() >= 1 && await page.locator('[data-nav="/disputes"]').count() >= 1);
   check('footer: feedback link', await page.locator('[data-nav="/feedback"]').count() >= 1);
 
@@ -772,6 +772,16 @@ function resolveBrowser() {
   });
   check('seller: reflective card uses WebGL2', reflective.canvas && reflective.webgl2 && reflective.mounted && reflective.ready);
   check('seller: reflective card shows member serial', /^\d{4} \d{4} \d{4}$/.test(reflective.serial));
+  const thickness = await page.evaluate(() => {
+    const sides = Array.from(document.querySelectorAll('.metal-card-side'));
+    const top = document.querySelector('.metal-card-side-top');
+    return {
+      count: sides.length,
+      depth: top ? parseFloat(getComputedStyle(top).height) : 0,
+      transformed: sides.every(side => getComputedStyle(side).transform !== 'none')
+    };
+  });
+  check('seller: card has four physical edge faces', thickness.count === 4 && thickness.depth >= 6 && thickness.transformed);
   check('seller: card defaults to static high-quality view', reflective.mode === 'static'
     && await page.locator('[data-action="card-view-mode"]').count() === 2);
   const stillOne = await page.evaluate(() => window.__activeReflectiveCard.getState());
@@ -810,6 +820,15 @@ function resolveBrowser() {
   await page.waitForTimeout(650);
   const flipT = await page.locator('#card3dInner').getAttribute('style');
   check('seller: card flips to back view', /rotateY\((?:1[5-8]\d|170)/.test(flipT || ''));
+  const backDesign = await page.evaluate(() => {
+    const image = document.querySelector('.premium-card-back .pcb-emblem img');
+    return {
+      monogram: (document.querySelector('.premium-card-back .pcb-monogram') || {}).textContent || '',
+      mascotLoaded: !!(image && image.complete && image.naturalWidth > 0),
+      hasLegacyQr: !!document.querySelector('.premium-card-back .cb-qr')
+    };
+  });
+  check('seller: card back has BBM and hamster emblem only', backDesign.monogram === 'BBM' && backDesign.mascotLoaded && !backDesign.hasLegacyQr);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(300);
   const mobileCard = await page.evaluate(() => {
@@ -1162,7 +1181,7 @@ function resolveBrowser() {
     watFooter: Array.from(document.querySelectorAll('footer a, footer button')).some(a => /whatsapp/i.test(a.textContent || '')),
     assetVer: (document.querySelector('script[src*="app-pages.js"]') || {}).getAttribute ? document.querySelector('script[src*="app-pages.js"]').getAttribute('src') : ''
   }));
-  check('页脚版本号是 v1.330', /v1\.330/.test(shell.version), shell.version.trim());
+  check('页脚版本号是 v1.340', /v1\.340/.test(shell.version), shell.version.trim());
   check('页脚不再有 WhatsApp 入口（关于我们里仍保留）', shell.watFooter === false, 'footerHasWhatsapp=' + shell.watFooter);
 
   await page.evaluate(() => { location.hash = '#/insurance'; });
